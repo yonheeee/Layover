@@ -1,0 +1,81 @@
+/* ===== PlaceDetailView ===== */
+.place-wrap {
+  background: linear-gradient(155deg, #E8F8F5 0%, #ffffff 50%, #f0faf8 100%);
+  min-height: calc(100vh - 64px);
+}
+
+.place-image-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  height: 200px;
+  margin-bottom: 16px;
+}
+
+.place-image-main {
+  grid-column: span 2;
+  grid-row: span 2;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.place-image-thumb {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.place-info-card {
+  background: #fff;
+  border: 1.5px solid rgba(178, 228, 220, 0.35);
+  box-shadow: 0 4px 24px rgba(26, 46, 43, 0.08);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.place-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #E8F8F5;
+  color: #3db89e;
+}
+
+.place-info-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.88rem;
+  color: #374151;
+}
+
+.place-section-card {
+  background: #fff;
+  border: 1.5px solid rgba(178, 228, 220, 0.35);
+  box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
+  border-radius: 20px;
+  padding: 24px;
+}
+
+.place-map-placeholder {
+  height: 200px;
+  background: #f0faf8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nearby-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(178, 228, 220, 0.35);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.nearby-card:hover {
+  background: #f9fafb;
+}

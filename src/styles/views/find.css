@@ -1,0 +1,50 @@
+/* ===== Find pages: FindIdView, FindPasswordView ===== */
+.find-wrap {
+  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  background: linear-gradient(155deg, #E8F8F5 0%, #ffffff 60%, #f0faf8 100%);
+}
+
+.find-card {
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(26, 46, 43, 0.1), 0 4px 16px rgba(178, 228, 220, 0.3);
+}
+
+.find-result-box {
+  padding: 16px 24px;
+  border-radius: 16px;
+  background: #E8F8F5;
+  border: 1.5px solid rgba(178, 228, 220, 0.6);
+  text-align: center;
+}
+
+.find-result-id {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #1a2e2b;
+}
+
+.find-success-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #E8F8F5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pw-match-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #3db89e;
+}

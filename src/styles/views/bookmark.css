@@ -1,0 +1,57 @@
+/* ===== BookmarkView ===== */
+.bookmark-wrap {
+  background: linear-gradient(155deg, #E8F8F5 0%, #ffffff 50%, #f0faf8 100%);
+  min-height: calc(100vh - 64px);
+}
+
+.bookmark-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 0;
+  gap: 16px;
+}
+
+.bookmark-item {
+  background: #fff;
+  border: 1.5px solid rgba(178, 228, 220, 0.35);
+  box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  transition: box-shadow 0.2s;
+}
+
+.bookmark-item:hover {
+  box-shadow: 0 4px 20px rgba(26, 46, 43, 0.09);
+}
+
+.bookmark-img-area {
+  width: 96px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0faf8;
+  border-right: 1px solid rgba(178, 228, 220, 0.3);
+}
+
+.bookmark-delete-btn {
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(178, 228, 220, 0.3);
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  transition: background 0.15s;
+}
+
+.bookmark-delete-btn:hover {
+  background: #fef2f2;
+}
