@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import {
   MapPin,
   Clock,
@@ -17,150 +17,18 @@ import {
   Unlock,
   RefreshCw,
 } from "lucide-vue-next";
+import type { Course, CourseStop } from "@/types/course";
+import { fetchResultCourses, fetchMockSearch } from "@/api/courses";
 
-// 1. 타입 정의 확장
-interface Place {
-  id: number;
-  name: string;
-  category: string;
-  isOpen: boolean;
-  stayTime: string; // 체류 예상 시간
-  waitingTime?: string; // 예상 대기 시간
-  isLocked: boolean; // 🌟 장소 고정 여부 (자물쇠)
-  transport?: "walk" | "taxi" | "bus";
-  transportTime?: string;
-  taxiFare?: string; // 택시 예상 요금
-}
+const courses = ref<Course[]>([]);
 
-interface Course {
-  id: number;
-  title: string;
-  subTitle: string;
-  totalTime: string;
-  estimatedCost: string;
-  places: Place[];
-}
-
-// 2. AI가 추천한 3가지 코스 더미 데이터 (현재 스케줄 2개 + 시간 연장 제안 1개)
-const courses = ref<Course[]>([
-  {
-    id: 1,
-    title: "현재 스케줄 A",
-    subTitle: "빵돌이 콤팩트 코스",
-    totalTime: "약 2시간",
-    estimatedCost: "약 12,000원",
-    places: [
-      {
-        id: 1,
-        name: "성심당 본점",
-        category: "🍞 맛집/빵집",
-        isOpen: true,
-        stayTime: "40분",
-        waitingTime: "20분",
-        isLocked: false,
-        transport: "walk",
-        transportTime: "5분",
-      },
-      {
-        id: 2,
-        name: "중앙시장",
-        category: "🍜 맛집/빵집",
-        isOpen: true,
-        stayTime: "50분",
-        isLocked: false,
-        transport: "taxi",
-        transportTime: "10분",
-        taxiFare: "4,500원",
-      },
-      {
-        id: 3,
-        name: "대전역 광장",
-        category: "🏛 관광명소",
-        isOpen: true,
-        stayTime: "15분",
-        isLocked: false,
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: "현재 스케줄 B",
-    subTitle: "도심 속 초록 힐링 코스",
-    totalTime: "약 2시간 15분",
-    estimatedCost: "약 6,000원",
-    places: [
-      {
-        id: 2,
-        name: "한밭수목원",
-        category: "🌿 관광명소",
-        isOpen: true,
-        stayTime: "1시간",
-        isLocked: false,
-        transport: "walk",
-        transportTime: "3px",
-      },
-      {
-        id: 7,
-        name: "이응노 미술관",
-        category: "🎨 문화/예술",
-        isOpen: true,
-        stayTime: "45분",
-        isLocked: false,
-        transport: "taxi",
-        transportTime: "12분",
-        taxiFare: "5,500원",
-      },
-      {
-        id: 3,
-        name: "대전역",
-        category: "🏛 관광명소",
-        isOpen: true,
-        stayTime: "10분",
-        isLocked: false,
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: "+1시간 추천 C",
-    subTitle: "기차 미루고 대전 완전정복",
-    totalTime: "약 3시간 30분",
-    estimatedCost: "약 22,000원",
-    places: [
-      {
-        id: 1,
-        name: "성심당 본점",
-        category: "🍞 맛집/빵집",
-        isOpen: true,
-        stayTime: "40분",
-        waitingTime: "20분",
-        isLocked: false,
-        transport: "taxi",
-        transportTime: "15분",
-        taxiFare: "6,800원",
-      },
-      {
-        id: 4,
-        name: "소제동 카페거리",
-        category: "☕ 카페",
-        isOpen: true,
-        stayTime: "1시간",
-        isLocked: false,
-        transport: "taxi",
-        transportTime: "10分",
-        taxiFare: "4,800원",
-      },
-      {
-        id: 2,
-        name: "한밭수목원",
-        category: "🌿 관광명소",
-        isOpen: true,
-        stayTime: "50분",
-        isLocked: false,
-      },
-    ],
-  },
-]);
+onMounted(async () => {
+  [courses.value, allMockSearch.value] = await Promise.all([
+    fetchResultCourses(),
+    fetchMockSearch(),
+  ]);
+  searchResults.value = allMockSearch.value;
+});
 
 // 현재 선택된 코스 탭 인덱스
 const activeTab = ref(0);
@@ -180,14 +48,8 @@ const isRegenerating = ref(false); // AI 재추천 로딩 상태
 const showAddModal = ref(false);
 const searchKeyword = ref("");
 
-// 검색용 더미 리스트
-const MOCK_SEARCH: Omit<Place, "stayTime" | "isLocked">[] = [
-  { id: 10, name: "테미오래", category: "🏛 문화/예술", isOpen: false },
-  { id: 11, name: "보문산공원", category: "🌿 관광명소", isOpen: true },
-  { id: 12, name: "으능정이 거리", category: "🛍 쇼핑/거리", isOpen: true },
-  { id: 13, name: "대청호 오백리길", category: "🌿 관광명소", isOpen: true },
-];
-const searchResults = ref(MOCK_SEARCH);
+const allMockSearch = ref<Omit<CourseStop, "stayTime" | "isLocked">[]>([]);
+const searchResults = ref<Omit<CourseStop, "stayTime" | "isLocked">[]>([]);
 
 // 자물쇠 고정 토글 함수
 function toggleLock(idx: number) {
@@ -206,7 +68,7 @@ async function handleAiRegenerate() {
 
     // 풀려있는 장소는 모킹 데이터에서 무작위로 하나 매핑 (실제로는 백엔드 AI 결과가 올 자리)
     const randomSeed =
-      MOCK_SEARCH[Math.floor(Math.random() * MOCK_SEARCH.length)];
+      allMockSearch.value[Math.floor(Math.random() * allMockSearch.value.length)];
     return {
       ...randomSeed,
       stayTime: "45분",
@@ -214,7 +76,7 @@ async function handleAiRegenerate() {
       transport: "taxi",
       transportTime: "8분",
       taxiFare: "4,000원",
-    } as Place;
+    } as CourseStop;
   });
 
   isRegenerating.value = false;
@@ -223,12 +85,12 @@ async function handleAiRegenerate() {
 // 장소 편집 기능들
 function openAddModal() {
   searchKeyword.value = "";
-  searchResults.value = MOCK_SEARCH;
+  searchResults.value = allMockSearch.value;
   showAddModal.value = true;
 }
 
 function handleSearch() {
-  searchResults.value = MOCK_SEARCH.filter(
+  searchResults.value = allMockSearch.value.filter(
     (p) => p.name.includes(searchKeyword.value) || searchKeyword.value === "",
   );
 }
