@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import {
   Camera,
@@ -11,9 +11,6 @@ import {
   Heart,
   MapPin,
   Clock,
-  Coffee,
-  Trees,
-  Utensils,
   Eye,
   EyeOff,
   LogOut,
@@ -22,31 +19,22 @@ import {
   Lock,
   Trash2,
 } from "lucide-vue-next";
+import type { User as UserType, Journal, MyCourse, LikedPlace, Character, MapPin as MapPinType, UserPhoto } from "@/types/user";
+import { fetchUser, fetchJournals, fetchUserActivity, fetchCharacters, fetchPostcardData } from "@/api/user";
 
 const router = useRouter();
 type Tab = "activity" | "info" | "postcard";
 const activeTab = ref<Tab>("activity");
 
-interface User {
-  nickname: string;
-  email: string;
-  statusMessage: string;
-  profileImage: string | null;
-  level: number;
-  xp: number;
-  xpForNext: number;
-  stampCount: number;
-}
-
-const user = ref<User>({
-  nickname: "홍길동",
-  email: "hong@example.com",
-  statusMessage: "대전 환승 여행 중! 🥖",
-  profileImage: null as string | null,
-  level: 13,
-  xp: 750,
-  xpForNext: 1000,
-  stampCount: 7,
+const user = ref<UserType>({
+  nickname: "",
+  email: "",
+  statusMessage: "",
+  profileImage: null,
+  level: 0,
+  xp: 0,
+  xpForNext: 1,
+  stampCount: 0,
 });
 
 const xpPercent = computed(() =>
@@ -74,8 +62,27 @@ const saveStatus = () => {
   isEditing.value = false;
 };
 
+onMounted(async () => {
+  const [fetchedUser, fetchedJournals, activity, fetchedCharacters, postcardData] =
+    await Promise.all([
+      fetchUser(),
+      fetchJournals(),
+      fetchUserActivity(),
+      fetchCharacters(),
+      fetchPostcardData(),
+    ]);
+  user.value = fetchedUser;
+  editName.value = fetchedUser.nickname;
+  journals.value = fetchedJournals;
+  myCourses.value = activity.myCourses;
+  likedPlaces.value = activity.likedPlaces;
+  characters.value = fetchedCharacters;
+  mapPins.value = postcardData.mapPins;
+  userPhotos.value = postcardData.userPhotos;
+});
+
 // 내 정보 탭 로직
-const editName = ref(user.value.nickname);
+const editName = ref("");
 const currentPw = ref("");
 const newPw = ref("");
 const newPwConfirm = ref("");
@@ -105,57 +112,11 @@ const showDeleteDialog = ref(false);
 const isPwEditing = ref(false);
 const loginType = ref("이메일 로그인");
 
-// 엽서 - 스탬프 지도용 핀 데이터 (추후 활동 탭 일지 ID 연동을 고려한 설계)
-const mapPins = ref([
-  {
-    id: 1,
-    location: "성심당 본점",
-    journalTitle: "성심당 빵지순례 투어",
-    visitDate: "2026년 12월 03일",
-    url: "https://images.unsplash.com/photo-1509042239860-f550ce710b93",
-  },
-  {
-    id: 2,
-    location: "한밭수목원",
-    journalTitle: "주말 힐링 산책 코스",
-    visitDate: "2026년 01월 21일",
-    url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c",
-  },
-]);
+// 엽서 - 스탬프 지도용 핀 데이터
+const mapPins = ref<MapPinType[]>([]);
 
 // 엽서 - 사진
-const userPhotos = ref([
-  {
-    id: 1,
-    url: "https://images.unsplash.com/photo-1509042239860-f550ce710b93",
-    location: "성심당 본점",
-  },
-  {
-    id: 2,
-    url: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c",
-    location: "한밭수목원",
-  },
-  {
-    id: 3,
-    url: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38",
-    location: "중앙시장",
-  },
-  {
-    id: 4,
-    url: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
-    location: "대흥동 카페거리",
-  },
-  {
-    id: 5,
-    url: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b",
-    location: "식장산 야경",
-  },
-  {
-    id: 6,
-    url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
-    location: "대청호 오백리길",
-  },
-]);
+const userPhotos = ref<UserPhoto[]>([]);
 
 const activePhotoModal = ref<string | null>(null);
 const activeMapPopup = ref<(typeof mapPins.value)[0] | null>(null);
@@ -187,110 +148,10 @@ async function changePw() {
 }
 
 // 활동 탭 데이터
-const journals = [
-  {
-    date: "12월 03일",
-    icon: Coffee,
-    title: "성심당 투어",
-    count: 3,
-    bg: "#FEF3C7",
-    iconColor: "#D97706",
-  },
-  {
-    date: "1월 21일",
-    icon: Trees,
-    title: "산책 코스",
-    count: 2,
-    bg: "#D1FAE5",
-    iconColor: "#059669",
-  },
-  {
-    date: "1월 08일",
-    icon: Utensils,
-    title: "시장 맛집",
-    count: 4,
-    bg: "#FCE7F3",
-    iconColor: "#DB2777",
-  },
-];
-
-const myCourses = [
-  {
-    id: 1,
-    title: "성심당 → 한밭수목원",
-    rating: 4.5,
-    badge: "방문완료",
-    badgeStyle: "background:#D1FAE5;color:#065F46",
-    placeCount: 2,
-    duration: "3시간",
-  },
-  {
-    id: 2,
-    title: "중앙시장 → 지림미술관",
-    rating: 4.0,
-    badge: "분류미정",
-    badgeStyle: "background:#F3F4F6;color:#6B7280",
-    placeCount: 2,
-    duration: "2시간 30분",
-  },
-];
-
-const likedPlaces = [
-  { id: 1, name: "성심당", emoji: "🍞", category: "음식" },
-  { id: 2, name: "한밭수목원", emoji: "🌿", category: "자연" },
-  { id: 3, name: "중앙시장", emoji: "🏪", category: "음식" },
-];
-
-const characters = [
-  {
-    id: 1,
-    name: "꿈돌이 베이직",
-    emoji: "🌟",
-    unlocked: true,
-    description: "가장 기본적이고 귀여운 대전의 마스코트 꿈돌이입니다.",
-    poses: ["🌟", "✨", "🎵"],
-  },
-  {
-    id: 2,
-    name: "꿈돌이 탐험가",
-    emoji: "🗺️",
-    unlocked: true,
-    description: "대전 방방곳곳을 탐험하며 기록을 남기는 탐험가 꿈돌이입니다.",
-    poses: ["🗺️", "🧭", "🎒"],
-  },
-  {
-    id: 3,
-    name: "꿈돌이 미식가",
-    emoji: "🍞",
-    unlocked: true,
-    description: "빵과 맛있는 음식을 사랑하는 대전 최고의 미식가 꿈돌이입니다.",
-    poses: ["🍞", "🍕", "🍰"],
-  },
-  {
-    id: 4,
-    name: "꿈돌이 문화인",
-    emoji: "🎭",
-    unlocked: false,
-    description: "미술관과 전시회를 즐겨 찾는 감성 가득한 문화인 꿈돌이입니다.",
-    poses: ["🎭"],
-  },
-  {
-    id: 5,
-    name: "꿈돌이 자연인",
-    emoji: "🌿",
-    unlocked: false,
-    description: "수목원과 대청호의 맑은 공기를 좋아하는 자연인 꿈돌이입니다.",
-    poses: ["🌿"],
-  },
-  {
-    id: 6,
-    name: "꿈돌이 대전왕",
-    emoji: "👑",
-    unlocked: false,
-    description: "모든 코스를 섭렵한 진정한 대전의 끝판왕 꿈돌이입니다.",
-    poses: ["👑"],
-  },
-];
+const journals = ref<Journal[]>([]);
+const myCourses = ref<MyCourse[]>([]);
+const likedPlaces = ref<LikedPlace[]>([]);
+const characters = ref<Character[]>([]);
 
 const showLogout = ref(false);
 
