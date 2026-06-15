@@ -9,98 +9,15 @@ import {
   Image as ImageIcon,
   Footprints,
 } from "lucide-vue-next";
+import { allPlacesDatabase } from "@/mocks/places";
 
 // 💡 1. 부모(PlaceDetailView)가 넘겨주는 :id를 받도록 규격을 통일합니다.
 const props = defineProps<{
   id: number | null;
 }>();
 
-// 💡 2. 대전 전체 관광지 상세 데이터 저장소 (실제로는 API나 Store에서 가져올 데이터셋)
-const ALL_PLACES_DATABASE = [
-  {
-    id: 1,
-    name: "성심당 본점",
-    category: "맛집/빵집",
-    tags: ["베이커리", "대전 명물", "튀김소보로"],
-    rating: 4.8,
-    reviewCount: 2453,
-    isOpen: true,
-    hours: "08:00 ~ 22:00",
-    address: "대전 중구 대종로480번길 15",
-    phone: "042-256-4314",
-    distance: "도보 10분 (450m)",
-    image:
-      "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=500&q=80",
-    description:
-      "1956년에 창업한 대전의 대표 빵집입니다. 대전을 방문하면 반드시 들러야 하는 명소로, 튀김소보로, 판타롱슈크림빵 등 다양한 명물 빵들이 가득합니다.",
-    liked: false,
-    nearbyPlaces: [
-      { id: 3, name: "중앙시장", category: "맛집/빵집", distance: "도보 5분" },
-      {
-        id: 4,
-        name: "소제동 카페거리",
-        category: "카페",
-        distance: "택시 7분",
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "한밭수목원",
-    category: "관광명소",
-    tags: ["자연", "힐링명소", "산책코스"],
-    rating: 4.6,
-    reviewCount: 892,
-    isOpen: true,
-    hours: "06:00 ~ 21:00",
-    address: "대전 서구 만년동 396",
-    phone: "042-270-8452",
-    distance: "버스 20분",
-    image:
-      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
-    description:
-      "도심 속 녹색 쉼터이자 정부대전청사와 엑스포과학공원의 중앙에 위치한 대한민국 최대 규모의 도심 수목원입니다. 사계절 아름다운 인공수목원을 감상할 수 있습니다.",
-    liked: false,
-    nearbyPlaces: [
-      {
-        id: 5,
-        name: "이응노미술관",
-        category: "문화/예술",
-        distance: "도보 3분",
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "중앙시장",
-    category: "맛집/빵집",
-    tags: ["전통시장", "먹거리", "대전역근처"],
-    rating: 4.3,
-    reviewCount: 412,
-    isOpen: true,
-    hours: "09:00 ~ 22:00",
-    address: "대전 동구 중앙로 200-1",
-    phone: "042-226-0319",
-    distance: "도보 5분",
-    image:
-      "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=500&q=80",
-    description:
-      "대전역 바로 앞에 위치한 중부권 최대 규모의 전통 재래시장입니다. 다양한 로컬 주전부리와 먹자골목이 발달해 있어 가벼운 레이오버 여행에 제격입니다.",
-    liked: false,
-    nearbyPlaces: [
-      {
-        id: 1,
-        name: "성심당 본점",
-        category: "맛집/빵집",
-        distance: "도보 5분",
-      },
-    ],
-  },
-  // 💡 나머지 4, 5, 6번 장소들도 이 규격에 맞춰 데이터를 넣어두시면 완벽하게 연동됩니다!
-];
-
 // 화면 템플릿이 바라보는 반응형 변수
-const place = ref<any>({ ...ALL_PLACES_DATABASE[0] });
+const place = ref<any>({ ...allPlacesDatabase[0] });
 
 // 💡 3. 부모가 넘겨준 props.id 값이 바뀔 때마다 감시(watch)해서 알맞은 장소 정보를 바인딩합니다.
 watch(
@@ -108,7 +25,7 @@ watch(
   (newId) => {
     if (newId) {
       // 데이터베이스에서 내가 클릭한 카드의 id와 일치하는 장소를 서치합니다.
-      const targetPlace = ALL_PLACES_DATABASE.find((p) => p.id === newId);
+      const targetPlace = allPlacesDatabase.find((p) => p.id === newId);
       if (targetPlace) {
         place.value = { ...targetPlace };
       }
