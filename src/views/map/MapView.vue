@@ -19,6 +19,8 @@ import {
   Lock,
   Unlock,
 } from "lucide-vue-next";
+import type { Course, DiPlace } from "@/types/course";
+import { fetchMapCourses, fetchDiPlaces } from "@/api/courses";
 
 // 카카오 지도 객체 타입 정의
 declare global {
@@ -27,231 +29,7 @@ declare global {
   }
 }
 
-interface TransportInfo {
-  walkTime: string;
-  busTime: string;
-  taxiTime: string;
-  taxiFare: number;
-}
-
-interface Place {
-  id: number;
-  name: string;
-  category: string;
-  isOpen: boolean;
-  stayTime: string;
-  waitingTime?: string;
-  isLocked: boolean;
-  lat: number;
-  lng: number;
-  nextTransport?: TransportInfo;
-}
-
-interface Course {
-  id: number;
-  title: string;
-  subTitle: string;
-  places: Place[];
-}
-
-const courses = ref<Course[]>([
-  {
-    id: 1,
-    title: "현재 스케줄 A",
-    subTitle: "빵돌이 콤팩트 코스",
-    places: [
-      {
-        id: 99,
-        name: "대전역 (도착)",
-        category: "🚉 출발역",
-        isOpen: true,
-        stayTime: "0분",
-        isLocked: true,
-        lat: 36.3316,
-        lng: 127.4342,
-        nextTransport: {
-          walkTime: "9분",
-          busTime: "5분",
-          taxiTime: "3분",
-          taxiFare: 4000,
-        },
-      },
-      {
-        id: 1,
-        name: "성심당 본점",
-        category: "🍞 맛집/빵집",
-        isOpen: true,
-        stayTime: "40분",
-        waitingTime: "20분",
-        isLocked: true,
-        lat: 36.3277,
-        lng: 127.4273,
-        nextTransport: {
-          walkTime: "18분",
-          busTime: "10분",
-          taxiTime: "5분",
-          taxiFare: 4500,
-        },
-      }, // 기본 잠금 예시
-      {
-        id: 2,
-        name: "중앙시장",
-        category: "🍜 맛집/빵집",
-        isOpen: true,
-        stayTime: "50분",
-        isLocked: false,
-        lat: 36.3294,
-        lng: 127.4334,
-        nextTransport: {
-          walkTime: "8분",
-          busTime: "4분",
-          taxiTime: "2분",
-          taxiFare: 3500,
-        },
-      },
-      {
-        id: 100,
-        name: "대전역 (출발)",
-        category: "🚉 도착역",
-        isOpen: true,
-        stayTime: "0분",
-        isLocked: true,
-        lat: 36.3316,
-        lng: 127.4342,
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: "현재 스케줄 B",
-    subTitle: "도심 속 초록 힐링 코스",
-    places: [
-      {
-        id: 99,
-        name: "대전역 (도착)",
-        category: "🚉 출발역",
-        isOpen: true,
-        stayTime: "0분",
-        isLocked: true,
-        lat: 36.3316,
-        lng: 127.4342,
-        nextTransport: {
-          walkTime: "1시간 이상",
-          busTime: "25분",
-          taxiTime: "15분",
-          taxiFare: 7200,
-        },
-      },
-      {
-        id: 5,
-        name: "한밭수목원",
-        category: "🌿 관광명소",
-        isOpen: true,
-        stayTime: "1시간",
-        isLocked: true,
-        lat: 36.3688,
-        lng: 127.3885,
-        nextTransport: {
-          walkTime: "5분",
-          busTime: "6분",
-          taxiTime: "3분",
-          taxiFare: 4000,
-        },
-      },
-      {
-        id: 6,
-        name: "이응노 미술관",
-        category: "🎨 문화/예술",
-        isOpen: true,
-        stayTime: "45분",
-        isLocked: false,
-        lat: 36.3672,
-        lng: 127.3872,
-        nextTransport: {
-          walkTime: "1시간 이상",
-          busTime: "28분",
-          taxiTime: "16분",
-          taxiFare: 7500,
-        },
-      },
-      {
-        id: 100,
-        name: "대전역 (출발)",
-        category: "🚉 도착역",
-        isOpen: true,
-        stayTime: "0분",
-        isLocked: true,
-        lat: 36.3316,
-        lng: 127.4342,
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: "+1시간 추천 C",
-    subTitle: "기차 미루고 대전 완전정복",
-    places: [
-      {
-        id: 99,
-        name: "대전역 (도착)",
-        category: "🚉 출발역",
-        isOpen: true,
-        stayTime: "0분",
-        isLocked: true,
-        lat: 36.3316,
-        lng: 127.4342,
-        nextTransport: {
-          walkTime: "11분",
-          busTime: "7분",
-          taxiTime: "4분",
-          taxiFare: 4000,
-        },
-      },
-      {
-        id: 4,
-        name: "소제동 카페거리",
-        category: "☕ 카페",
-        isOpen: true,
-        stayTime: "1시간",
-        isLocked: false,
-        lat: 36.3352,
-        lng: 127.4378,
-        nextTransport: {
-          walkTime: "15분",
-          busTime: "9분",
-          taxiTime: "5분",
-          taxiFare: 4200,
-        },
-      },
-      {
-        id: 2,
-        name: "중앙시장",
-        category: "🍜 맛집/빵집",
-        isOpen: true,
-        stayTime: "40분",
-        isLocked: true,
-        lat: 36.3294,
-        lng: 127.4334,
-        nextTransport: {
-          walkTime: "8분",
-          busTime: "4분",
-          taxiTime: "2분",
-          taxiFare: 3500,
-        },
-      },
-      {
-        id: 100,
-        name: "대전역 (출발)",
-        category: "🚉 도착역",
-        isOpen: true,
-        stayTime: "0분",
-        isLocked: true,
-        lat: 36.3316,
-        lng: 127.4342,
-      },
-    ],
-  },
-]);
+const courses = ref<Course[]>([]);
 
 const activeTab = ref(0);
 const currentCourse = computed(() => courses.value[activeTab.value]);
@@ -294,41 +72,10 @@ const categories = [
   "🏛 문화/예술",
 ];
 
-const ALL_DI_PLACES = [
-  {
-    id: 10,
-    name: "소제동 카페거리",
-    category: "☕ 카페",
-    isOpen: true,
-    desc: "대전역 뒤편 관사를 개조한 감성 골목 카페",
-    latLng: "대전역 도보 10분",
-    lat: 36.3352,
-    lng: 127.4378,
-  },
-  {
-    id: 11,
-    name: "테미오래",
-    category: "🏛 문화/예술",
-    isOpen: false,
-    desc: "옛 충청남도 관사촌을 개조한 도심 속 문화 정원",
-    latLng: "중앙시장 택시 7분",
-    lat: 36.3205,
-    lng: 127.4191,
-  },
-  {
-    id: 12,
-    name: "보문산 전망대",
-    category: "🌿 관광명소",
-    isOpen: true,
-    desc: "대전 시내 전망이 한눈에 들어오는 야경 코스",
-    latLng: "대전역 택시 15분",
-    lat: 36.3051,
-    lng: 127.4252,
-  },
-];
+const allDiPlaces = ref<DiPlace[]>([]);
 
 const filteredSearchResults = computed(() => {
-  return ALL_DI_PLACES.filter((p) => {
+  return allDiPlaces.value.filter((p) => {
     const matchesKeyword = p.name.includes(searchKeyword.value);
     const matchesCategory =
       selectedCategory.value === "전체" ||
@@ -407,7 +154,11 @@ watch(
   { deep: true },
 );
 
-onMounted(() => {
+onMounted(async () => {
+  [courses.value, allDiPlaces.value] = await Promise.all([
+    fetchMapCourses(),
+    fetchDiPlaces(),
+  ]);
   if (!document.getElementById("kakao-map-script")) {
     const script = document.createElement("script");
     script.id = "kakao-map-script";
