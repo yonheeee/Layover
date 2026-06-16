@@ -10,28 +10,64 @@ import {
   Footprints,
 } from "lucide-vue-next";
 import { allPlacesDatabase } from "@/mocks/places";
+import type { Place } from "@/types/place";
 
-// 💡 1. 부모(PlaceDetailView)가 넘겨주는 :id를 받도록 규격을 통일합니다.
+// 두 가지 경로를 모두 지원합니다.
+//  - PlaceDetailView(라우트): :id 로 호출  → id로 상세 DB(allPlacesDatabase) 조회
+//  - HomeView(모달): :initialData 로 장소 객체를 직접 전달 → 그 데이터를 그대로 사용
+// ※ 홈 카드 데이터와 상세 DB는 id 체계가 서로 달라서, 모달 경로에서는 DB를 조회하지 않습니다.
 const props = defineProps<{
-  id: number | null;
+  id?: number | null;
+  initialData?: Place | null;
 }>();
 
-// 화면 템플릿이 바라보는 반응형 변수
-const place = ref<any>({ ...allPlacesDatabase[0] });
+// 템플릿이 참조하는 모든 필드의 안전한 기본값(빠진 필드가 있어도 안 터지도록)
+const EMPTY_PLACE = {
+  id: null,
+  name: "",
+  category: "",
+  tags: [] as string[],
+  rating: 0,
+  reviewCount: 0,
+  isOpen: false,
+  hours: "정보 없음",
+  address: "정보 없음",
+  phone: "정보 없음",
+  distance: "",
+  image: "",
+  description: "",
+  liked: false,
+  nearbyPlaces: [] as any[],
+};
 
-// 💡 3. 부모가 넘겨준 props.id 값이 바뀔 때마다 감시(watch)해서 알맞은 장소 정보를 바인딩합니다.
+// 화면 템플릿이 바라보는 반응형 변수
+const place = ref<any>({ ...EMPTY_PLACE });
+
+// 들어온 데이터를 안전한 형태로 정규화해서 place에 반영합니다.
+function applyPlace(data: any) {
+  const normalized = {
+    ...data,
+    // 홈 카드(reviews/tag)와 상세 DB(reviewCount/tags)의 필드명 차이를 보정
+    reviewCount: data.reviewCount ?? data.reviews ?? 0,
+    tags: data.tags ?? (data.tag ? [data.tag] : []),
+  };
+  place.value = { ...EMPTY_PLACE, ...normalized };
+}
+
+// id 또는 initialData가 바뀔 때마다 알맞은 장소 정보를 바인딩합니다.
 watch(
-  () => props.id,
-  (newId) => {
-    if (newId) {
-      // 데이터베이스에서 내가 클릭한 카드의 id와 일치하는 장소를 서치합니다.
-      const targetPlace = allPlacesDatabase.find((p) => p.id === newId);
-      if (targetPlace) {
-        place.value = { ...targetPlace };
-      }
+  [() => props.id, () => props.initialData],
+  () => {
+    if (props.initialData) {
+      // HomeView 모달: 넘어온 장소 데이터를 그대로 사용
+      applyPlace(props.initialData);
+    } else if (props.id != null) {
+      // PlaceDetailView 라우트: id로 상세 DB 조회
+      const target = allPlacesDatabase.find((p) => p.id === props.id);
+      if (target) applyPlace(target);
     }
   },
-  { immediate: true }, // 컴포넌트가 처음 켜질 때도 즉시 실행하도록 설정
+  { immediate: true }, // 컴포넌트가 처음 켜질 때도 즉시 실행
 );
 
 function toggleLike() {
