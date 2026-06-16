@@ -16,6 +16,7 @@ import {
 } from "lucide-vue-next";
 import PlaceDetailContent from "../place/PlaceDetailContents.vue";
 import StampEventSection from "@/components/home/StampEventSection.vue";
+import CtaBannerSection from "@/components/home/CtaBannerSection.vue";
 import type { Place } from "@/types/place";
 import type { Train as TrainType } from "@/types/train";
 import { fetchPlaces } from "@/api/places";
@@ -88,12 +89,6 @@ function handleRecommendCourse() {
   if (!checkLogin()) return;
   alert("맞춤 환승 코스를 생성합니다!");
   // 기존 코스 추천 프로세스 로직 실행 영역
-}
-
-// 🌟 [추가] 3. CTA 배너 '무료로 코스 만들기' 핸들러
-function handleCreateCourseCTA() {
-  if (!checkLogin()) return;
-  router.push("/create-course"); // 코스 생성 페이지 이동 예시
 }
 
 // 🌟 [추가] 4. 인기 코스 섹션 '이 코스로 여행 계획 세우기' 핸들러
@@ -921,59 +916,7 @@ function closeSpotModal() {
     </div>
   </section>
 
-  <section style="padding: 0 2rem 5rem; max-width: 1440px; margin: 0 auto">
-    <div
-      class="relative rounded-3xl overflow-hidden px-12 py-14 flex flex-col md:flex-row items-center justify-between gap-8"
-      style="
-        background: linear-gradient(
-          135deg,
-          #b2e4dc 0%,
-          #3db89e 55%,
-          #2aa88e 100%
-        );
-      "
-    >
-      <div
-        class="absolute inset-0 pointer-events-none"
-        style="
-          background: radial-gradient(
-            ellipse at 80% 50%,
-            rgba(255, 255, 255, 0.12),
-            transparent 60%
-          );
-        "
-      />
-      <div class="space-y-3 relative z-10">
-        <h2
-          :style="{
-            fontWeight: 700,
-            fontSize: 'clamp(1.35rem, 2.5vw, 1.75rem)',
-            color: '#ffffff',
-            lineHeight: 1.35,
-            letterSpacing: '-0.02em',
-          }"
-        >
-          지금 바로 나만의 대전<br />환승 코스를 만들어보세요!
-        </h2>
-        <p style="color: rgba(255, 255, 255, 0.85); font-size: 0.95rem">
-          무료로 시작하고, 수천 명의 여행자와 후기를 나눠보세요.
-        </p>
-      </div>
-      <button
-        @click="handleCreateCourseCTA"
-        class="relative z-10 shrink-0 px-8 py-4 rounded-2xl flex items-center gap-2 hover:opacity-95 hover:-translate-y-0.5 transition-all duration-200 border-none cursor-pointer"
-        style="
-          background: #ffffff;
-          color: #3db89e;
-          font-weight: 700;
-          font-size: 1rem;
-          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-        "
-      >
-        <Train :size="17" />무료로 코스 만들기<ChevronRight :size="15" />
-      </button>
-    </div>
-  </section>
+  <CtaBannerSection />
 
   <section style="max-width: 1440px; margin: 0 auto; padding: 0 2rem 6rem">
     <div class="flex flex-col mb-8 space-y-2">
