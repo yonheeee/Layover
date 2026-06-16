@@ -2,8 +2,10 @@
 import { ref, computed } from "vue";
 import { Mail, Lock, Eye, EyeOff, Train } from "lucide-vue-next";
 import { useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
+const auth = useAuthStore();
 const loginId = ref("");
 const loginPw = ref("");
 const showPw = ref(false);
@@ -36,15 +38,13 @@ const showPwError = computed(() => {
 });
 
 // 로그인 버튼 클릭 시 전체 검사
-const handleLogin = () => {
+const handleLogin = async () => {
   isIdTouched.value = true;
   isPwTouched.value = true;
 
   if (isIdValid.value && isPwValid.value) {
-    // 백엔드 로그인 API 호출 로직이 들어갈 자리
-    console.log("로그인 진행:", loginId.value);
-  } else {
-    console.log("유효성 검사 실패");
+    await auth.login(loginId.value, loginPw.value);
+    router.push("/");
   }
 };
 </script>

@@ -2,8 +2,10 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { Menu, X } from "lucide-vue-next";
 import { useRoute } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
+const auth = useAuthStore();
 const mobileMenuOpen = ref(false);
 const scrolled = ref(false);
 
@@ -68,23 +70,33 @@ const NAV_LINKS = [
 
         <!-- 데스크탑 CTA -->
         <div class="hidden md:flex items-center gap-3">
-          <router-link
-            to="/login"
-            class="px-4 py-2 rounded-xl text-sm"
-            style="color: #6b8c87; font-weight: 500; text-decoration: none"
-            >로그인</router-link
-          >
-          <router-link
-            to="/signup"
-            class="px-5 py-2.5 rounded-xl text-sm text-white hover:opacity-90 transition-opacity"
-            style="
-              background: linear-gradient(135deg, #b2e4dc, #3db89e);
-              font-weight: 600;
-              box-shadow: 0 4px 14px rgba(61, 184, 158, 0.3);
-              text-decoration: none;
-            "
-            >무료 시작</router-link
-          >
+          <template v-if="auth.isLoggedIn">
+            <button
+              class="px-4 py-2 rounded-xl text-sm"
+              style="color: #6b8c87; font-weight: 500; background: none; border: none; cursor: pointer"
+              @click="auth.logout()"
+              >로그아웃</button
+            >
+          </template>
+          <template v-else>
+            <router-link
+              to="/login"
+              class="px-4 py-2 rounded-xl text-sm"
+              style="color: #6b8c87; font-weight: 500; text-decoration: none"
+              >로그인</router-link
+            >
+            <router-link
+              to="/signup"
+              class="px-5 py-2.5 rounded-xl text-sm text-white hover:opacity-90 transition-opacity"
+              style="
+                background: linear-gradient(135deg, #b2e4dc, #3db89e);
+                font-weight: 600;
+                box-shadow: 0 4px 14px rgba(61, 184, 158, 0.3);
+                text-decoration: none;
+              "
+              >무료 시작</router-link
+            >
+          </template>
         </div>
 
         <!-- 모바일 햄버거 -->
@@ -123,28 +135,43 @@ const NAV_LINKS = [
       >
 
       <div class="flex gap-3 pt-3">
-        <router-link
-          to="/login"
-          class="flex-1 py-2.5 rounded-xl text-sm text-center"
-          style="
-            border: 1.5px solid rgba(178, 228, 220, 0.5);
-            color: #6b8c87;
-            text-decoration: none;
-          "
-          @click="mobileMenuOpen = false"
-          >로그인</router-link
-        >
-        <router-link
-          to="/signup"
-          class="flex-1 py-2.5 rounded-xl text-sm text-white text-center"
-          style="
-            background: linear-gradient(135deg, #b2e4dc, #3db89e);
-            text-decoration: none;
-            font-weight: 600;
-          "
-          @click="mobileMenuOpen = false"
-          >무료 시작</router-link
-        >
+        <template v-if="auth.isLoggedIn">
+          <button
+            class="flex-1 py-2.5 rounded-xl text-sm text-center"
+            style="
+              border: 1.5px solid rgba(178, 228, 220, 0.5);
+              color: #6b8c87;
+              background: none;
+              cursor: pointer;
+            "
+            @click="auth.logout(); mobileMenuOpen = false"
+            >로그아웃</button
+          >
+        </template>
+        <template v-else>
+          <router-link
+            to="/login"
+            class="flex-1 py-2.5 rounded-xl text-sm text-center"
+            style="
+              border: 1.5px solid rgba(178, 228, 220, 0.5);
+              color: #6b8c87;
+              text-decoration: none;
+            "
+            @click="mobileMenuOpen = false"
+            >로그인</router-link
+          >
+          <router-link
+            to="/signup"
+            class="flex-1 py-2.5 rounded-xl text-sm text-white text-center"
+            style="
+              background: linear-gradient(135deg, #b2e4dc, #3db89e);
+              text-decoration: none;
+              font-weight: 600;
+            "
+            @click="mobileMenuOpen = false"
+            >무료 시작</router-link
+          >
+        </template>
       </div>
     </div>
   </nav>

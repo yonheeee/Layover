@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router"; // 🌟 [추가] 로그인 페이지 이동을 위한 라우터 주입
+import { useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 import {
   MapPin,
   Clock,
@@ -19,15 +20,13 @@ import type { Train as TrainType } from "@/types/train";
 import { fetchPlaces } from "@/api/places";
 import { fetchTrains } from "@/api/trains";
 
-const router = useRouter(); // 🌟 [추가] 라우터 인스턴스 생성
+const router = useRouter();
+const auth = useAuthStore();
 
-// 🌟 [추가] 로그인 상태를 체크하는 헬퍼 함수
-// (실제 프로젝트 구조에 따라 localStorage, Pinia 상태 등으로 대체하셔도 됩니다.)
 function checkLogin(): boolean {
-  const token = localStorage.getItem("token"); // 예시: 토큰 존재 여부 확인
-  if (!token) {
+  if (!auth.isLoggedIn) {
     alert("로그인이 필요한 서비스입니다. 로그인 페이지로 이동합니다.");
-    router.push("/login"); // 로그인 뷰의 라우터 경로에 맞게 수정하세요.
+    router.push("/login");
     return false;
   }
   return true;
