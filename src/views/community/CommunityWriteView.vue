@@ -1,356 +1,517 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { X, Image as ImageIcon, ChevronRight, MapPin, Clock, Footprints, Car, RefreshCw, Loader } from 'lucide-vue-next'
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import {
+  ArrowLeft,
+  MapPin,
+  Clock,
+  Footprints,
+  Car,
+  Image as ImageIcon,
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  X,
+  Train,
+  Utensils,
+  Coffee,
+  Palmtree,
+  Theater,
+} from "lucide-vue-next";
 
-const router = useRouter()
+const router = useRouter();
 
-// 제목
-const title = ref('')
-const MAX_TITLE = 50
+// ─── [폼 입력 데이터 상태] ───
+const title = ref("");
+const selectedCategory = ref("공유해요");
+const categories = ["공유해요", "궁금해요", "함께해요", "자유"];
 
-// 선택된 코스
-interface Place { name: string; category: string; transport?: string; time?: string }
-interface Course { id: number; station: string; duration: string; date: string; places: Place[] }
+// 팝업 모달 제어 상태
+const isCourseModalOpen = ref(false);
+// 기존: const connectedCourse = ref<any>(null);
+// 변경:
+const connectedCourse = ref<{
+  station: string;
+  duration: string;
+  items: { name: string; category: string; transport: string; time: string }[];
+} | null>(null);
 
-const selectedCourse = ref<Course | null>(null)
-
-// 후기 텍스트
-const reviewText = ref('')
-const MIN_REVIEW = 10
-const MAX_REVIEW = 500
-
-// 이미지
-const images = ref<{ url: string; file: File }[]>([])
-const fileInput = ref<HTMLInputElement | null>(null)
-
-// 코스 불러오기 모달
-const showCourseModal = ref(false)
-
-const mockCourses: Course[] = [
+// 저장한 코스 목록 데이터
+const mySavedCourses = ref([
   {
-    id: 1,
-    station: '대전역',
-    duration: '3시간 30분',
-    date: '2025.05.28',
-    places: [
-      { name: '성심당', category: '음식', transport: '도보', time: '5분' },
-      { name: '테미오래', category: '문화', transport: '택시', time: '10분' },
-      { name: '한밭수목원', category: '자연', transport: '도보', time: '15분' },
+    id: 101,
+    station: "대전역",
+    duration: "3시간 30분",
+    items: [
+      { name: "성심당 본점", category: "음식", transport: "도보", time: "5분" },
+      { name: "테미오래", category: "문화", transport: "택시", time: "10분" },
+      { name: "한밭수목원", category: "자연", transport: "도보", time: "15분" },
     ],
   },
   {
-    id: 2,
-    station: '대전역',
-    duration: '2시간',
-    date: '2025.05.15',
-    places: [
-      { name: '성심당', category: '음식', transport: '도보', time: '5분' },
-      { name: '중앙시장', category: '음식', transport: '도보', time: '8분' },
+    id: 102,
+    station: "서대전역",
+    duration: "2시간",
+    items: [
+      {
+        name: "오정동 칼국수",
+        category: "음식",
+        transport: "도보",
+        time: "10분",
+      },
+      {
+        name: "예쁜 개인카페",
+        category: "카페",
+        transport: "도보",
+        time: "5분",
+      },
     ],
   },
   {
-    id: 3,
-    station: '서대전역',
-    duration: '4시간',
-    date: '2025.04.20',
-    places: [
-      { name: '국립중앙과학관', category: '문화', transport: '택시', time: '12분' },
-      { name: '엑스포과학공원', category: '투어', transport: '도보', time: '5분' },
-      { name: '성심당', category: '음식', transport: '택시', time: '15분' },
+    id: 103,
+    station: "대전역",
+    duration: "1시간 30분",
+    items: [
+      {
+        name: "소제동 카페거리",
+        category: "카페",
+        transport: "도보",
+        time: "7분",
+      },
     ],
   },
-]
+]);
 
-function selectCourse(course: Course) {
-  selectedCourse.value = course
-  showCourseModal.value = false
+// ─── [블록 에디터 구조] ───
+interface TextBlock {
+  id: number;
+  type: "text";
+  value: string;
+}
+interface ImageBlock {
+  id: number;
+  type: "image";
+  value: string;
+  file: File | null;
+}
+type EditorBlock = TextBlock | ImageBlock;
+
+const blocks = ref<EditorBlock[]>([
+  { id: Date.now(), type: "text", value: "" },
+]);
+
+function addTextBlock(index: number) {
+  blocks.value.splice(index + 1, 0, {
+    id: Date.now(),
+    type: "text",
+    value: "",
+  });
 }
 
-// 이미지 업로드
-function onImageChange(e: Event) {
-  const files = (e.target as HTMLInputElement).files
-  if (!files) return
-  for (const file of Array.from(files)) {
-    if (images.value.length >= 3) break
-    const url = URL.createObjectURL(file)
-    images.value.push({ url, file })
+function triggerImageBlock(index: number) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.onchange = (e) => {
+    const target = e.target as HTMLInputElement;
+    if (target.files && target.files[0]) {
+      const file = target.files[0];
+      const url = URL.createObjectURL(file);
+      blocks.value.splice(index + 1, 0, {
+        id: Date.now(),
+        type: "image",
+        value: url,
+        file: file,
+      });
+    }
+  };
+  input.click();
+}
+
+function deleteBlock(index: number) {
+  if (blocks.value.length === 1 && blocks.value[0].type === "text") {
+    blocks.value[0].value = "";
+    return;
   }
-  if (fileInput.value) fileInput.value.value = ''
+  blocks.value.splice(index, 1);
 }
 
-function removeImage(i: number) {
-  URL.revokeObjectURL(images.value[i].url)
-  images.value.splice(i, 1)
+function moveBlock(index: number, direction: "up" | "down") {
+  if (direction === "up" && index === 0) return;
+  if (direction === "down" && index === blocks.value.length - 1) return;
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  const temp = blocks.value[index];
+  blocks.value[index] = blocks.value[targetIndex];
+  blocks.value[targetIndex] = temp;
 }
 
-// 제출 가능 여부
-const canSubmit = computed(
-  () => title.value.trim().length > 0 && selectedCourse.value !== null && reviewText.value.trim().length >= MIN_REVIEW
-)
-
-const submitting = ref(false)
-async function submit() {
-  if (!canSubmit.value || submitting.value) return
-  submitting.value = true
-  await new Promise(r => setTimeout(r, 1200))
-  submitting.value = false
-  router.push('/community')
+function selectCourse(course: any) {
+  connectedCourse.value = course;
+  isCourseModalOpen.value = false;
 }
 
-// 취소 확인 다이얼로그
-const showCancelDialog = ref(false)
-function tryCancel() {
-  const dirty = title.value || selectedCourse.value || reviewText.value || images.value.length > 0
-  if (dirty) showCancelDialog.value = true
-  else router.back()
-}
-function confirmCancel() {
-  showCancelDialog.value = false
-  router.back()
+function handleCancel() {
+  if (confirm("내용이 전부 삭제됩니다. 정말 취소하고 목록으로 가시겠습니까?")) {
+    router.back();
+  }
 }
 
-const categoryColor: Record<string, string> = {
-  '음식': 'background:#FEF3C7;color:#92400E',
-  '카페': 'background:#E0E7FF;color:#3730A3',
-  '자연': 'background:#D1FAE5;color:#065F46',
-  '문화': 'background:#FCE7F3;color:#9D174D',
-  '투어': 'background:#DBEAFE;color:#1E40AF',
+function handleRegister() {
+  if (!title.value.trim()) {
+    alert("제목을 입력해주세요.");
+    return;
+  }
+  alert("게시글이 성공적으로 등록되었습니다!");
+  router.push("/community/99");
 }
+
+const categoryMeta: Record<string, { icon: any; color: string }> = {
+  음식: { icon: Utensils, color: "#D97706" },
+  카페: { icon: Coffee, color: "#4F46E5" },
+  자연: { icon: Palmtree, color: "#059669" },
+  문화: { icon: Theater, color: "#DC2626" },
+};
 </script>
 
 <template>
-  <div style="background: linear-gradient(155deg, #E8F8F5 0%, #ffffff 50%, #f0faf8 100%); min-height: calc(100vh - 64px)">
-    <div class="max-w-2xl mx-auto px-4 py-8">
+  <div
+    style="
+      background: linear-gradient(
+        155deg,
+        #e8f8f5 0%,
+        #ffffff 50%,
+        #f0faf8 100%
+      );
+      min-height: calc(100vh - 64px);
+    "
+  >
+    <div class="max-w-3xl mx-auto px-4 py-6">
+      <!-- 상단 내비게이션 -->
+      <button
+        @click="handleCancel"
+        class="flex items-center gap-2 mb-5 transition-opacity hover:opacity-70 bg-transparent border-none cursor-pointer"
+        style="color: #6b8c87; font-size: 0.88rem; font-weight: 600"
+      >
+        <ArrowLeft :size="17" /> 커뮤니티 목록으로 돌아가기
+      </button>
 
-      <!-- 페이지 헤더 -->
-      <div class="flex items-center gap-3 mb-7">
-        <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background: linear-gradient(135deg, #B2E4DC, #3db89e)">
-          <span style="font-size:0.85rem">✍️</span>
+      <!-- 본문 박스 -->
+      <div
+        class="bg-white rounded-2xl p-8"
+        style="box-shadow: 0 10px 30px rgba(26, 46, 43, 0.04)"
+      >
+        <!-- 카테고리 칩 -->
+        <div class="flex gap-2 mb-5">
+          <button
+            v-for="cat in categories"
+            :key="cat"
+            @click="selectedCategory = cat"
+            class="px-4 py-1.5 rounded-sm text-xs font-bold transition-all border cursor-pointer"
+            :style="
+              selectedCategory === cat
+                ? 'background:#3db89e; color:#fff; border-color:#3db89e;'
+                : 'background:#fff; color:#9ca3af; border-color:#e5e7eb;'
+            "
+          >
+            {{ cat }}
+          </button>
         </div>
-        <h1 style="font-weight:800;font-size:1.2rem;color:#1a2e2b">코스 후기 작성</h1>
-      </div>
 
-      <div class="flex flex-col gap-6">
+        <!-- 제목 입력 -->
+        <input
+          v-model="title"
+          placeholder="제목을 입력하세요"
+          class="w-full pb-4 mb-6 font-extrabold text-2xl border-b outline-none"
+          style="border-color: rgba(178, 228, 220, 0.4); color: #1a2e2b"
+        />
 
-        <!-- 1. 제목 -->
-        <div class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-          <label style="font-size:0.8rem;font-weight:700;color:#6b8c87;letter-spacing:0.04em" class="block mb-2">제목</label>
-          <input
-            v-model="title"
-            :maxlength="MAX_TITLE"
-            placeholder="제목을 입력해주세요"
-            style="width:100%;padding:12px 16px;border-radius:14px;border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#1a2e2b;font-size:0.95rem;outline:none"
-          />
-          <p class="text-right mt-1" style="font-size:0.75rem;color:#9ca3af">{{ title.length }} / {{ MAX_TITLE }}</p>
-        </div>
+        <!-- 수정된 코스 연결 박스 전체 -->
+        <div class="mb-6">
+          <!-- 상황 1: 코스가 연결되지 않았을 때 -->
+          <button
+            v-if="!connectedCourse"
+            type="button"
+            @click="isCourseModalOpen = true"
+            class="flex items-center justify-between w-full py-3 px-4 rounded-sm font-bold text-sm transition-all bg-teal-50/40 hover:bg-teal-50 text-teal-700 border text-left cursor-pointer"
+            style="border-color: rgba(178, 228, 220, 0.5)"
+          >
+            <span class="flex items-center gap-2">📍 저장한 코스 연결하기</span>
+            <span class="text-xs text-teal-500 font-bold">선택하기 &gt;</span>
+          </button>
 
-        <!-- 2. 코스 불러오기 -->
-        <div class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-          <div class="flex items-center justify-between mb-3">
-            <label style="font-size:0.8rem;font-weight:700;color:#6b8c87;letter-spacing:0.04em">코스 연결</label>
+          <!-- 상황 2: 코스가 연결되었을 때 (삭제 버튼 추가 완료) -->
+          <div
+            v-else
+            @click="isCourseModalOpen = true"
+            class="group relative w-full p-4 rounded-sm bg-teal-50/20 hover:bg-teal-50/40 transition-all border flex flex-col gap-2.5 cursor-pointer"
+            style="border-color: rgba(178, 228, 220, 0.6)"
+          >
+            <!-- 🌟 추가된 삭제 버튼 (클릭 시 connectedCourse를 null로 만듭니다) -->
             <button
-              @click="showCourseModal = true"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-              style="border:1.5px solid #3db89e;color:#3db89e;background:#fff"
+              type="button"
+              @click.stop="connectedCourse = null"
+              class="absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <RefreshCw :size="13" />
-              {{ selectedCourse ? '코스 변경' : '코스 불러오기' }}
+              <Trash2 :size="16" />
             </button>
-          </div>
 
-          <!-- 미선택 상태 -->
-          <div v-if="!selectedCourse" class="rounded-xl py-8 flex flex-col items-center gap-2" style="background:#f0faf8;border:1.5px dashed rgba(178,228,220,0.6)">
-            <MapPin :size="24" color="#B2E4DC" />
-            <p style="font-size:0.85rem;color:#9ca3af">코스를 선택해 후기에 연결하세요</p>
-          </div>
-
-          <!-- 선택된 코스 미리보기 -->
-          <div v-else class="rounded-xl p-4" style="background:#f0faf8;border:1.5px solid rgba(178,228,220,0.5)">
-            <div class="flex items-center gap-3 mb-3">
-              <div class="flex items-center gap-1.5">
-                <MapPin :size="13" color="#3db89e" />
-                <span style="font-size:0.82rem;font-weight:600;color:#3db89e">{{ selectedCourse.station }}</span>
-              </div>
-              <span style="color:#B2E4DC;font-size:0.78rem">·</span>
-              <div class="flex items-center gap-1.5">
-                <Clock :size="13" color="#6b8c87" />
-                <span style="font-size:0.82rem;color:#6b8c87">{{ selectedCourse.duration }}</span>
-              </div>
-              <span style="color:#B2E4DC;font-size:0.78rem">·</span>
-              <span style="font-size:0.78rem;color:#9ca3af">{{ selectedCourse.date }}</span>
-            </div>
-            <!-- 스텝 목록 -->
-            <div class="flex flex-col gap-0">
-              <div v-for="(place, i) in selectedCourse.places" :key="i">
-                <div class="flex items-center gap-3">
-                  <div class="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold" style="background: linear-gradient(135deg, #B2E4DC, #3db89e); color:#fff">
-                    {{ i + 1 }}
-                  </div>
-                  <div class="flex-1 flex items-center gap-2">
-                    <span style="font-weight:600;font-size:0.88rem;color:#1a2e2b">{{ place.name }}</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full font-semibold" :style="categoryColor[place.category] || 'background:#f3f4f6;color:#374151'">{{ place.category }}</span>
-                  </div>
-                </div>
-                <!-- 이동 수단 -->
-                <div v-if="i < selectedCourse.places.length - 1" class="flex items-center gap-2 ml-3 my-1" style="padding-left:9px;border-left:1.5px dashed rgba(178,228,220,0.6)">
-                  <component :is="place.transport === '도보' ? Footprints : Car" :size="12" color="#9ca3af" />
-                  <span style="font-size:0.75rem;color:#9ca3af">{{ place.transport }} · {{ place.time }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. 후기 텍스트 -->
-        <div class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-          <label style="font-size:0.8rem;font-weight:700;color:#6b8c87;letter-spacing:0.04em" class="block mb-2">후기</label>
-          <textarea
-            v-model="reviewText"
-            :maxlength="MAX_REVIEW"
-            placeholder="이 코스 어떠셨나요? 다른 환승객들에게 후기를 남겨주세요 :)"
-            rows="5"
-            style="width:100%;padding:12px 16px;border-radius:14px;border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#1a2e2b;font-size:0.92rem;outline:none;resize:vertical;line-height:1.65"
-          />
-          <div class="flex justify-between mt-1">
-            <span style="font-size:0.75rem;color:#9ca3af">최소 {{ MIN_REVIEW }}자</span>
-            <span style="font-size:0.75rem;color:#9ca3af">{{ reviewText.length }} / {{ MAX_REVIEW }}</span>
-          </div>
-        </div>
-
-        <!-- 4. 사진 첨부 -->
-        <div class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-          <div class="flex items-center justify-between mb-3">
-            <label style="font-size:0.8rem;font-weight:700;color:#6b8c87;letter-spacing:0.04em">사진 첨부</label>
-            <span style="font-size:0.75rem;color:#9ca3af">{{ images.length }} / 3</span>
-          </div>
-          <div class="flex gap-3 flex-wrap">
-            <!-- 업로드된 이미지들 -->
-            <div
-              v-for="(img, i) in images"
-              :key="i"
-              class="relative w-24 h-24 rounded-xl overflow-hidden flex-shrink-0"
-              style="border:1.5px solid rgba(178,228,220,0.4)"
-            >
-              <img :src="img.url" class="w-full h-full object-cover" />
-              <button
-                @click="removeImage(i)"
-                class="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
-                style="background:rgba(26,46,43,0.6)"
+            <!-- 칸 내부 상단 정보 바 -->
+            <div class="flex items-center justify-between">
+              <div
+                class="flex items-center gap-2 text-xs font-bold text-gray-500"
               >
-                <X :size="11" color="#fff" />
+                <span class="flex items-center gap-1 text-teal-600">
+                  <Train :size="14" /> {{ connectedCourse.station }}
+                </span>
+                <span class="text-gray-300 font-normal">|</span>
+                <span class="flex items-center gap-1">
+                  <Clock :size="13" /> {{ connectedCourse.duration }} 소요
+                </span>
+              </div>
+              <!-- 우측 텍스트 -->
+              <span
+                class="text-xs font-bold text-teal-600 group-hover:underline mr-6"
+                >수정</span
+              >
+            </div>
+
+            <!-- 칸 내부 하단 경로 텍스트 정보 -->
+            <div class="flex flex-wrap items-center gap-1.5">
+              <MapPin :size="14" class="text-teal-500 flex-shrink-0 mr-0.5" />
+              <template v-for="(place, i) in connectedCourse.items" :key="i">
+                <div class="flex items-center gap-1">
+                  <component
+                    v-if="categoryMeta[place.category]"
+                    :is="categoryMeta[place.category].icon"
+                    :size="13"
+                    :style="`color: ${categoryMeta[place.category].color}`"
+                  />
+                  <span class="text-xs font-bold text-gray-800">{{
+                    place.name
+                  }}</span>
+                </div>
+                <span
+                  v-if="connectedCourse && i < connectedCourse.items.length - 1"
+                  class="text-[10px] text-gray-300 font-normal mx-0.5"
+                >
+                  ➔
+                </span>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- 에디터 영역 -->
+        <div class="flex flex-col gap-3 min-h-[350px]">
+          <div
+            v-for="(block, idx) in blocks"
+            :key="block.id"
+            class="group relative border border-transparent hover:border-gray-100 rounded-sm transition-all p-3"
+          >
+            <div
+              class="absolute right-2 top-2 hidden group-hover:flex items-center gap-0.5 bg-white border rounded-md p-1 shadow-sm z-10"
+            >
+              <button
+                type="button"
+                @click="moveBlock(idx, 'up')"
+                class="p-1 hover:bg-gray-50 rounded text-gray-400 hover:text-gray-700"
+              >
+                <ArrowUp :size="14" />
+              </button>
+              <button
+                type="button"
+                @click="moveBlock(idx, 'down')"
+                class="p-1 hover:bg-gray-50 rounded text-gray-400 hover:text-gray-700"
+              >
+                <ArrowDown :size="14" />
+              </button>
+              <button
+                type="button"
+                @click="deleteBlock(idx)"
+                class="p-1 hover:bg-red-50 text-red-400 rounded"
+              >
+                <Trash2 :size="14" />
               </button>
             </div>
 
-            <!-- 추가 버튼 -->
-            <button
-              v-if="images.length < 3"
-              @click="fileInput?.click()"
-              class="w-24 h-24 rounded-xl flex flex-col items-center justify-center gap-1.5 flex-shrink-0 transition-colors hover:border-[#3db89e]"
-              style="border:1.5px dashed rgba(178,228,220,0.6);background:#f0faf8"
-            >
-              <ImageIcon :size="22" color="#B2E4DC" />
-              <span style="font-size:0.72rem;color:#9ca3af;font-weight:600">사진 추가</span>
-            </button>
+            <div v-if="block.type === 'text'">
+              <textarea
+                v-model="block.value"
+                rows="2"
+                placeholder="내용을 작성하세요. 사진 추가하기 버튼을 누르면 중간에 사진을 삽입할 수 있습니다."
+                class="w-full text-sm text-gray-700 bg-transparent border-none outline-none resize-none leading-relaxed"
+                style="font-family: inherit"
+              ></textarea>
+            </div>
 
-            <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="onImageChange" />
+            <div
+              v-else-if="block.type === 'image'"
+              class="rounded-sm overflow-hidden bg-gray-50/50 border flex items-center justify-center p-1 max-h-[400px]"
+            >
+              <img
+                :src="block.value"
+                class="w-full h-full object-contain max-h-[380px] rounded-sm"
+              />
+            </div>
+
+            <div
+              class="absolute left-1/2 -bottom-3 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-20"
+            >
+              <button
+                type="button"
+                @click="addTextBlock(idx)"
+                class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600"
+              >
+                <Plus :size="11" /> 글줄 추가
+              </button>
+              <button
+                type="button"
+                @click="triggerImageBlock(idx)"
+                class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600"
+              >
+                <ImageIcon :size="11" /> 사진 추가
+              </button>
+            </div>
           </div>
         </div>
 
-        <!-- 5. 하단 버튼 -->
-        <div class="flex gap-3">
+        <!-- 하단 컨트롤 바 -->
+        <div
+          class="mt-8 pt-6 border-t flex gap-4 justify-center"
+          style="border-color: rgba(178, 228, 220, 0.2)"
+        >
           <button
-            @click="tryCancel"
-            class="flex-1 py-3.5 rounded-2xl font-semibold text-sm transition-opacity hover:opacity-70"
-            style="border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#6b8c87"
+            type="button"
+            @click="addTextBlock(blocks.length - 1)"
+            class="flex items-center gap-1.5 px-4 py-2 border border-dashed rounded-sm text-xs font-bold text-gray-500 hover:bg-gray-50 transition-colors"
           >
-            취소
+            <Plus :size="13" /> 글 추가하기
           </button>
           <button
-            @click="submit"
-            :disabled="!canSubmit || submitting"
-            class="flex-[2] py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-opacity"
-            :style="`background:linear-gradient(135deg,#B2E4DC,#3db89e);color:#fff;box-shadow:0 4px 14px rgba(61,184,158,0.3);opacity:${canSubmit && !submitting ? 1 : 0.5};cursor:${canSubmit && !submitting ? 'pointer' : 'default'}`"
+            type="button"
+            @click="triggerImageBlock(blocks.length - 1)"
+            class="flex items-center gap-1.5 px-4 py-2 border border-dashed rounded-sm text-xs font-bold text-gray-500 hover:bg-gray-50 transition-colors"
           >
-            <Loader v-if="submitting" :size="16" class="animate-spin" />
-            {{ submitting ? '등록 중...' : '등록' }}
+            <ImageIcon :size="13" /> 사진 추가하기
           </button>
         </div>
+      </div>
+
+      <!-- 하단 메인 액션 바 -->
+      <div class="flex justify-end gap-3 mt-6">
+        <button
+          type="button"
+          @click="handleCancel"
+          class="px-6 py-2.5 rounded-sm text-sm font-bold bg-white border border-gray-300 text-gray-500 transition-colors cursor-pointer hover:border-red-500 hover:text-red-500"
+        >
+          작성 취소
+        </button>
+        <button
+          type="button"
+          @click="handleRegister"
+          class="px-6 py-2.5 rounded-sm text-sm font-bold text-white transition-all cursor-pointer shadow-sm hover:brightness-90"
+          style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
+        >
+          게시글 등록
+        </button>
       </div>
     </div>
 
-    <!-- 코스 선택 모달 -->
-    <Teleport to="body">
+    <!-- [모달 팝업] 1열 리스트 + 기차 아이콘 + 위치핀 + 카테고리별 인라인 아이콘 매핑 -->
+    <div
+      v-if="isCourseModalOpen"
+      class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+    >
       <div
-        v-if="showCourseModal"
-        class="fixed inset-0 flex items-end sm:items-center justify-center z-50 px-4 pb-0 sm:pb-4"
-        style="background:rgba(0,0,0,0.45)"
-        @click.self="showCourseModal = false"
+        class="bg-white w-full max-w-2xl rounded-sm p-6 shadow-2xl flex flex-col max-h-[80vh]"
       >
-        <div
-          class="w-full rounded-t-3xl sm:rounded-3xl overflow-hidden"
-          style="max-width:520px;background:#fff;max-height:80vh;display:flex;flex-direction:column"
-        >
-          <!-- 모달 헤더 -->
-          <div class="flex items-center justify-between px-6 py-5" style="border-bottom:1px solid rgba(178,228,220,0.35)">
-            <span style="font-weight:700;font-size:1rem;color:#1a2e2b">내 코스 목록</span>
-            <button @click="showCourseModal = false" class="w-8 h-8 rounded-full flex items-center justify-center" style="background:#f0faf8">
-              <X :size="16" color="#6b8c87" />
-            </button>
+        <!-- 모달 헤더 -->
+        <div class="flex items-center justify-between pb-4 border-b mb-4">
+          <div>
+            <h3 class="text-base font-extrabold text-gray-800">
+              📋 저장한 코스 연결하기
+            </h3>
+            <p class="text-xs text-gray-400 mt-0.5">
+              글에 연결할 나만의 이동 코스를 선택해 주세요.
+            </p>
           </div>
+          <button
+            @click="isCourseModalOpen = false"
+            class="p-1 hover:bg-gray-100 rounded-sm text-gray-400 hover:text-gray-600 bg-transparent"
+          >
+            <X :size="20" />
+          </button>
+        </div>
 
-          <!-- 코스 목록 -->
-          <div class="overflow-y-auto flex-1 p-4 flex flex-col gap-3">
-            <button
-              v-for="course in mockCourses"
-              :key="course.id"
-              @click="selectCourse(course)"
-              class="w-full text-left rounded-2xl p-4 transition-all hover:border-[#3db89e]"
-              style="border:1.5px solid rgba(178,228,220,0.4);background:#f0faf8"
-            >
-              <div class="flex items-center gap-3 mb-2">
-                <div class="flex items-center gap-1.5">
-                  <MapPin :size="13" color="#3db89e" />
-                  <span style="font-size:0.82rem;font-weight:600;color:#3db89e">{{ course.station }}</span>
-                </div>
-                <span style="color:#B2E4DC;font-size:0.78rem">·</span>
-                <div class="flex items-center gap-1.5">
-                  <Clock :size="13" color="#6b8c87" />
-                  <span style="font-size:0.82rem;color:#6b8c87">{{ course.duration }}</span>
-                </div>
-                <span style="color:#B2E4DC;font-size:0.78rem">·</span>
-                <span style="font-size:0.78rem;color:#9ca3af">{{ course.date }}</span>
-                <ChevronRight :size="14" color="#9ca3af" class="ml-auto flex-shrink-0" />
+        <!-- 모달 리스트 영역 -->
+        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-3">
+          <div
+            v-for="course in mySavedCourses"
+            :key="course.id"
+            @click="selectCourse(course)"
+            class="p-4 rounded-sm cursor-pointer bg-gray-50/70 hover:bg-teal-50/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div class="flex flex-col gap-2">
+              <div
+                class="flex items-center gap-2 text-xs font-bold text-gray-500"
+              >
+                <span class="flex items-center gap-1 text-teal-600">
+                  <Train :size="14" /> {{ course.station }}
+                </span>
+                <span class="text-gray-300 font-normal">|</span>
+                <span class="flex items-center gap-1">
+                  <Clock :size="13" /> {{ course.duration }} 소요
+                </span>
               </div>
-              <div class="flex items-center gap-1 flex-wrap">
-                <template v-for="(place, i) in course.places" :key="i">
-                  <span style="font-size:0.82rem;font-weight:600;color:#1a2e2b">{{ place.name }}</span>
-                  <span v-if="i < course.places.length - 1" style="font-size:0.78rem;color:#B2E4DC">→</span>
+
+              <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                <MapPin :size="14" class="text-teal-500 flex-shrink-0 mr-0.5" />
+
+                <template v-for="(place, pIdx) in course.items" :key="pIdx">
+                  <div class="flex items-center gap-1">
+                    <component
+                      v-if="categoryMeta[place.category]"
+                      :is="categoryMeta[place.category].icon"
+                      :size="13"
+                      :style="`color: ${categoryMeta[place.category].color}`"
+                    />
+                    <span class="text-xs font-bold text-gray-800">{{
+                      place.name
+                    }}</span>
+                  </div>
+                  <span
+                    v-if="pIdx < course.items.length - 1"
+                    class="text-[10px] text-gray-300 font-normal mx-0.5"
+                    >➔</span
+                  >
                 </template>
               </div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+            </div>
 
-    <!-- 취소 확인 다이얼로그 -->
-    <Teleport to="body">
-      <div
-        v-if="showCancelDialog"
-        class="fixed inset-0 flex items-center justify-center z-50 px-4"
-        style="background:rgba(0,0,0,0.45)"
-        @click.self="showCancelDialog = false"
-      >
-        <div class="rounded-2xl p-6 flex flex-col gap-4 w-full" style="max-width:340px;background:#fff;box-shadow:0 24px 80px rgba(26,46,43,0.15)">
-          <p style="font-weight:700;font-size:1rem;color:#1a2e2b">작성을 취소할까요?</p>
-          <p style="font-size:0.88rem;color:#6b8c87;line-height:1.6">작성 중인 내용이 모두 사라집니다.</p>
-          <div class="flex gap-3">
-            <button @click="showCancelDialog = false" class="flex-1 py-3 rounded-xl font-semibold text-sm" style="border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#6b8c87">계속 작성</button>
-            <button @click="confirmCancel" class="flex-1 py-3 rounded-xl font-bold text-sm" style="background:#e07070;color:#fff">취소하기</button>
+            <div class="text-right flex-shrink-0">
+              <span class="text-xs font-bold text-teal-600">코스 선택 ➔</span>
+            </div>
           </div>
         </div>
       </div>
-    </Teleport>
+    </div>
   </div>
 </template>
+
+<style scoped>
+textarea:focus,
+input:focus {
+  outline: none;
+}
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(178, 228, 220, 0.4);
+  border-radius: 2px;
+}
+</style>

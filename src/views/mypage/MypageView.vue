@@ -1,185 +1,312 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import {
-  Camera, User, Activity, Award, ChevronRight, Star, Heart,
-  MapPin, Clock, Coffee, Trees, Utensils, Eye, EyeOff,
-  LogOut, AlertTriangle, Save, Lock
-} from 'lucide-vue-next'
+  Camera,
+  User,
+  Activity,
+  Award,
+  ChevronRight,
+  Star,
+  Heart,
+  MapPin,
+  Clock,
+  Eye,
+  EyeOff,
+  LogOut,
+  AlertTriangle,
+  Save,
+  Lock,
+  Trash2,
+} from "lucide-vue-next";
+import type { User as UserType, Journal, MyCourse, LikedPlace, Character, MapPin as MapPinType, UserPhoto } from "@/types/user";
+import { fetchUser, fetchJournals, fetchUserActivity, fetchCharacters, fetchPostcardData } from "@/api/user";
 
-const router = useRouter()
+const router = useRouter();
+type Tab = "activity" | "info" | "postcard";
+const activeTab = ref<Tab>("activity");
 
-type Tab = 'activity' | 'info' | 'gamification'
-const activeTab = ref<Tab>('activity')
+const user = ref<UserType>({
+  nickname: "",
+  email: "",
+  statusMessage: "",
+  profileImage: null,
+  level: 0,
+  xp: 0,
+  xpForNext: 1,
+  stampCount: 0,
+});
 
-const user = ref({
-  nickname: '홍길동',
-  email: 'hong@example.com',
-  level: 13,
-  xp: 750,
-  xpForNext: 1000,
-  stampCount: 7,
-})
+const xpPercent = computed(() =>
+  Math.round((user.value.xp / user.value.xpForNext) * 100),
+);
 
-const xpPercent = computed(() => Math.round((user.value.xp / user.value.xpForNext) * 100))
+// 프로필 로직
+function handleImageUpload(e: any) {
+  const file = e.target.files[0];
+  if (file) user.value.profileImage = URL.createObjectURL(file);
+}
 
-// --- 내 정보 탭 ---
-const editName = ref(user.value.nickname)
-const currentPw = ref('')
-const newPw = ref('')
-const newPwConfirm = ref('')
-const showCurrentPw = ref(false)
-const showNewPw = ref(false)
-const showNewPwC = ref(false)
-const pwMatch = computed(() => newPw.value && newPwConfirm.value && newPw.value === newPwConfirm.value)
-const pwMismatch = computed(() => newPwConfirm.value && newPw.value !== newPwConfirm.value)
-const savingInfo = ref(false)
-const savingPw = ref(false)
-const showDeleteDialog = ref(false)
+function removeProfileImage() {
+  user.value.profileImage = null;
+}
+
+const isEditing = ref(false);
+const tempMessage = ref("");
+const startEditing = () => {
+  tempMessage.value = user.value.statusMessage;
+  isEditing.value = true;
+};
+const saveStatus = () => {
+  user.value.statusMessage = tempMessage.value;
+  isEditing.value = false;
+};
+
+onMounted(async () => {
+  const [fetchedUser, fetchedJournals, activity, fetchedCharacters, postcardData] =
+    await Promise.all([
+      fetchUser(),
+      fetchJournals(),
+      fetchUserActivity(),
+      fetchCharacters(),
+      fetchPostcardData(),
+    ]);
+  user.value = fetchedUser;
+  editName.value = fetchedUser.nickname;
+  journals.value = fetchedJournals;
+  myCourses.value = activity.myCourses;
+  likedPlaces.value = activity.likedPlaces;
+  characters.value = fetchedCharacters;
+  mapPins.value = postcardData.mapPins;
+  userPhotos.value = postcardData.userPhotos;
+});
+
+// 내 정보 탭 로직
+const editName = ref("");
+const currentPw = ref("");
+const newPw = ref("");
+const newPwConfirm = ref("");
+const showCurrentPw = ref(false);
+const showNewPw = ref(false);
+const showNewPwC = ref(false);
+
+// 비밀번호 유효성 검사 (영어, 숫자, 특수문자 포함 8자 이상)
+const pwRegex =
+  /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z]\d@$!%*#?&]{8,}$/;
+const isNewPwValid = computed(() => {
+  if (!newPw.value) return true; // 입력 안 했을 때는 빨간 테두리 안 뜨게
+  return pwRegex.test(newPw.value);
+});
+
+const pwMatch = computed(
+  () => newPw.value && newPwConfirm.value && newPw.value === newPwConfirm.value,
+);
+const pwMismatch = computed(
+  () => newPwConfirm.value && newPw.value !== newPwConfirm.value,
+);
+
+const savingInfo = ref(false);
+const savingPw = ref(false);
+const showDeleteDialog = ref(false);
+
+const isPwEditing = ref(false);
+const loginType = ref("이메일 로그인");
+
+// 엽서 - 스탬프 지도용 핀 데이터
+const mapPins = ref<MapPinType[]>([]);
+
+// 엽서 - 사진
+const userPhotos = ref<UserPhoto[]>([]);
+
+const activePhotoModal = ref<string | null>(null);
+const activeMapPopup = ref<(typeof mapPins.value)[0] | null>(null);
+const activeCharacterDetail = ref<{
+  name: string;
+  description: string;
+  poses: string[];
+} | null>(null);
 
 async function saveInfo() {
-  savingInfo.value = true
-  await new Promise(r => setTimeout(r, 800))
-  user.value.nickname = editName.value
-  savingInfo.value = false
+  savingInfo.value = true;
+  await new Promise((r) => setTimeout(r, 800));
+  user.value.nickname = editName.value;
+  savingInfo.value = false;
 }
 
 async function changePw() {
-  if (!pwMatch.value) return
-  savingPw.value = true
-  await new Promise(r => setTimeout(r, 800))
-  currentPw.value = ''
-  newPw.value = ''
-  newPwConfirm.value = ''
-  savingPw.value = false
+  if (!pwMatch.value || !pwRegex.test(newPw.value)) return;
+  savingPw.value = true;
+  await new Promise((r) => setTimeout(r, 800));
+  currentPw.value = "";
+  newPw.value = "";
+  newPwConfirm.value = "";
+  savingPw.value = false;
+  isPwEditing.value = false;
+
+  // 데이터 수정 완료와 동시에 페이지 새로고침
+  window.location.reload();
 }
 
-// --- 활동 탭 ---
-const journals = [
-  { date: '12월 03일', icon: Coffee, title: '성심당 투어', count: 3, bg: '#FEF3C7', iconColor: '#D97706' },
-  { date: '1월 21일', icon: Trees, title: '산책 코스', count: 2, bg: '#D1FAE5', iconColor: '#059669' },
-  { date: '1월 08일', icon: Utensils, title: '시장 맛집', count: 4, bg: '#FCE7F3', iconColor: '#DB2777' },
-]
+// 활동 탭 데이터
+const journals = ref<Journal[]>([]);
+const myCourses = ref<MyCourse[]>([]);
+const likedPlaces = ref<LikedPlace[]>([]);
+const characters = ref<Character[]>([]);
 
-const myCourses = [
-  { id: 1, title: '성심당 → 한밭수목원', rating: 4.5, badge: '방문완료', badgeStyle: 'background:#D1FAE5;color:#065F46', placeCount: 2, duration: '3시간' },
-  { id: 2, title: '중앙시장 → 지림미술관', rating: 4.0, badge: '분류미정', badgeStyle: 'background:#F3F4F6;color:#6B7280', placeCount: 2, duration: '2시간 30분' },
-]
-
-const likedPlaces = [
-  { id: 1, name: '성심당', emoji: '🍞', category: '음식' },
-  { id: 2, name: '한밭수목원', emoji: '🌿', category: '자연' },
-  { id: 3, name: '중앙시장', emoji: '🏪', category: '음식' },
-]
-
-// --- 게이미피케이션 탭 ---
-const characters = [
-  { id: 1, name: '꿈돌이 베이직', emoji: '🌟', unlocked: true },
-  { id: 2, name: '꿈돌이 탐험가', emoji: '🗺️', unlocked: true },
-  { id: 3, name: '꿈돌이 미식가', emoji: '🍞', unlocked: true },
-  { id: 4, name: '꿈돌이 문화인', emoji: '🎭', unlocked: false },
-  { id: 5, name: '꿈돌이 자연인', emoji: '🌿', unlocked: false },
-  { id: 6, name: '꿈돌이 대전왕', emoji: '👑', unlocked: false },
-]
-
-const showLogout = ref(false)
+const showLogout = ref(false);
 
 const sidebarTabs = [
-  { key: 'activity', label: '활동', icon: Activity },
-  { key: 'info', label: '기본정보', icon: User },
-  { key: 'gamification', label: '게이미피케이션', icon: Award },
-]
+  { key: "activity", label: "활동", icon: Activity },
+  { key: "info", label: "기본정보", icon: User },
+  { key: "postcard", label: "엽서", icon: Award },
+];
 
-const inputBase = 'width:100%;padding:11px 14px;border-radius:12px;border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#1a2e2b;font-size:0.9rem;outline:none'
-const labelBase = 'font-size:0.78rem;font-weight:700;color:#6b8c87;letter-spacing:0.03em'
+// 모서리가 살짝만 둥근 스타일 기조 반영 및 인풋 기본 정의
+const infoBoxBase =
+  "width:100%; height:44px; display:flex; align-items:center; padding:0 14px; border-radius:4px; border:1px solid #e2e8f0; bg: #ffffff; color:#1a2e2b; font-size:0.9rem;";
+const inputBase =
+  "width:100%;padding:11px 14px;border-radius:4px;border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#1a2e2b;font-size:0.9rem;outline:none";
+const labelBase =
+  "font-size:0.78rem;font-weight:700;color:#6b8c87;letter-spacing:0.03em";
 </script>
 
 <template>
-  <div style="background: linear-gradient(155deg, #E8F8F5 0%, #ffffff 50%, #f0faf8 100%); min-height: calc(100vh - 64px)">
+  <div
+    style="
+      background: linear-gradient(
+        155deg,
+        #e8f8f5 0%,
+        #ffffff 50%,
+        #f0faf8 100%
+      );
+      min-height: calc(100vh - 64px);
+    "
+  >
     <div class="max-w-5xl mx-auto px-4 py-8">
       <div class="flex gap-6 items-start">
-
-        <!-- ===== 왼쪽 사이드바 (25%) ===== -->
-        <aside class="w-64 flex-shrink-0 flex flex-col gap-4 sticky top-6">
-
-          <!-- 프로필 카드 -->
-          <div class="rounded-2xl overflow-hidden" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 4px 24px rgba(26,46,43,0.08)">
-            <!-- 배경 그라디언트 -->
-            <div class="h-14" style="background: linear-gradient(135deg, #B2E4DC, #3db89e)" />
-
-            <div class="px-5 pb-5">
-              <!-- 아바타 -->
-              <div class="relative -mt-8 mb-3 inline-block">
-                <div class="w-16 h-16 rounded-full flex items-center justify-center font-bold text-xl" style="background:#fff;border:3px solid #fff;box-shadow:0 4px 16px rgba(26,46,43,0.15);color:#3db89e">
-                  {{ user.nickname[0] }}
+        <aside class="w-64 flex-shrink-0 flex flex-col gap-8 sticky top-6">
+          <div
+            class="p-6 bg-white flex flex-col items-center justify-center gap-3 shadow-sm"
+            style="aspect-ratio: 4/5; width: 100%"
+          >
+            <div class="relative w-full px-2 mt-2">
+              <div
+                class="relative p-3 rounded-2xl bg-white text-center border-2 border-dashed border-teal-300 shadow-sm cursor-pointer"
+                @click="!isEditing && startEditing()"
+              >
+                <p
+                  v-if="!isEditing"
+                  class="text-[0.8rem] text-gray-700 min-h-[1.2rem]"
+                >
+                  {{ user.statusMessage || "상태 메시지를 입력하세요" }}
+                </p>
+                <div
+                  v-else
+                  class="flex flex-col gap-1 items-center"
+                  @click.stop
+                >
+                  <input
+                    v-model="tempMessage"
+                    maxlength="40"
+                    autofocus
+                    class="w-full text-center text-[0.8rem] outline-none border-b border-teal-500"
+                  />
+                  <button
+                    @click="saveStatus"
+                    class="mt-1 px-2 py-0.5 text-[0.7rem] bg-teal-500 text-white rounded-full font-bold"
+                  >
+                    저장
+                  </button>
                 </div>
-                <button class="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #B2E4DC, #3db89e)">
-                  <Camera :size="9" color="#fff" />
-                </button>
               </div>
+            </div>
 
-              <p style="font-weight:800;font-size:1rem;color:#1a2e2b">{{ user.nickname }}</p>
-              <p style="font-size:0.78rem;color:#9ca3af;margin-bottom:12px">{{ user.email }}</p>
+            <div class="relative group">
+              <div
+                class="w-20 h-20 rounded-full flex items-center justify-center font-bold text-2xl text-white overflow-hidden border"
+                style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
+              >
+                <img
+                  v-if="user.profileImage"
+                  :src="user.profileImage"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else>{{ user.nickname[0] }}</span>
+              </div>
+              <label
+                class="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer bg-white shadow-md"
+              >
+                <Camera :size="14" color="#3db89e" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handleImageUpload"
+                />
+              </label>
+              <button
+                v-if="user.profileImage"
+                @click="removeProfileImage"
+                class="absolute top-0 right-0 w-6 h-6 rounded-full bg-red-100 flex items-center justify-center"
+              >
+                <Trash2 :size="12" color="#e07070" />
+              </button>
+            </div>
 
-              <!-- 레벨 배지 + XP -->
-              <div class="flex items-center gap-2 mb-2">
-                <span class="text-xs font-bold px-2.5 py-1 rounded-full" style="background: linear-gradient(135deg, #B2E4DC, #3db89e); color:#fff">
-                  Lv.{{ user.level }}
-                </span>
-                <span style="font-size:0.78rem;color:#6b8c87;font-weight:600">{{ xpPercent }}%</span>
-              </div>
-              <div class="w-full h-2 rounded-full overflow-hidden" style="background:rgba(178,228,220,0.3)">
-                <div class="h-full rounded-full transition-all" :style="`width:${xpPercent}%;background: linear-gradient(90deg, #B2E4DC, #3db89e)`" />
-              </div>
-              <p style="font-size:0.72rem;color:#9ca3af;margin-top:4px">다음 레벨까지 {{ user.xpForNext - user.xp }} 포인트</p>
+            <div class="text-center">
+              <p style="font-weight: 800; font-size: 1.1rem; color: #1a2e2b">
+                {{ user.nickname }}
+              </p>
+              <p style="font-size: 0.88rem; color: #9ca3af">{{ user.email }}</p>
             </div>
           </div>
 
-          <!-- 탭 메뉴 -->
-          <div class="rounded-2xl overflow-hidden" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
+          <div class="flex flex-col gap-4 text-right">
             <button
               v-for="tab in sidebarTabs"
               :key="tab.key"
               @click="activeTab = tab.key as Tab"
-              class="w-full flex items-center gap-3 px-4 py-3.5 transition-all text-left"
-              :style="activeTab === tab.key
-                ? 'background: linear-gradient(90deg, #E8F8F5, #f0faf8); border-left:3px solid #3db89e'
-                : 'border-left:3px solid transparent'"
-              style="border-bottom:1px solid rgba(178,228,220,0.2)"
+              class="transition-all px-2 py-1"
+              :style="
+                activeTab === tab.key
+                  ? 'font-size: 1.25rem; font-weight: 800; color: #3db89e; border-right: 3px solid #3db89e;'
+                  : 'font-size: 1rem; font-weight: 500; color: #9ca3af;'
+              "
             >
-              <component
-                :is="tab.icon"
-                :size="16"
-                :color="activeTab === tab.key ? '#3db89e' : '#9ca3af'"
-              />
-              <span :style="`font-size:0.88rem;font-weight:${activeTab === tab.key ? 700 : 500};color:${activeTab === tab.key ? '#1a2e2b' : '#6b8c87'}`">
-                {{ tab.label }}
-              </span>
+              {{ tab.label }}
             </button>
           </div>
 
-          <!-- 로그아웃 -->
-          <button
-            @click="showLogout = true"
-            class="w-full flex items-center gap-2 px-4 py-3 rounded-2xl transition-opacity hover:opacity-70"
-            style="background:#fff;border:1.5px solid rgba(220,180,180,0.4);color:#c0726b;font-size:0.85rem;font-weight:600"
-          >
-            <LogOut :size="15" />
-            로그아웃
-          </button>
+          <div class="text-right">
+            <button
+              @click="showLogout = true"
+              style="color: #cbd5e1; font-size: 0.72rem; font-weight: 600"
+            >
+              로그아웃
+            </button>
+          </div>
         </aside>
 
-        <!-- ===== 오른쪽 콘텐츠 (75%) ===== -->
-        <main class="flex-1 min-w-0 flex flex-col gap-5">
-
-          <!-- ── 활동 탭 ── -->
+        <main
+          class="flex-1 min-w-0 bg-white rounded-2xl p-6"
+          style="
+            border: 1.5px solid rgba(178, 228, 220, 0.35);
+            box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
+          "
+        >
           <template v-if="activeTab === 'activity'">
-
-            <!-- 여행 일지 -->
-            <section class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
+            <div class="pb-6">
               <div class="flex items-center justify-between mb-4">
-                <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b">내 여행 일지</h2>
-                <button style="font-size:0.78rem;color:#3db89e;font-weight:600">자세히보기</button>
+                <h2
+                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+                >
+                  내 여행 일지
+                </h2>
+                <button
+                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                >
+                  자세히보기
+                </button>
               </div>
               <div class="grid grid-cols-3 gap-3">
                 <div
@@ -188,256 +315,638 @@ const labelBase = 'font-size:0.78rem;font-weight:700;color:#6b8c87;letter-spacin
                   class="rounded-2xl p-4 flex flex-col gap-2"
                   :style="`background:${j.bg};border:1.5px solid rgba(0,0,0,0.04)`"
                 >
-                  <p style="font-size:0.72rem;font-weight:600;color:#6b7280">{{ j.date }}</p>
+                  <p
+                    style="font-size: 0.72rem; font-weight: 600; color: #6b7280"
+                  >
+                    {{ j.date }}
+                  </p>
                   <component :is="j.icon" :size="22" :color="j.iconColor" />
-                  <p style="font-weight:700;font-size:0.88rem;color:#1a2e2b">{{ j.title }}</p>
-                  <p style="font-size:0.75rem;color:#6b7280">{{ j.count }}코스 방문</p>
+                  <p
+                    style="font-weight: 700; font-size: 0.88rem; color: #1a2e2b"
+                  >
+                    {{ j.title }}
+                  </p>
+                  <p style="font-size: 0.75rem; color: #6b7280">
+                    {{ j.count }}코스 방문
+                  </p>
                 </div>
               </div>
-            </section>
+            </div>
 
-            <!-- 내 코스 -->
-            <section class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
+            <div class="py-6 border-t border-gray-100">
               <div class="flex items-center justify-between mb-4">
-                <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b">내 코스</h2>
-                <button @click="router.push('/courses/result')" style="font-size:0.78rem;color:#3db89e;font-weight:600">더보기</button>
+                <h2
+                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+                >
+                  내 코스
+                </h2>
+                <button
+                  @click="router.push('/courses/result')"
+                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                >
+                  더보기
+                </button>
               </div>
               <div class="flex flex-col gap-2.5">
                 <button
                   v-for="course in myCourses"
                   :key="course.id"
-                  @click="router.push('/courses/result')"
-                  class="flex items-center gap-3 p-4 rounded-xl text-left transition-colors hover:bg-gray-50"
-                  style="border:1.5px solid rgba(178,228,220,0.35)"
+                  class="flex items-center gap-3 p-4 rounded-xl text-left border border-gray-100 transition-colors hover:bg-gray-50"
                 >
-                  <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#E8F8F5">
+                  <div
+                    class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50"
+                  >
                     <MapPin :size="16" color="#3db89e" />
                   </div>
-                  <div class="flex-1 min-w-0">
-                    <p style="font-weight:700;font-size:0.9rem;color:#1a2e2b">{{ course.title }}</p>
+                  <div class="flex-1">
+                    <p
+                      style="
+                        font-weight: 700;
+                        font-size: 0.9rem;
+                        color: #1a2e2b;
+                      "
+                    >
+                      {{ course.title }}
+                    </p>
                     <div class="flex items-center gap-2 mt-1">
-                      <div class="flex items-center gap-0.5">
-                        <Star :size="12" fill="#fbbf24" color="#fbbf24" />
-                        <span style="font-size:0.75rem;color:#6b7280">{{ course.rating }}</span>
-                      </div>
-                      <span class="text-xs px-2 py-0.5 rounded-full font-semibold" :style="course.badgeStyle">{{ course.badge }}</span>
-                      <div class="flex items-center gap-1">
-                        <Clock :size="12" color="#9ca3af" />
-                        <span style="font-size:0.75rem;color:#9ca3af">{{ course.duration }}</span>
-                      </div>
+                      <span
+                        class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                        :style="course.badgeStyle"
+                        >{{ course.badge }}</span
+                      >
+                      <span style="font-size: 0.75rem; color: #9ca3af">{{
+                        course.duration
+                      }}</span>
                     </div>
                   </div>
-                  <ChevronRight :size="15" color="#9ca3af" />
                 </button>
               </div>
-            </section>
+            </div>
 
-            <!-- 찜한 장소 -->
-            <section class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
+            <div class="pt-6 border-t border-gray-100">
               <div class="flex items-center justify-between mb-4">
-                <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b">찜한 장소</h2>
-                <button @click="router.push('/bookmarks')" style="font-size:0.78rem;color:#3db89e;font-weight:600">더보기</button>
+                <h2
+                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+                >
+                  찜한 장소
+                </h2>
+                <button
+                  @click="router.push('/bookmarks')"
+                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                >
+                  더보기
+                </button>
               </div>
               <div class="grid grid-cols-3 gap-3">
-                <button
+                <div
                   v-for="place in likedPlaces"
                   :key="place.id"
-                  @click="router.push(`/places/${place.id}`)"
-                  class="rounded-2xl p-4 flex flex-col items-center gap-2 transition-all hover:shadow-md"
-                  style="background:#f0faf8;border:1.5px solid rgba(178,228,220,0.4)"
+                  class="rounded-2xl p-4 flex flex-col items-center gap-2 bg-gray-50"
                 >
-                  <span class="text-3xl">{{ place.emoji }}</span>
-                  <p style="font-weight:600;font-size:0.82rem;color:#1a2e2b">{{ place.name }}</p>
-                  <span class="text-xs px-2 py-0.5 rounded-full" style="background:#E8F8F5;color:#3db89e;font-weight:600">{{ place.category }}</span>
+                  <span class="text-2xl">{{ place.emoji }}</span>
+                  <p
+                    style="font-weight: 600; font-size: 0.8rem; color: #1a2e2b"
+                  >
+                    {{ place.name }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="activeTab === 'info'">
+            <div class="pb-6">
+              <h2
+                class="mb-6"
+                style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+              >
+                내 정보
+              </h2>
+
+              <div class="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
+                <div class="flex flex-col gap-1.5">
+                  <span :style="labelBase">이름</span>
+                  <div :style="infoBoxBase">
+                    <span>{{ user.nickname }}</span>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <span :style="labelBase">닉네임</span>
+                  <div class="flex justify-between items-center gap-2">
+                    <input
+                      v-model="editName"
+                      :style="inputBase"
+                      style="background: #ffffff; border-radius: 4px"
+                    />
+                    <button
+                      @click="saveInfo"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
+                      :disabled="savingInfo"
+                    >
+                      {{ savingInfo ? "저장중" : "변경" }}
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <span :style="labelBase">이메일</span>
+                  <div
+                    :style="infoBoxBase"
+                    style="
+                      background: #f5f5f5;
+                      color: #9ca3af;
+                      cursor: not-allowed;
+                    "
+                  >
+                    {{ user.email }}
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <span :style="labelBase">가입 방식</span>
+                  <div
+                    :style="infoBoxBase"
+                    style="
+                      background: #f5f5f5;
+                      color: #9ca3af;
+                      cursor: not-allowed;
+                    "
+                  >
+                    {{ loginType }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="py-6 border-t border-gray-100">
+              <h2
+                class="mb-4"
+                style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+              >
+                비밀번호 변경
+              </h2>
+
+              <div v-if="!isPwEditing" class="flex">
+                <button
+                  @click="isPwEditing = true"
+                  class="px-5 py-2.5 rounded-[4px] border border-teal-500 text-teal-600 font-bold text-sm hover:bg-teal-50 transition-colors"
+                >
+                  비밀번호 변경
                 </button>
               </div>
-            </section>
-          </template>
 
-          <!-- ── 기본정보 탭 ── -->
-          <template v-else-if="activeTab === 'info'">
-
-            <!-- 내 정보 -->
-            <section class="rounded-2xl p-6" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-              <div class="flex items-center gap-2 mb-5">
-                <User :size="16" color="#3db89e" />
-                <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b">내 정보</h2>
-              </div>
-              <div class="flex flex-col gap-4">
-                <div class="flex flex-col gap-1.5">
-                  <label :style="labelBase">이름</label>
-                  <input v-model="editName" :style="inputBase" placeholder="이름을 입력해주세요" />
-                </div>
-                <div class="flex flex-col gap-1.5">
-                  <label :style="labelBase">이메일 <span style="font-size:0.72rem;color:#9ca3af;font-weight:400">(수정 불가)</span></label>
-                  <input :value="user.email" :style="`${inputBase};background:#f5f5f5;color:#9ca3af;cursor:not-allowed`" readonly />
-                </div>
-                <div class="flex justify-end">
+              <div v-else class="flex flex-col gap-3 max-w-md">
+                <div class="relative">
+                  <input
+                    :type="showCurrentPw ? 'text' : 'password'"
+                    v-model="currentPw"
+                    :style="inputBase"
+                    style="border-radius: 4px"
+                    placeholder="현재 비밀번호"
+                  />
                   <button
-                    @click="saveInfo"
-                    :disabled="savingInfo"
-                    class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl font-semibold text-sm transition-opacity hover:opacity-80"
-                    style="background: linear-gradient(135deg, #B2E4DC, #3db89e); color:#fff; box-shadow:0 3px 10px rgba(61,184,158,0.25)"
+                    @click="showCurrentPw = !showCurrentPw"
+                    class="absolute right-3 top-3.5 text-gray-400"
                   >
-                    <Save :size="14" />
-                    {{ savingInfo ? '저장 중...' : '저장하기' }}
+                    <Eye v-if="showCurrentPw" :size="16" /><EyeOff
+                      v-else
+                      :size="16"
+                    />
                   </button>
                 </div>
-              </div>
-            </section>
 
-            <!-- 비밀번호 변경 -->
-            <section class="rounded-2xl p-6" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-              <div class="flex items-center gap-2 mb-5">
-                <Lock :size="16" color="#3db89e" />
-                <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b">비밀번호 변경</h2>
-              </div>
-              <div class="flex flex-col gap-4">
-                <div class="flex flex-col gap-1.5">
-                  <label :style="labelBase">현재 비밀번호</label>
-                  <div class="relative">
-                    <input v-model="currentPw" :type="showCurrentPw ? 'text' : 'password'" :style="`${inputBase};padding-right:42px`" placeholder="현재 비밀번호 입력" />
-                    <button @click="showCurrentPw = !showCurrentPw" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;display:flex">
-                      <EyeOff v-if="showCurrentPw" :size="15" /><Eye v-else :size="15" />
-                    </button>
-                  </div>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                  <label :style="labelBase">새 비밀번호</label>
-                  <div class="relative">
-                    <input v-model="newPw" :type="showNewPw ? 'text' : 'password'" :style="`${inputBase};padding-right:42px`" placeholder="영문+숫자 8자 이상" />
-                    <button @click="showNewPw = !showNewPw" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;display:flex">
-                      <EyeOff v-if="showNewPw" :size="15" /><Eye v-else :size="15" />
-                    </button>
-                  </div>
-                </div>
-                <div class="flex flex-col gap-1.5">
-                  <label :style="labelBase">새 비밀번호 확인</label>
-                  <div class="relative">
-                    <input
-                      v-model="newPwConfirm"
-                      :type="showNewPwC ? 'text' : 'password'"
-                      :style="`${inputBase};padding-right:42px;border-color:${pwMismatch ? 'rgba(224,112,112,0.5)' : pwMatch ? 'rgba(61,184,158,0.6)' : 'rgba(178,228,220,0.5)'}`"
-                      placeholder="새 비밀번호 재입력"
+                <!-- 새 비밀번호 인풋 -->
+                <div class="relative">
+                  <input
+                    :type="showNewPw ? 'text' : 'password'"
+                    v-model="newPw"
+                    :style="[
+                      inputBase,
+                      {
+                        borderColor: !isNewPwValid
+                          ? '#ef4444'
+                          : 'rgba(178,228,220,0.5)',
+                        borderRadius: '4px',
+                      },
+                    ]"
+                    placeholder="새 비밀번호"
+                  />
+                  <button
+                    @click="showNewPw = !showNewPw"
+                    class="absolute right-3 top-3.5 text-gray-400"
+                  >
+                    <Eye v-if="showNewPw" :size="16" /><EyeOff
+                      v-else
+                      :size="16"
                     />
-                    <button @click="showNewPwC = !showNewPwC" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;display:flex">
-                      <EyeOff v-if="showNewPwC" :size="15" /><Eye v-else :size="15" />
-                    </button>
-                  </div>
-                  <p v-if="pwMismatch" style="font-size:0.75rem;color:#e07070">비밀번호가 일치하지 않습니다.</p>
-                  <p v-if="pwMatch" style="font-size:0.75rem;color:#3db89e">비밀번호가 일치합니다.</p>
+                  </button>
                 </div>
-                <div class="flex justify-end">
+                <!-- 유효성 조건문 실패 시 노출되는 가이드 텍스트 -->
+                <p
+                  v-if="!isNewPwValid"
+                  class="text-xs text-red-500 pl-1 font-semibold"
+                >
+                  영어, 숫자, 특수문자 포함해서 8자 이상 작성해주세요.
+                </p>
+
+                <!-- 새 비밀번호 확인 인풋 -->
+                <div class="relative">
+                  <input
+                    :type="showNewPwC ? 'text' : 'password'"
+                    v-model="newPwConfirm"
+                    :style="[
+                      inputBase,
+                      {
+                        borderColor: pwMismatch
+                          ? '#ef4444'
+                          : 'rgba(178,228,220,0.5)',
+                        borderRadius: '4px',
+                      },
+                    ]"
+                    placeholder="새 비밀번호 확인"
+                  />
+                  <button
+                    @click="showNewPwC = !showNewPwC"
+                    class="absolute right-3 top-3.5 text-gray-400"
+                  >
+                    <Eye v-if="showNewPwC" :size="16" /><EyeOff
+                      v-else
+                      :size="16"
+                    />
+                  </button>
+                </div>
+
+                <div
+                  v-if="pwMismatch"
+                  class="text-xs text-red-500 font-semibold pl-1"
+                >
+                  새 비밀번호가 일치하지 않습니다.
+                </div>
+                <div
+                  v-if="pwMatch && isNewPwValid"
+                  class="text-xs text-teal-600 font-semibold pl-1"
+                >
+                  새 비밀번호가 일치하며 사용 가능합니다.
+                </div>
+
+                <div class="flex gap-2 justify-end mt-2">
+                  <button
+                    @click="isPwEditing = false"
+                    class="px-4 py-2 rounded-[4px] text-gray-400 font-bold text-sm hover:bg-gray-50"
+                  >
+                    취소
+                  </button>
                   <button
                     @click="changePw"
-                    :disabled="!pwMatch || savingPw"
-                    class="flex items-center gap-1.5 px-5 py-2.5 rounded-xl font-semibold text-sm transition-opacity"
-                    :style="`background: linear-gradient(135deg, #B2E4DC, #3db89e); color:#fff; box-shadow:0 3px 10px rgba(61,184,158,0.25); opacity:${pwMatch && !savingPw ? 1 : 0.5}`"
+                    :disabled="!pwMatch || !isNewPwValid || savingPw"
+                    class="px-5 py-2 rounded-[4px] bg-teal-600 text-white font-bold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50"
                   >
-                    <Lock :size="14" />
-                    {{ savingPw ? '변경 중...' : '변경하기' }}
+                    {{ savingPw ? "변경중..." : "변경하기" }}
                   </button>
                 </div>
               </div>
-            </section>
+            </div>
 
-            <!-- 회원 탈퇴 -->
-            <section class="rounded-2xl p-6" style="background:#fff;border:1.5px solid rgba(220,220,220,0.4);box-shadow:0 2px 12px rgba(26,46,43,0.04)">
-              <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b;margin-bottom:8px">회원 탈퇴</h2>
-              <p style="font-size:0.85rem;color:#9ca3af;line-height:1.65;margin-bottom:12px">
-                탈퇴 시 모든 여행 기록과 코스 데이터가 삭제되며 복구할 수 없습니다.
-              </p>
+            <div class="py-6 border-t border-gray-100 flex gap-4">
+              <button
+                @click="router.push('/community/notice/inquiry/faq')"
+                class="flex-1 py-3.5 rounded-[4px] border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-all text-center font-bold text-sm text-gray-700"
+              >
+                자주 묻는 질문
+              </button>
+              <button
+                @click="router.push('/community/notice/inquiry/personal')"
+                class="flex-1 py-3.5 rounded-[4px] border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-all text-center font-bold text-sm text-gray-700"
+              >
+                1:1 문의하기
+              </button>
+            </div>
+
+            <div class="pt-6 border-t border-gray-100 flex justify-center">
               <button
                 @click="showDeleteDialog = true"
-                style="font-size:0.82rem;color:#9ca3af;font-weight:600;background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px"
+                class="text-[0.72rem] text-gray-400 font-medium underline hover:text-red-400 transition-colors"
               >
-                회원 탈퇴
+                회원 탈퇴하기
               </button>
-            </section>
+            </div>
           </template>
 
-          <!-- ── 게이미피케이션 탭 ── -->
-          <template v-else>
-            <!-- 스탬프 현황 -->
-            <section class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-              <div class="flex items-center gap-2 mb-4">
-                <Award :size="16" color="#3db89e" />
-                <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b">스탬프 현황</h2>
-              </div>
-              <div class="flex items-center gap-4 p-4 rounded-xl" style="background:#f0faf8;border:1.5px solid rgba(178,228,220,0.4)">
-                <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 text-2xl" style="background: linear-gradient(135deg, #B2E4DC, #3db89e)">
-                  🌟
-                </div>
-                <div class="flex-1">
-                  <div class="flex justify-between mb-1.5">
-                    <span style="font-weight:700;font-size:0.9rem;color:#1a2e2b">누적 스탬프 {{ user.stampCount }}개</span>
-                    <span style="font-size:0.78rem;color:#6b8c87">다음 꿈돌이까지 {{ 10 - user.stampCount }}개</span>
-                  </div>
-                  <div class="w-full h-2.5 rounded-full overflow-hidden" style="background:rgba(178,228,220,0.3)">
-                    <div class="h-full rounded-full" :style="`width:${(user.stampCount / 10) * 100}%;background: linear-gradient(90deg, #B2E4DC, #3db89e)`" />
-                  </div>
-                </div>
-              </div>
-            </section>
+          <!-- 2. 게이미피케이션 카테고리 개편 영역 (엽서 탭) -->
+          <template v-else-if="activeTab === 'postcard'">
+            <!-- 스탬프 지도 섹션 -->
+            <div class="pb-6">
+              <h2
+                class="mb-4"
+                style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+              >
+                스탬프 지도
+              </h2>
+              <div
+                class="relative w-full h-[340px] rounded-2xl bg-teal-50/50 border border-teal-100 overflow-hidden flex items-center justify-center"
+              >
+                <!-- 지도 컨테이너 Mockup -->
+                <div
+                  class="absolute inset-0 bg-[#eef7f6] flex items-center justify-center text-xs text-teal-700 font-medium"
+                >
+                  [ Kakao Map API Map Container ]
 
-            <!-- 꿈돌이 컬렉션 미리보기 -->
-            <section class="rounded-2xl p-5" style="background:#fff;border:1.5px solid rgba(178,228,220,0.35);box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-              <div class="flex items-center justify-between mb-4">
-                <h2 style="font-weight:700;font-size:0.95rem;color:#1a2e2b">꿈돌이 컬렉션</h2>
-                <button @click="router.push('/mypage/characters')" style="font-size:0.78rem;color:#3db89e;font-weight:600">전체보기</button>
+                  <!-- 핀 1: 여백 없이 초록 테두리 안에 사진을 꽉 채운 핀 -->
+                  <div
+                    @click="activeMapPopup = mapPins[0]"
+                    class="absolute top-1/3 left-1/4 w-12 h-12 rounded-xl border-2 border-teal-500 shadow-md cursor-pointer hover:scale-110 transition-transform overflow-hidden"
+                  >
+                    <img
+                      :src="mapPins[0].url"
+                      class="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  <!-- 핀 2 -->
+                  <div
+                    @click="activeMapPopup = mapPins[1]"
+                    class="absolute top-1/2 right-1/3 w-12 h-12 rounded-xl border-2 border-teal-500 shadow-md cursor-pointer hover:scale-110 transition-transform overflow-hidden"
+                  >
+                    <img
+                      :src="mapPins[1].url"
+                      class="w-full h-full object-cover"
+                    />
+                  </div>
+                </div>
+
+                <!-- 위치핀 클릭 시 뜨는 여행 일정 정보 연동 팝업 -->
+                <div
+                  v-if="activeMapPopup"
+                  class="absolute bottom-4 left-4 right-4 p-4 bg-white/95 backdrop-blur shadow-lg rounded-xl flex items-center justify-between border border-teal-100 z-10 animate-fade-in"
+                >
+                  <div class="flex items-center gap-3.5">
+                    <!-- 팝업 내부 이미지도 정방형으로 알맞게 채움 -->
+                    <img
+                      :src="activeMapPopup.url"
+                      class="w-14 h-14 object-cover rounded-lg border border-gray-100"
+                    />
+                    <div class="flex flex-col gap-0.5">
+                      <span
+                        class="text-[0.68rem] text-teal-600 font-bold tracking-wide"
+                        >{{ activeMapPopup.visitDate }} 방문</span
+                      >
+                      <p class="text-sm font-extrabold text-[#1a2e2b]">
+                        {{ activeMapPopup.journalTitle }}
+                      </p>
+                      <p
+                        class="text-[0.72rem] text-gray-500 flex items-center gap-0.5"
+                      >
+                        <span class="font-semibold text-gray-700">{{
+                          activeMapPopup.location
+                        }}</span
+                        >에서 기록한 발자국
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    @click="activeMapPopup = null"
+                    class="text-xs text-gray-400 font-bold px-2.5 py-1.5 hover:bg-gray-100 rounded-md transition-colors shrink-0"
+                  >
+                    닫기
+                  </button>
+                </div>
               </div>
-              <div class="grid grid-cols-3 gap-2.5">
+            </div>
+
+            <!-- 사진 섹션 (PC 최적화 내부 스크롤 디자인 적용) -->
+            <div class="py-6 border-t border-gray-100">
+              <div class="flex items-center justify-between mb-4">
+                <h2
+                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+                >
+                  사진
+                </h2>
+                <span class="text-xs text-gray-400 font-medium"
+                  >총 {{ userPhotos.length }}장</span
+                >
+              </div>
+
+              <!-- max-h를 주어 3열 형태를 유지하면서 스크롤되도록 처리 (스크롤바는 스타일 숨김 처리 가능) -->
+              <div
+                class="grid grid-cols-3 gap-2 overflow-y-auto pr-1 max-h-[420px] custom-scrollbar"
+              >
+                <div
+                  v-for="photo in userPhotos"
+                  :key="photo.id"
+                  @click="activePhotoModal = photo.url"
+                  class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer border border-gray-100"
+                >
+                  <img
+                    :src="photo.url"
+                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  <div
+                    class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2"
+                  >
+                    <span
+                      class="text-[0.7rem] text-white font-medium truncate"
+                      >{{ photo.location }}</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 캐릭터 섹션 -->
+            <div class="pt-6 border-t border-gray-100">
+              <div class="flex items-center justify-between mb-4">
+                <h2
+                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+                >
+                  캐릭터
+                </h2>
+                <span
+                  style="font-size: 0.82rem; font-weight: 700; color: #3db89e"
+                  >획득 7 / 전체 20</span
+                >
+              </div>
+              <div class="grid grid-cols-3 gap-3">
                 <div
                   v-for="char in characters"
                   :key="char.id"
-                  class="rounded-2xl p-3 flex flex-col items-center gap-1.5"
-                  :style="char.unlocked
-                    ? 'background: linear-gradient(135deg, #E8F8F5, #f0faf8);border:1.5px solid rgba(178,228,220,0.5)'
-                    : 'background:#f5f5f5;border:1.5px solid rgba(220,220,220,0.5)'"
+                  @click="char.unlocked && (activeCharacterDetail = char)"
+                  class="p-3 rounded-xl border text-center transition-all"
+                  :class="
+                    char.unlocked
+                      ? 'bg-white border-teal-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5'
+                      : 'bg-gray-50 border-gray-200'
+                  "
                 >
-                  <span class="text-2xl" :style="char.unlocked ? '' : 'filter:grayscale(1);opacity:0.4'">{{ char.emoji }}</span>
-                  <p :style="`font-size:0.72rem;font-weight:600;${char.unlocked ? 'color:#1a2e2b' : 'color:#9ca3af'};text-align:center`">{{ char.name }}</p>
-                  <span v-if="char.unlocked" class="text-xs px-1.5 py-0.5 rounded-full" style="background:#d1fae5;color:#065f46;font-weight:600;font-size:0.65rem">획득</span>
-                  <span v-else class="text-xs px-1.5 py-0.5 rounded-full" style="background:#f3f4f6;color:#9ca3af;font-size:0.65rem">잠김</span>
+                  <span
+                    class="text-2xl inline-block mb-1"
+                    :style="
+                      !char.unlocked
+                        ? 'filter: grayscale(1); opacity: 0.35;'
+                        : ''
+                    "
+                    >{{ char.emoji }}</span
+                  >
+                  <p
+                    style="font-size: 0.7rem; font-weight: 600"
+                    :class="char.unlocked ? 'text-[#1a2e2b]' : 'text-gray-400'"
+                  >
+                    {{ char.name }}
+                  </p>
                 </div>
               </div>
-            </section>
+            </div>
           </template>
-
         </main>
       </div>
     </div>
 
-    <!-- 로그아웃 다이얼로그 -->
     <Teleport to="body">
-      <div v-if="showLogout" class="fixed inset-0 flex items-center justify-center z-50 px-4" style="background:rgba(0,0,0,0.45)" @click.self="showLogout = false">
-        <div class="rounded-2xl p-6 flex flex-col gap-4 w-full" style="max-width:320px;background:#fff;box-shadow:0 24px 80px rgba(26,46,43,0.15)">
-          <p style="font-weight:700;font-size:1rem;color:#1a2e2b">로그아웃 하시겠어요?</p>
-          <div class="flex gap-3">
-            <button @click="showLogout = false" class="flex-1 py-3 rounded-xl font-semibold text-sm" style="border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#6b8c87">취소</button>
-            <button @click="router.push('/login'); showLogout = false" class="flex-1 py-3 rounded-xl font-bold text-sm" style="background:#e07070;color:#fff">로그아웃</button>
+      <div
+        v-if="showLogout"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
+        @click.self="showLogout = false"
+      >
+        <div class="bg-white p-6 rounded-2xl w-[320px]">
+          <p class="font-bold mb-4">로그아웃 하시겠어요?</p>
+          <div class="flex gap-2">
+            <button
+              @click="showLogout = false"
+              class="flex-1 py-2 rounded-xl bg-gray-100"
+            >
+              취소
+            </button>
+            <button
+              @click="router.push('/login')"
+              class="flex-1 py-2 rounded-xl bg-red-500 text-white"
+            >
+              확인
+            </button>
           </div>
         </div>
       </div>
-    </Teleport>
 
-    <!-- 회원 탈퇴 확인 -->
-    <Teleport to="body">
-      <div v-if="showDeleteDialog" class="fixed inset-0 flex items-center justify-center z-50 px-4" style="background:rgba(0,0,0,0.45)" @click.self="showDeleteDialog = false">
-        <div class="rounded-2xl p-6 flex flex-col gap-4 w-full" style="max-width:360px;background:#fff;box-shadow:0 24px 80px rgba(26,46,43,0.15)">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#fee2e2">
-              <AlertTriangle :size="16" color="#e07070" />
+      <div
+        v-if="showDeleteDialog"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
+        @click.self="showDeleteDialog = false"
+      >
+        <div class="bg-white p-6 rounded-2xl w-[360px]">
+          <p class="font-bold mb-2">정말 탈퇴하시겠어요?</p>
+          <p class="text-sm text-gray-500 mb-4">
+            모든 데이터가 영구 삭제됩니다.
+          </p>
+          <div class="flex gap-2">
+            <button
+              @click="showDeleteDialog = false"
+              class="flex-1 py-2 rounded-xl bg-gray-100"
+            >
+              취소
+            </button>
+            <button
+              @click="router.push('/login')"
+              class="flex-1 py-2 rounded-xl bg-gray-800 text-white"
+            >
+              탈퇴
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="activePhotoModal"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/70 backdrop-blur-sm"
+        @click="activePhotoModal = null"
+      >
+        <div
+          class="relative max-w-lg max-h-[80vh] p-2 bg-white rounded-2xl shadow-2xl mx-4"
+          @click.stop
+        >
+          <img
+            :src="activePhotoModal"
+            class="w-full h-auto max-h-[70vh] object-contain rounded-xl"
+          />
+          <div class="text-center mt-3">
+            <button
+              @click="activePhotoModal = null"
+              class="px-4 py-1.5 bg-gray-900 text-white rounded-xl text-xs font-bold"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="activeCharacterDetail"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
+        @click.self="activeCharacterDetail = null"
+      >
+        <div
+          class="bg-white p-6 rounded-2xl w-[340px] shadow-xl border border-teal-50 flex flex-col items-center gap-4"
+        >
+          <span class="text-5xl animate-bounce mt-2">{{
+            activeCharacterDetail.emoji
+          }}</span>
+          <div class="text-center w-full">
+            <h3 class="font-bold text-base text-[#1a2e2b] mb-1">
+              {{ activeCharacterDetail.name }}
+            </h3>
+            <p class="text-xs text-gray-500 leading-relaxed px-2 break-all">
+              {{ activeCharacterDetail.description }}
+            </p>
+          </div>
+          <div
+            class="w-full bg-teal-50/50 p-3 rounded-xl border border-teal-100/50"
+          >
+            <p class="text-[0.68rem] text-teal-700 font-bold mb-2 text-center">
+              획득 포즈 컬렉션
+            </p>
+            <div class="flex justify-center gap-4">
+              <span
+                v-for="(pose, idx) in activeCharacterDetail.poses"
+                :key="idx"
+                class="text-xl bg-white p-2 rounded-lg shadow-sm border border-gray-100"
+                >{{ pose }}</span
+              >
             </div>
-            <p style="font-weight:700;font-size:1rem;color:#1a2e2b">정말 탈퇴하시겠어요?</p>
           </div>
-          <p style="font-size:0.88rem;color:#6b8c87;line-height:1.65">모든 여행 기록, 코스, 꿈돌이 컬렉션 데이터가 영구 삭제됩니다.</p>
-          <div class="flex gap-3">
-            <button @click="showDeleteDialog = false" class="flex-1 py-3 rounded-xl font-semibold text-sm" style="border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#6b8c87">취소</button>
-            <button @click="router.push('/login'); showDeleteDialog = false" class="flex-1 py-3 rounded-xl font-bold text-sm" style="background:#9ca3af;color:#fff">탈퇴하기</button>
-          </div>
+          <button
+            @click="activeCharacterDetail = null"
+            class="w-full py-2 rounded-xl bg-teal-500 hover:bg-teal-600 transition-colors text-white text-xs font-bold"
+          >
+            확인
+          </button>
         </div>
       </div>
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 사진 스크롤바 커스텀 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+</style>

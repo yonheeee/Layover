@@ -1,278 +1,637 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { MapPin, Clock, Train, ChevronRight, Share2, Navigation, Footprints, Car } from 'lucide-vue-next'
+import { ref, computed, onMounted, watch } from "vue";
+import {
+  MapPin,
+  Clock,
+  ChevronRight,
+  Edit2,
+  Check,
+  X,
+  Plus,
+  Search,
+  Footprints,
+  Bus,
+  Car,
+  Share2,
+  RefreshCw,
+  ArrowLeft,
+  Train,
+  Lock,
+  Unlock,
+} from "lucide-vue-next";
+import type { Course, DiPlace } from "@/types/course";
+import { fetchMapCourses, fetchDiPlaces } from "@/api/courses";
 
-type CourseTab = 'relaxed' | 'fit' | 'fast'
-const activeTab = ref<CourseTab>('fit')
-
-interface Place {
-  id: number
-  name: string
-  category: string
-  isOpen: boolean
-  image: string
+// 카카오 지도 객체 타입 정의
+declare global {
+  interface window {
+    kakao: any;
+  }
 }
-interface Step {
-  place: Place
-  transport?: 'walk' | 'taxi'
-  transportTime?: string
+
+const courses = ref<Course[]>([]);
+
+const activeTab = ref(0);
+const currentCourse = computed(() => courses.value[activeTab.value]);
+const currentPlaces = computed(() => currentCourse.value?.places ?? []);
+
+const calculatedCost = computed(() => {
+  let basePrice = 0;
+  currentPlaces.value.forEach((p) => {
+    if (p.category.includes("맛집")) basePrice += 10000;
+    if (p.category.includes("카페")) basePrice += 5000;
+    if (p.nextTransport) basePrice += p.nextTransport.taxiFare;
+  });
+  return `약 ${basePrice.toLocaleString()}원`;
+});
+
+const calculatedTime = computed(() => {
+  let totalMinutes = 0;
+  currentPlaces.value.forEach((p) => {
+    const stay = parseInt(p.stayTime) || 0;
+    const wait = p.waitingTime ? parseInt(p.waitingTime) || 0 : 0;
+    const trans = p.nextTransport ? parseInt(p.nextTransport.taxiTime) || 0 : 0;
+    totalMinutes += stay + wait + trans;
+  });
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return hours > 0 ? `약 ${hours}시간 ${mins}분` : `약 ${mins}분`;
+});
+
+const isEditing = ref(false);
+const isSaving = ref(false);
+const isRegenerating = ref(false);
+const panelMode = ref<"main" | "search">("main");
+const searchKeyword = ref("");
+const selectedCategory = ref("전체");
+const categories = [
+  "전체",
+  "🍞 맛집/빵집",
+  "☕ 카페",
+  "🌿 관광명소",
+  "🏛 문화/예술",
+];
+
+const allDiPlaces = ref<DiPlace[]>([]);
+
+const filteredSearchResults = computed(() => {
+  return allDiPlaces.value.filter((p) => {
+    const matchesKeyword = p.name.includes(searchKeyword.value);
+    const matchesCategory =
+      selectedCategory.value === "전체" ||
+      p.category === selectedCategory.value;
+    return matchesKeyword && matchesCategory;
+  });
+});
+
+// [카카오 지도 엔진 인터랙션 데이터]
+let mapObject: any = null;
+let markers: any[] = [];
+let polylineObject: any = null;
+
+function initKakaoMap() {
+  const container = document.getElementById("kakao-render-map");
+  if (!container) return;
+  if (
+    typeof (window as any).kakao !== "undefined" &&
+    (window as any).kakao.maps
+  ) {
+    const options = {
+      center: new (window as any).kakao.maps.LatLng(36.3316, 127.4342),
+      level: 5,
+    };
+    mapObject = new (window as any).kakao.maps.Map(container, options);
+    renderCourseElementsOnMap();
+  }
 }
-interface Course {
-  tab: CourseTab
-  label: string
-  steps: Step[]
-  totalTime: string
-  estimatedCost: string
+
+function renderCourseElementsOnMap() {
+  if (!mapObject) return;
+  markers.forEach((m) => m.setMap(null));
+  markers = [];
+  if (polylineObject) polylineObject.setMap(null);
+
+  const linePath: any[] = [];
+  const bounds = new (window as any).kakao.maps.LatLngBounds();
+
+  currentPlaces.value.forEach((place) => {
+    const position = new (window as any).kakao.maps.LatLng(
+      place.lat,
+      place.lng,
+    );
+    linePath.push(position);
+
+    const marker = new (window as any).kakao.maps.Marker({
+      position: position,
+      clickable: true,
+    });
+    marker.setMap(mapObject);
+    markers.push(marker);
+    bounds.extend(position);
+  });
+
+  polylineObject = new (window as any).kakao.maps.Polyline({
+    path: linePath,
+    strokeWeight: 5,
+    strokeColor: "#2fa38a",
+    strokeOpacity: 0.85,
+    strokeStyle: "solid",
+  });
+  polylineObject.setMap(mapObject);
+
+  if (currentPlaces.value.length > 0) {
+    mapObject.setBounds(bounds);
+  }
 }
 
-const COURSES: Course[] = [
-  {
-    tab: 'relaxed',
-    label: '여유 코스',
-    totalTime: '약 3시간',
-    estimatedCost: '약 15,000원',
-    steps: [
-      { place: { id: 1, name: '성심당', category: '🍞 베이커리', isOpen: true, image: 'https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=400' }, transport: 'walk', transportTime: '10분' },
-      { place: { id: 2, name: '한밭수목원', category: '🌿 자연', isOpen: true, image: 'https://images.unsplash.com/photo-1651422933132-d3e8822d8b40?w=400' }, transport: 'taxi', transportTime: '15분' },
-      { place: { id: 3, name: '테미오래', category: '🏛 문화', isOpen: false, image: 'https://images.unsplash.com/photo-1734287096542-daa9300f1484?w=400' } },
-    ],
+watch(
+  [activeTab, currentPlaces],
+  () => {
+    setTimeout(() => {
+      renderCourseElementsOnMap();
+    }, 100);
   },
-  {
-    tab: 'fit',
-    label: '딱 맞는 코스',
-    totalTime: '약 2시간',
-    estimatedCost: '약 10,000원',
-    steps: [
-      { place: { id: 1, name: '성심당', category: '🍞 베이커리', isOpen: true, image: 'https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=400' }, transport: 'walk', transportTime: '5분' },
-      { place: { id: 4, name: '중앙시장', category: '🍜 음식', isOpen: true, image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400' }, transport: 'taxi', transportTime: '10분' },
-      { place: { id: 2, name: '한밭수목원', category: '🌿 자연', isOpen: true, image: 'https://images.unsplash.com/photo-1651422933132-d3e8822d8b40?w=400' } },
-    ],
-  },
-  {
-    tab: 'fast',
-    label: '빠른 코스',
-    totalTime: '약 1시간',
-    estimatedCost: '약 5,000원',
-    steps: [
-      { place: { id: 1, name: '성심당', category: '🍞 베이커리', isOpen: true, image: 'https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=400' }, transport: 'walk', transportTime: '5분' },
-      { place: { id: 5, name: '대전역 광장', category: '🏛 관광', isOpen: true, image: 'https://images.unsplash.com/photo-1587974928442-77dc3e0dba72?w=400' } },
-    ],
-  },
-]
+  { deep: true },
+);
 
-const currentCourse = () => COURSES.find(c => c.tab === activeTab.value)!
+onMounted(async () => {
+  [courses.value, allDiPlaces.value] = await Promise.all([
+    fetchMapCourses(),
+    fetchDiPlaces(),
+  ]);
+  if (!document.getElementById("kakao-map-script")) {
+    const script = document.createElement("script");
+    script.id = "kakao-map-script";
+    script.src =
+      "//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&autoload=false";
+    document.head.appendChild(script);
+    script.onload = () => {
+      (window as any).kakao.maps.load(() => {
+        initKakaoMap();
+      });
+    };
+  } else {
+    initKakaoMap();
+  }
+});
 
-const activePopup = ref<number | null>(null)
-const MOCK_MARKERS = [
-  { id: 1, name: '성심당', x: 30, y: 40, hours: '매일 08:00 – 22:00', image: 'https://images.unsplash.com/photo-1568254183919-78a4f43a2877?w=300' },
-  { id: 2, name: '한밭수목원', x: 55, y: 25, hours: '매일 05:00 – 21:00', image: 'https://images.unsplash.com/photo-1651422933132-d3e8822d8b40?w=300' },
-  { id: 3, name: '테미오래', x: 70, y: 60, hours: '화~일 10:00 – 18:00', image: 'https://images.unsplash.com/photo-1734287096542-daa9300f1484?w=300' },
-  { id: 4, name: '중앙시장', x: 40, y: 65, hours: '매일 09:00 – 20:00', image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=300' },
-  { id: 5, name: '대전역 광장', x: 20, y: 70, hours: '상시 개방', image: 'https://images.unsplash.com/photo-1587974928442-77dc3e0dba72?w=300' },
-]
+function toggleLock(idx: number) {
+  if (idx === 0 || idx === currentPlaces.value.length - 1) return;
+  currentPlaces.value[idx].isLocked = !currentPlaces.value[idx].isLocked;
+}
 
-const TABS: { key: CourseTab; label: string }[] = [
-  { key: 'relaxed', label: '여유 코스' },
-  { key: 'fit', label: '딱 맞는 코스' },
-  { key: 'fast', label: '빠른 코스' },
-]
+function openSearchMode() {
+  searchKeyword.value = "";
+  selectedCategory.value = "전체";
+  panelMode.value = "search";
+}
+
+function addPlaceToCourse(scannedPlace: any) {
+  const insertIndex = currentPlaces.value.length - 1;
+  currentPlaces.value[insertIndex - 1].nextTransport = {
+    walkTime: "12분",
+    busTime: "7분",
+    taxiTime: "4분",
+    taxiFare: 4200,
+  };
+  currentPlaces.value.splice(insertIndex, 0, {
+    ...scannedPlace,
+    stayTime: "45분",
+    isLocked: false,
+    nextTransport: {
+      walkTime: "10분",
+      busTime: "6분",
+      taxiTime: "3분",
+      taxiFare: 3800,
+    },
+  });
+  panelMode.value = "main";
+}
+
+function removePlace(idx: number) {
+  if (idx === 0 || idx === currentPlaces.value.length - 1) return;
+  currentPlaces.value.splice(idx, 1);
+}
+
+async function finishEdit() {
+  isSaving.value = true;
+  await new Promise((r) => setTimeout(r, 400));
+  isSaving.value = false;
+  isEditing.value = false;
+}
 </script>
 
 <template>
-  <div class="flex" style="height: calc(100vh - 64px); font-family: 'Noto Sans KR', 'Nunito', sans-serif">
-    <!-- ── 왼쪽 패널 (40%) ── -->
-    <div class="flex flex-col overflow-hidden" style="width: 40%; min-width: 360px; border-right: 1px solid rgba(178,228,220,0.35); background: #fafffe">
-      <!-- 패널 헤더 -->
-      <div class="px-6 pt-6 pb-4" style="border-bottom: 1px solid rgba(178,228,220,0.3)">
-        <div class="flex items-center gap-2 mb-3">
-          <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background: linear-gradient(135deg, #B2E4DC, #3db89e)">
-            <Navigation :size="13" color="#fff" />
-          </div>
-          <h2 style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b">추천 코스</h2>
-        </div>
-        <!-- 탭 -->
-        <div class="flex gap-1">
-          <button
-            v-for="tab in TABS" :key="tab.key"
-            class="flex-1 py-2 rounded-xl text-xs transition-all duration-200"
-            :style="{
-              background: activeTab === tab.key ? '#E8F8F5' : 'transparent',
-              color: activeTab === tab.key ? '#3db89e' : '#6b8c87',
-              fontWeight: activeTab === tab.key ? 700 : 400,
-              border: `1.5px solid ${activeTab === tab.key ? '#3db89e' : 'rgba(178,228,220,0.4)'}`,
-            }"
-            @click="activeTab = tab.key"
-          >{{ tab.label }}</button>
-        </div>
-      </div>
-
-      <!-- 코스 내용 -->
-      <div class="flex-1 overflow-y-auto px-6 py-5">
-        <div class="space-y-2">
-          <template v-for="(step, idx) in currentCourse().steps" :key="step.place.id">
-            <!-- 장소 카드 -->
-            <div
-              class="rounded-2xl overflow-hidden"
-              style="border: 1.5px solid rgba(178,228,220,0.4); background: #ffffff; box-shadow: 0 2px 12px rgba(178,228,220,0.15)"
+  <div
+    class="w-full h-[calc(100vh-64px)] flex overflow-hidden font-sans bg-[#fbfefe]"
+  >
+    <div
+      class="w-[450px] h-full flex flex-col shrink-0 bg-white border-r border-teal-100 shadow-xl z-10 relative"
+    >
+      <template v-if="panelMode === 'main'">
+        <div class="bg-white">
+          <div class="p-6 pb-2 flex items-center justify-between">
+            <div>
+              <p
+                class="text-[0.68rem] text-teal-600 font-extrabold tracking-wide uppercase mb-0.5"
+              >
+                AI 레이오버 추천 결과
+              </p>
+              <h1 class="text-xl font-black text-[#1a2e2b] tracking-tight">
+                나의 대전 환승 코스
+              </h1>
+            </div>
+            <button
+              class="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border"
+              :style="{
+                background: isEditing ? '#2fa38a' : '#E8F8F5',
+                color: isEditing ? '#fff' : '#2fa38a',
+                borderColor: isEditing ? '#2fa38a' : '#d1ebe6',
+              }"
+              @click="isEditing ? finishEdit() : (isEditing = true)"
             >
-              <div class="flex gap-3 p-4">
-                <!-- 스텝 번호 -->
-                <div class="flex flex-col items-center shrink-0" style="width: 28px">
-                  <div
-                    class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                    style="background: linear-gradient(135deg, #B2E4DC, #3db89e)"
-                  >{{ idx + 1 }}</div>
-                </div>
-                <!-- 이미지 -->
-                <img :src="step.place.image" :alt="step.place.name" class="rounded-xl object-cover shrink-0" style="width:64px;height:64px" />
-                <!-- 정보 -->
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-start justify-between gap-1">
-                    <p style="font-weight: 700; font-size: 0.92rem; color: #1a2e2b; line-height: 1.3">{{ step.place.name }}</p>
-                    <span
-                      class="px-2 py-0.5 rounded-full text-xs shrink-0"
-                      :style="{
-                        background: step.place.isOpen ? 'rgba(61,184,158,0.12)' : 'rgba(150,150,150,0.12)',
-                        color: step.place.isOpen ? '#3db89e' : '#6b8c87',
-                        fontWeight: 600,
-                      }"
-                    >{{ step.place.isOpen ? '● 영업중' : '○ 마감' }}</span>
-                  </div>
-                  <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs mt-1"
-                    style="background: #E8F8F5; color: #3db89e; font-weight: 600"
-                  >{{ step.place.category }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 이동 수단 연결선 -->
-            <div v-if="step.transport" class="flex items-center gap-3 px-4 py-1">
-              <div class="w-0.5 h-4 mx-3 rounded" style="background: rgba(178,228,220,0.6)" />
-              <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style="background: #f0faf8; border: 1px solid rgba(178,228,220,0.4)">
-                <Footprints v-if="step.transport === 'walk'" :size="13" color="#3db89e" />
-                <Car v-else :size="13" color="#3db89e" />
-                <span style="font-size: 0.75rem; color: #6b8c87; font-weight: 600">{{ step.transport === 'walk' ? '도보' : '택시' }} {{ step.transportTime }}</span>
-              </div>
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <!-- 하단 요약 + 공유 버튼 -->
-      <div class="px-6 py-5" style="border-top: 1px solid rgba(178,228,220,0.3); background: #ffffff">
-        <div class="flex gap-4 mb-4">
-          <div class="flex items-center gap-1.5 px-3 py-2 rounded-xl flex-1" style="background: #E8F8F5">
-            <Clock :size="14" color="#3db89e" />
-            <div>
-              <p style="font-size: 0.7rem; color: #6b8c87">총 소요 시간</p>
-              <p style="font-size: 0.88rem; font-weight: 700; color: #1a2e2b">{{ currentCourse().totalTime }}</p>
-            </div>
+              <Check v-if="isEditing" :size="13" />
+              <Edit2 v-else :size="13" />
+              {{ isEditing ? "완료" : "편집" }}
+            </button>
           </div>
-          <div class="flex items-center gap-1.5 px-3 py-2 rounded-xl flex-1" style="background: #E8F8F5">
-            <span style="font-size: 1rem">💰</span>
-            <div>
-              <p style="font-size: 0.7rem; color: #6b8c87">예상 비용</p>
-              <p style="font-size: 0.88rem; font-weight: 700; color: #1a2e2b">{{ currentCourse().estimatedCost }}</p>
-            </div>
+
+          <div class="px-6 flex border-b border-gray-200">
+            <button
+              v-for="(course, idx) in courses"
+              :key="course.id"
+              @click="activeTab = idx"
+              class="flex-1 py-3 text-center relative group"
+              :disabled="isEditing"
+            >
+              <div
+                class="text-xs font-black transition-colors"
+                :class="
+                  activeTab === idx
+                    ? 'text-teal-600'
+                    : 'text-gray-400 group-hover:text-gray-600'
+                "
+              >
+                {{ course.title }}
+              </div>
+              <div
+                class="text-[0.62rem] font-medium mt-0.5 transition-colors line-clamp-1"
+                :class="
+                  activeTab === idx ? 'text-teal-500/80' : 'text-gray-400'
+                "
+              >
+                {{ course.subTitle }}
+              </div>
+              <div
+                class="absolute bottom-0 left-0 right-0 h-[3px] transition-all"
+                :class="
+                  activeTab === idx
+                    ? 'bg-teal-500 scale-x-100'
+                    : 'bg-transparent scale-x-0'
+                "
+              />
+            </button>
           </div>
         </div>
-        <button
-          class="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 hover:opacity-90"
-          style="background: linear-gradient(135deg, #B2E4DC, #3db89e); color: #fff; font-weight: 700; font-size: 0.95rem; box-shadow: 0 4px 14px rgba(61,184,158,0.3)"
+
+        <div
+          class="flex-1 overflow-y-auto px-6 py-5 space-y-6 scrollbar-thin bg-white"
         >
-          <Share2 :size="16" />이 코스 공유하기
-        </button>
-      </div>
+          <div
+            class="flex items-center justify-between pb-4 border-b border-gray-100/80 px-1"
+          >
+            <div class="flex items-center gap-2">
+              <Clock :size="18" class="text-teal-600 shrink-0" />
+              <div>
+                <p
+                  class="text-[0.62rem] text-gray-400 font-bold uppercase tracking-wider"
+                >
+                  총 소요 시간
+                </p>
+                <p class="text-base font-black text-teal-700 tracking-tight">
+                  {{ calculatedTime }}
+                </p>
+              </div>
+            </div>
+            <div class="h-8 w-[1px] bg-gray-200" />
+            <div class="flex items-center gap-2 text-right">
+              <div class="text-right">
+                <p
+                  class="text-[0.62rem] text-gray-400 font-bold uppercase tracking-wider"
+                >
+                  예상 총 지출
+                </p>
+                <p class="text-base font-black text-teal-700 tracking-tight">
+                  {{ calculatedCost }}
+                </p>
+              </div>
+              <span
+                class="text-base shrink-0 bg-teal-50 w-7 h-7 rounded-lg flex items-center justify-center border border-teal-100"
+                >💰</span
+              >
+            </div>
+          </div>
+
+          <div class="relative pl-1 space-y-1">
+            <template v-for="(place, idx) in currentPlaces" :key="place.id">
+              <div
+                class="relative flex items-center gap-4 py-4 px-4 rounded-2xl border-2 bg-white transition-all shadow-2xs"
+                :class="
+                  idx === 0 || idx === currentPlaces.length - 1
+                    ? 'bg-teal-50/20 border-teal-300/80'
+                    : 'border-[#e6f4f1]'
+                "
+                :style="
+                  place.isLocked &&
+                  isEditing &&
+                  idx !== 0 &&
+                  idx !== currentPlaces.length - 1
+                    ? { borderColor: '#2fa38a' }
+                    : {}
+                "
+              >
+                <div
+                  v-if="idx === 0 || idx === currentPlaces.length - 1"
+                  class="w-6 h-6 rounded-full flex items-center justify-center bg-teal-700 text-white shrink-0 ring-4 ring-teal-50 shadow-sm"
+                >
+                  <Train :size="11" />
+                </div>
+                <div
+                  v-else
+                  class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black text-white shrink-0 ring-4 ring-teal-50"
+                  style="background: linear-gradient(135deg, #a4dbd1, #2fa38a)"
+                >
+                  {{ idx }}
+                </div>
+
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-1">
+                    <p
+                      class="font-black text-sm text-[#1a2e2b] truncate"
+                      :class="{
+                        'text-teal-800 font-black':
+                          idx === 0 || idx === currentPlaces.length - 1,
+                      }"
+                    >
+                      {{ place.name }}
+                    </p>
+                    <span
+                      v-if="idx !== 0 && idx !== currentPlaces.length - 1"
+                      class="text-[0.68rem] text-teal-700 font-extrabold bg-teal-50 px-1.5 py-0.5 rounded-md shrink-0"
+                      >⏱ {{ place.stayTime }}</span
+                    >
+                    <span
+                      v-else
+                      class="text-[0.65rem] text-teal-600 font-black px-1.5 py-0.5 rounded-md border border-teal-200 bg-teal-50/50"
+                      >환승 게이트</span
+                    >
+                  </div>
+
+                  <div
+                    class="flex items-center gap-1.5 mt-2"
+                    v-if="idx !== 0 && idx !== currentPlaces.length - 1"
+                  >
+                    <span
+                      class="px-2 py-0.5 rounded-md text-[0.65rem] bg-gray-100 text-gray-600 font-bold border border-gray-200/60"
+                      >{{ place.category }}</span
+                    >
+                    <span
+                      v-if="place.waitingTime"
+                      class="px-2 py-0.5 rounded-md text-[0.65rem] bg-amber-50 text-amber-700 font-black border border-amber-200"
+                      >⏳ 대기 {{ place.waitingTime }}</span
+                    >
+                  </div>
+                </div>
+
+                <div
+                  v-if="
+                    !isEditing &&
+                    place.isLocked &&
+                    idx !== 0 &&
+                    idx !== currentPlaces.length - 1
+                  "
+                  class="text-teal-600 p-1.5 bg-teal-50 rounded-lg border border-teal-100 shrink-0 animate-fade-in"
+                >
+                  <Lock :size="13" />
+                </div>
+
+                <template
+                  v-if="
+                    isEditing && idx !== 0 && idx !== currentPlaces.length - 1
+                  "
+                >
+                  <button
+                    class="p-2 rounded-xl border transition-all shadow-3xs"
+                    :class="
+                      place.isLocked
+                        ? 'bg-teal-600 text-white border-teal-600'
+                        : 'bg-gray-50 text-gray-400 border-gray-200'
+                    "
+                    @click="toggleLock(idx)"
+                  >
+                    <Lock v-if="place.isLocked" :size="13" />
+                    <Unlock v-else :size="13" />
+                  </button>
+                  <button
+                    class="w-7 h-7 rounded-full flex items-center justify-center bg-red-50 text-red-500 border border-red-100"
+                    @click="removePlace(idx)"
+                  >
+                    <X :size="12" />
+                  </button>
+                </template>
+              </div>
+
+              <div
+                v-if="place.nextTransport && idx < currentPlaces.length - 1"
+                class="flex items-center gap-4 py-2.5 pl-[12px]"
+              >
+                <div class="w-[2px] h-10 bg-teal-200/70" />
+                <div
+                  class="flex-1 flex items-center justify-between pr-4 pl-1 text-[0.7rem] font-bold"
+                >
+                  <div class="flex items-center gap-1 text-gray-500">
+                    <Footprints :size="12" class="text-gray-400" />
+                    <span
+                      >도보
+                      <span class="text-gray-700 font-extrabold">{{
+                        place.nextTransport.walkTime
+                      }}</span></span
+                    >
+                  </div>
+                  <div class="flex items-center gap-1 text-blue-600">
+                    <Bus :size="12" class="text-blue-400" />
+                    <span
+                      >버스
+                      <span class="text-blue-800 font-extrabold">{{
+                        place.nextTransport.busTime
+                      }}</span></span
+                    >
+                  </div>
+                  <div class="flex items-center gap-1 text-teal-600">
+                    <Car :size="12" class="text-teal-500" />
+                    <span
+                      >택시
+                      <span class="text-teal-800 font-black">{{
+                        place.nextTransport.taxiTime
+                      }}</span></span
+                    >
+                    <span class="text-[0.65rem] text-teal-600/80 font-medium"
+                      >({{
+                        place.nextTransport.taxiFare.toLocaleString()
+                      }}원)</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <button
+              v-if="isEditing"
+              class="w-full py-3 rounded-2xl flex items-center justify-center gap-1.5 mt-4 border-2 border-dashed border-teal-300 text-teal-700 font-black text-xs bg-transparent hover:bg-teal-50/20"
+              @click="openSearchMode"
+            >
+              <Plus :size="14" /> 코스 사이에 장소 끼워넣기 (지도 연동)
+            </button>
+          </div>
+        </div>
+
+        <div class="p-6 border-t border-gray-100 bg-white flex gap-3">
+          <button
+            class="px-4 py-3.5 rounded-xl flex items-center justify-center gap-1.5 font-bold text-xs bg-gray-50 border border-gray-200 text-gray-500"
+          >
+            <Share2 :size="14" /> 공유
+          </button>
+          <button
+            class="flex-1 py-3.5 rounded-xl flex items-center justify-center gap-1 font-black text-xs text-white shadow-md"
+            style="background: linear-gradient(135deg, #b2e4dc, #2fa38a)"
+          >
+            코스 최종 확정하기 <ChevronRight :size="14" />
+          </button>
+        </div>
+      </template>
+
+      <template v-else-if="panelMode === 'search'">
+        <div
+          class="p-6 pb-4 border-b border-teal-200 bg-gradient-to-br from-[#E8F8F5]/30 to-white"
+        >
+          <button
+            @click="panelMode = 'main'"
+            class="flex items-center gap-1 text-xs font-black text-gray-400 hover:text-gray-600 mb-3"
+          >
+            <ArrowLeft :size="14" /> 타임라인으로 돌아가기
+          </button>
+          <h2 class="text-base font-black text-[#1a2e2b]">
+            지도에서 장소 검색
+          </h2>
+          <div class="relative mt-3">
+            <Search
+              :size="14"
+              class="absolute left-3.5 top-1/2 -translate-y-1/2 text-teal-500"
+            />
+            <input
+              v-model="searchKeyword"
+              class="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-teal-100 text-xs text-[#1a2e2b] outline-none bg-gray-50/50 focus:bg-white focus:border-teal-400 font-bold"
+              placeholder="추가할 대전 명소 검색..."
+            />
+          </div>
+          <div class="flex gap-1 mt-3 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              v-for="cat in categories"
+              :key="cat"
+              @click="selectedCategory = cat"
+              class="px-2.5 py-1 rounded-lg text-[0.68rem] font-black border transition-all"
+              :class="
+                selectedCategory === cat
+                  ? 'bg-teal-600 text-white border-teal-600'
+                  : 'bg-white text-gray-400 border-gray-200'
+              "
+            >
+              {{ cat.split(" ")[1] || cat }}
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="flex-1 overflow-y-auto px-6 py-4 space-y-3 scrollbar-thin bg-gray-50/20"
+        >
+          <div
+            v-for="item in filteredSearchResults"
+            :key="item.id"
+            class="p-4 rounded-2xl bg-white border border-teal-200 hover:border-teal-500 transition-all flex flex-col shadow-3xs"
+          >
+            <div class="flex justify-between items-start gap-1">
+              <h4 class="font-black text-sm text-[#1a2e2b]">{{ item.name }}</h4>
+              <span
+                class="text-[0.62rem] font-black text-teal-700 px-2 py-0.5 rounded-md bg-teal-50 border border-teal-100"
+                >{{ item.category }}</span
+              >
+            </div>
+            <p
+              class="text-[0.72rem] text-gray-400 font-medium leading-relaxed mt-1.5"
+            >
+              {{ item.desc }}
+            </p>
+            <div
+              class="flex items-center justify-between pt-3 mt-3 border-t border-dashed border-gray-100"
+            >
+              <span
+                class="text-[0.68rem] text-gray-500 font-bold flex items-center gap-0.5"
+                ><MapPin :size="11" class="text-teal-400" />
+                {{ item.latLng }}</span
+              >
+              <button
+                @click="addPlaceToCourse(item)"
+                class="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-600 text-teal-700 hover:text-white font-black text-xs transition-all flex items-center gap-0.5"
+              >
+                <Plus :size="12" /> 추가
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
-    <!-- ── 오른쪽 패널 (60%) - 지도 ── -->
-    <div class="flex-1 relative overflow-hidden" style="background: #e8f5f2">
-      <!-- 지도 목업 (실제 카카오맵 연동 시 kakao.maps.Map 으로 교체) -->
-      <div class="absolute inset-0 flex items-center justify-center" style="background: linear-gradient(135deg, #d4ede9 0%, #e8f5f2 50%, #c8e8e2 100%)">
-        <!-- 격자 패턴 -->
-        <svg class="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#3db89e" stroke-width="0.5" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
+    <div class="flex-1 h-full relative bg-[#e5e9f0]">
+      <div id="kakao-render-map" class="w-full h-full"></div>
 
-        <!-- 도로 목업 -->
-        <svg class="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
-          <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#3db89e" stroke-width="8" />
-          <line x1="30%" y1="0" x2="30%" y2="100%" stroke="#3db89e" stroke-width="6" />
-          <line x1="65%" y1="0" x2="65%" y2="100%" stroke="#3db89e" stroke-width="6" />
-          <line x1="0" y1="30%" x2="100%" y2="30%" stroke="#3db89e" stroke-width="4" />
-          <line x1="0" y1="70%" x2="100%" y2="70%" stroke="#3db89e" stroke-width="4" />
-        </svg>
-
-        <!-- 경로 라인 (현재 코스 동선) -->
-        <svg class="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          <template v-for="(step, idx) in currentCourse().steps.slice(0, -1)" :key="step.place.id">
-            <line
-              :x1="`${MOCK_MARKERS.find(m => m.id === step.place.id)?.x ?? 0}%`"
-              :y1="`${MOCK_MARKERS.find(m => m.id === step.place.id)?.y ?? 0}%`"
-              :x2="`${MOCK_MARKERS.find(m => m.id === currentCourse().steps[idx + 1].place.id)?.x ?? 0}%`"
-              :y2="`${MOCK_MARKERS.find(m => m.id === currentCourse().steps[idx + 1].place.id)?.y ?? 0}%`"
-              stroke="#3db89e" stroke-width="3" stroke-dasharray="8,4" opacity="0.7"
-            />
-          </template>
-        </svg>
-
-        <!-- 마커들 -->
-        <template v-for="marker in MOCK_MARKERS" :key="marker.id">
-          <button
-            class="absolute flex flex-col items-center gap-1 transition-transform hover:scale-110"
-            :style="{ left: `${marker.x}%`, top: `${marker.y}%`, transform: 'translate(-50%, -100%)' }"
-            @click="activePopup = activePopup === marker.id ? null : marker.id"
-          >
-            <!-- 현재 코스에 포함된 마커 강조 -->
-            <div
-              class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-lg"
-              :style="{
-                background: currentCourse().steps.some(s => s.place.id === marker.id)
-                  ? 'linear-gradient(135deg, #B2E4DC, #3db89e)'
-                  : 'rgba(255,255,255,0.9)',
-                color: currentCourse().steps.some(s => s.place.id === marker.id) ? '#fff' : '#6b8c87',
-                border: currentCourse().steps.some(s => s.place.id === marker.id) ? 'none' : '2px solid rgba(178,228,220,0.6)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              }"
-            >
-              {{ currentCourse().steps.findIndex(s => s.place.id === marker.id) + 1 > 0
-                ? currentCourse().steps.findIndex(s => s.place.id === marker.id) + 1
-                : '·' }}
-            </div>
-            <div class="px-2 py-0.5 rounded-full text-xs whitespace-nowrap shadow" style="background: rgba(255,255,255,0.95); color: #1a2e2b; font-weight: 600">
-              {{ marker.name }}
-            </div>
-
-            <!-- 팝업 -->
-            <div
-              v-if="activePopup === marker.id"
-              class="absolute bottom-full mb-2 rounded-2xl overflow-hidden shadow-xl"
-              style="width: 220px; background: #ffffff; border: 1px solid rgba(178,228,220,0.4); left: 50%; transform: translateX(-50%)"
-              @click.stop
-            >
-              <img :src="marker.image" :alt="marker.name" class="w-full object-cover" style="height: 110px" />
-              <div class="p-3">
-                <p style="font-weight: 700; font-size: 0.9rem; color: #1a2e2b">{{ marker.name }}</p>
-                <div class="flex items-center gap-1.5 mt-1.5">
-                  <Clock :size="12" color="#3db89e" />
-                  <span style="font-size: 0.75rem; color: #6b8c87">{{ marker.hours }}</span>
-                </div>
-              </div>
-            </div>
-          </button>
-        </template>
-
-        <!-- 지도 안내 텍스트 -->
-        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm" style="background: rgba(255,255,255,0.9); color: #6b8c87; box-shadow: 0 2px 12px rgba(0,0,0,0.1)">
-          🗺️ 카카오맵 API 연동 예정 — 현재 목업 화면
-        </div>
+      <div
+        class="absolute top-4 right-4 bg-white/90 backdrop-blur-xs px-4 py-2.5 rounded-xl border border-teal-200 shadow-md text-[0.68rem] font-bold text-teal-800 z-20 flex items-center gap-1.5"
+      >
+        <span
+          class="inline-block w-2 h-2 rounded-full bg-teal-500 animate-ping"
+        ></span>
+        <span>실시간 카카오 지도 동선 트래커 가동 중</span>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(178, 228, 220, 0.5);
+  border-radius: 10px;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateX(5px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+}
+.animate-fade-in {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+</style>
