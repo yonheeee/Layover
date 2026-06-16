@@ -8,8 +8,10 @@ import StampEventSection from "@/components/home/StampEventSection.vue";
 import PlaceDetailContent from "../place/PlaceDetailContents.vue";
 import type { Place } from "@/types/place";
 import { fetchPlaces } from "@/api/places";
+import { useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 
-const spots      = ref<Place[]>([]);
+const spots = ref<Place[]>([]);
 const likedSpots = ref<number[]>([]);
 
 const selectedSpotForModal = ref<Place | null>(null);
@@ -22,7 +24,20 @@ function closeSpotModal() {
   selectedSpotForModal.value = null;
 }
 
+const router = useRouter();
+const auth = useAuthStore();
+
+function checkLogin(): boolean {
+  if (!auth.isLoggedIn) {
+    alert("로그인이 필요한 서비스입니다. 로그인 페이지로 이동합니다.");
+    router.push("/login");
+    return false;
+  }
+  return true;
+}
+
 function toggleLike(id: number) {
+  if (!checkLogin()) return;
   const idx = likedSpots.value.indexOf(id);
   if (idx >= 0) likedSpots.value.splice(idx, 1);
   else likedSpots.value.push(id);
