@@ -33,7 +33,7 @@ const courses = ref<Course[]>([]);
 
 const activeTab = ref(0);
 const currentCourse = computed(() => courses.value[activeTab.value]);
-const currentPlaces = computed(() => currentCourse.value.places);
+const currentPlaces = computed(() => currentCourse.value?.places ?? []);
 
 const calculatedCost = computed(() => {
   let basePrice = 0;
