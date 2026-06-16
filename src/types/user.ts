@@ -30,12 +30,8 @@ export interface MyCourse {
   duration: string
 }
 
-export interface LikedPlace {
-  id: number
-  name: string
-  emoji: string
-  category: string
-}
+// LikedPlace 제거 — 좋아요 장소는 Place 타입으로 통일
+// (백엔드 연동 시 관광지 API에서 id 기반으로 조회)
 
 export interface Character {
   id: number

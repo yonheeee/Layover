@@ -6,6 +6,7 @@ import {
   User,
   Activity,
   Award,
+  ChevronLeft,
   ChevronRight,
   Star,
   Heart,
@@ -19,8 +20,23 @@ import {
   Lock,
   Trash2,
 } from "lucide-vue-next";
-import type { User as UserType, Journal, MyCourse, LikedPlace, Character, MapPin as MapPinType, UserPhoto } from "@/types/user";
-import { fetchUser, fetchJournals, fetchUserActivity, fetchCharacters, fetchPostcardData } from "@/api/user";
+import type {
+  User as UserType,
+  Journal,
+  MyCourse,
+  Character,
+  MapPin as MapPinType,
+  UserPhoto,
+} from "@/types/user";
+import type { Place } from "@/types/place";
+import PlaceCard from "@/components/common/PlaceCard.vue";
+import {
+  fetchUser,
+  fetchJournals,
+  fetchUserActivity,
+  fetchCharacters,
+  fetchPostcardData,
+} from "@/api/user";
 
 const router = useRouter();
 type Tab = "activity" | "info" | "postcard";
@@ -63,19 +79,25 @@ const saveStatus = () => {
 };
 
 onMounted(async () => {
-  const [fetchedUser, fetchedJournals, activity, fetchedCharacters, postcardData] =
-    await Promise.all([
-      fetchUser(),
-      fetchJournals(),
-      fetchUserActivity(),
-      fetchCharacters(),
-      fetchPostcardData(),
-    ]);
+  const [
+    fetchedUser,
+    fetchedJournals,
+    activity,
+    fetchedCharacters,
+    postcardData,
+  ] = await Promise.all([
+    fetchUser(),
+    fetchJournals(),
+    fetchUserActivity(),
+    fetchCharacters(),
+    fetchPostcardData(),
+  ]);
   user.value = fetchedUser;
   editName.value = fetchedUser.nickname;
   journals.value = fetchedJournals;
   myCourses.value = activity.myCourses;
   likedPlaces.value = activity.likedPlaces;
+  likedSpotIds.value = activity.likedPlaces.map((p) => p.id); // 초기 하트 활성화
   characters.value = fetchedCharacters;
   mapPins.value = postcardData.mapPins;
   userPhotos.value = postcardData.userPhotos;
@@ -150,7 +172,9 @@ async function changePw() {
 // 활동 탭 데이터
 const journals = ref<Journal[]>([]);
 const myCourses = ref<MyCourse[]>([]);
-const likedPlaces = ref<LikedPlace[]>([]);
+const likedPlaces = ref<Place[]>([]);
+const likedSpotIds = ref<number[]>([]);
+const likedScrollRef = ref<HTMLDivElement | null>(null);
 const characters = ref<Character[]>([]);
 
 const showLogout = ref(false);
@@ -397,19 +421,45 @@ const labelBase =
                   더보기
                 </button>
               </div>
-              <div class="grid grid-cols-3 gap-3">
-                <div
-                  v-for="place in likedPlaces"
-                  :key="place.id"
-                  class="rounded-2xl p-4 flex flex-col items-center gap-2 bg-gray-50"
+              <!-- 가로 스크롤 (최대 5개 미리보기) -->
+              <div class="relative px-10">
+                <button
+                  @click="likedScrollRef?.scrollBy({ left: -256, behavior: 'smooth' })"
+                  type="button"
+                  class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center text-[#3db89e] hover:scale-125 transition-all duration-200"
                 >
-                  <span class="text-2xl">{{ place.emoji }}</span>
-                  <p
-                    style="font-weight: 600; font-size: 0.8rem; color: #1a2e2b"
-                  >
-                    {{ place.name }}
-                  </p>
+                  <ChevronLeft :size="28" :stroke-width="3" />
+                </button>
+
+                <div
+                  ref="likedScrollRef"
+                  class="liked-scroll-container"
+                >
+                  <div class="liked-scroll-inner">
+                    <PlaceCard
+                      v-for="place in likedPlaces.slice(0, 5)"
+                      :key="place.id"
+                      :spot="place"
+                      :liked="likedSpotIds.includes(place.id)"
+                      @click="() => {}"
+                      @toggleLike="
+                        (id) => {
+                          const idx = likedSpotIds.indexOf(id);
+                          if (idx >= 0) likedSpotIds.splice(idx, 1);
+                          else likedSpotIds.push(id);
+                        }
+                      "
+                    />
+                  </div>
                 </div>
+
+                <button
+                  @click="likedScrollRef?.scrollBy({ left: 256, behavior: 'smooth' })"
+                  type="button"
+                  class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center text-[#3db89e] hover:scale-125 transition-all duration-200"
+                >
+                  <ChevronRight :size="28" :stroke-width="3" />
+                </button>
               </div>
             </div>
           </template>
@@ -948,5 +998,21 @@ const labelBase =
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
+}
+/* 찜한 장소 가로 스크롤 */
+.liked-scroll-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 0;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.liked-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+.liked-scroll-inner {
+  display: flex;
+  gap: 12px;
+  width: max-content;
 }
 </style>

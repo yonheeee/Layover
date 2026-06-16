@@ -1,5 +1,6 @@
 import { Coffee, Trees, Utensils } from 'lucide-vue-next'
-import type { User, Journal, MyCourse, LikedPlace, Character, MapPin, UserPhoto } from '@/types/user'
+import type { User, Journal, MyCourse, Character, MapPin, UserPhoto } from '@/types/user'
+import type { Place } from '@/types/place'
 
 export const mockUser: User = {
   nickname: '홍길동',
@@ -39,10 +40,45 @@ export const mockMyCourses: MyCourse[] = [
   },
 ]
 
-export const mockLikedPlaces: LikedPlace[] = [
-  { id: 1, name: '성심당', emoji: '🍞', category: '음식' },
-  { id: 2, name: '한밭수목원', emoji: '🌿', category: '자연' },
-  { id: 3, name: '중앙시장', emoji: '🏪', category: '음식' },
+// LikedPlace → Place 타입으로 통일
+// TODO(백엔드 연동): 실제 좋아요 장소는 관광지 API에서 id 기반으로 조회
+export const mockLikedPlaces: Place[] = [
+  {
+    id: 1,
+    name: '성심당 본점',
+    category: '음식 · 베이커리',
+    isOpen: true,
+    rating: 4.8,
+    description: '대전의 명물 빵집. 튀김소보로와 판타롱부추빵이 유명해요.',
+    distance: '대전역에서 도보 10분',
+    image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93',
+    duration: '40분',
+    reviewCount: 3240,
+  },
+  {
+    id: 2,
+    name: '한밭수목원',
+    category: '자연 · 공원',
+    isOpen: true,
+    rating: 4.6,
+    description: '도심 속 대형 수목원. 힐링 산책과 포토존으로 유명해요.',
+    distance: '대전역에서 버스 20분',
+    image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
+    duration: '80분',
+    reviewCount: 1820,
+  },
+  {
+    id: 3,
+    name: '중앙시장',
+    category: '쇼핑 · 시장',
+    isOpen: false,
+    rating: 4.3,
+    description: '대전의 전통 재래시장. 다양한 먹거리와 기념품을 만나보세요.',
+    distance: '대전역에서 도보 15분',
+    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38',
+    duration: '60분',
+    reviewCount: 980,
+  },
 ]
 
 export const mockCharacters: Character[] = [

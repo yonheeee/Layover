@@ -10,6 +10,7 @@ import {
   Footprints,
 } from "lucide-vue-next";
 import { allPlacesDatabase } from "@/mocks/places";
+import { useCheckLogin } from "@/utils/auth";
 import type { Place } from "@/types/place";
 
 // 두 가지 경로를 모두 지원합니다.
@@ -70,7 +71,10 @@ watch(
   { immediate: true }, // 컴포넌트가 처음 켜질 때도 즉시 실행
 );
 
+const { checkLogin } = useCheckLogin();
+
 function toggleLike() {
+  if (!checkLogin()) return;
   place.value.liked = !place.value.liked;
 }
 
