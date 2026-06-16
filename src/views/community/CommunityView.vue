@@ -1,21 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
 import {
   ChevronDown,
   ChevronUp,
   Plus,
-  MapPin,
-  Clock,
-  Image as ImageIcon,
-  Heart,
   MessageCircle,
   User,
   Paperclip,
   X,
 } from "lucide-vue-next";
 import type { Review, Notice, FaqItem, Inquiry } from "@/types/community";
-import { fetchReviews, fetchNotices, fetchFaqData, fetchMyInquiries } from "@/api/community";
+import {
+  fetchReviews,
+  fetchNotices,
+  fetchFaqData,
+  fetchMyInquiries,
+} from "@/api/community";
 
 const router = useRouter();
 const activeTab = ref<"reviews" | "notices">("reviews");
@@ -30,7 +32,8 @@ const isMunyeeOpen = ref(true); // 문의사항 하위 메뉴 기본 열림 상�
 const activeFaqSubCategory = ref("자주 묻는 질문");
 
 const isMyPostsOnly = ref(false);
-const isLoggedIn = ref(true);
+const auth = useAuthStore();
+const isLoggedIn = computed(() => auth.isLoggedIn);
 const searchQuery = ref("");
 
 // 파일 첨부 관련 상태
@@ -131,21 +134,14 @@ const filteredReviews = computed(() => {
   });
 });
 
-function toggleLike(id: number) {
-  const r = reviews.value.find((r) => r.id === id);
-  if (r) {
-    r.liked = !r.liked;
-    r.likes += r.liked ? 1 : -1;
-  }
-}
-
 onMounted(async () => {
-  [reviews.value, notices.value, faqData.value, myInquiries.value] = await Promise.all([
-    fetchReviews(),
-    fetchNotices(),
-    fetchFaqData(),
-    fetchMyInquiries(),
-  ]);
+  [reviews.value, notices.value, faqData.value, myInquiries.value] =
+    await Promise.all([
+      fetchReviews(),
+      fetchNotices(),
+      fetchFaqData(),
+      fetchMyInquiries(),
+    ]);
 });
 
 const tagColors: Record<string, string> = {

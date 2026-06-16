@@ -1,4 +1,5 @@
-import type { User, Journal, MyCourse, LikedPlace, Character, MapPin, UserPhoto } from '@/types/user'
+import type { User, Journal, MyCourse, Character, MapPin, UserPhoto } from '@/types/user'
+import type { Place } from '@/types/place'
 import {
   mockUser,
   mockJournals,
@@ -22,9 +23,10 @@ export async function fetchJournals(): Promise<Journal[]> {
 
 export async function fetchUserActivity(): Promise<{
   myCourses: MyCourse[]
-  likedPlaces: LikedPlace[]
+  likedPlaces: Place[]   // LikedPlace → Place 로 통일
 }> {
   // TODO(백엔드 연동): return httpGet('/api/user/activity')
+  // 백엔드 연동 시 likedPlaces는 관광지 API에서 id 기반으로 조회
   return Promise.resolve({ myCourses: mockMyCourses, likedPlaces: mockLikedPlaces })
 }
 
