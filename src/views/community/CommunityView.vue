@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import {
   ChevronDown,
   ChevronUp,
   Plus,
-  MapPin,
-  Clock,
-  Image as ImageIcon,
-  Heart,
   MessageCircle,
   User,
   Paperclip,
@@ -130,14 +126,6 @@ const filteredReviews = computed(() => {
     return matchesCategory && matchesMyPosts;
   });
 });
-
-function toggleLike(id: number) {
-  const r = reviews.value.find((r) => r.id === id);
-  if (r) {
-    r.liked = !r.liked;
-    r.likes += r.liked ? 1 : -1;
-  }
-}
 
 onMounted(async () => {
   [reviews.value, notices.value, faqData.value, myInquiries.value] = await Promise.all([

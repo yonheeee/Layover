@@ -107,12 +107,6 @@ function handleJoinEvent() {
   alert("스탬프 이벤트 페이지로 이동하거나 참여를 등록합니다!");
 }
 
-function getSelectedTrainName() {
-  return (trainMap.value[selectedStation.value] ?? []).find(
-    (t) => t.id === selectedTrain.value,
-  )?.name;
-}
-
 function onCardMouseEnter(e: MouseEvent) {
   const el = e.currentTarget as HTMLElement;
   el.style.transform = "translateY(-4px)";
