@@ -47,6 +47,10 @@ const router = createRouter({
       path: "/mypage/characters",
       component: () => import("@/views/mypage/CharactersView.vue"),
     },
+    {
+      path: "/stamp-tour",
+      component: () => import("@/views/stamp/StampTourView.vue"),
+    },
   ],
 });
 

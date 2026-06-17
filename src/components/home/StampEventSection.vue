@@ -5,7 +5,7 @@ import { useRouter } from "vue-router";
 const router = useRouter();
 
 function handleJoinEvent() {
-  router.push("/community/write");
+  router.push("/stamp-tour");
 }
 </script>
 
