@@ -56,23 +56,13 @@ const NAV_LINKS = [
             :key="link.label"
             :to="link.to"
             class="px-4 py-2 rounded-xl transition-all duration-200 text-sm"
-            :style="link.to === '/stamp-tour'
-              ? {
-                  color: route.path === link.to ? '#fff' : '#3db89e',
-                  fontWeight: 600,
-                  background: route.path === link.to
-                    ? 'linear-gradient(135deg,#3db89e,#2da08a)'
-                    : 'rgba(61,184,158,0.1)',
-                  border: '1px solid rgba(61,184,158,0.3)',
-                  textDecoration: 'none',
-                }
-              : {
-                  color: route.path === link.to ? '#3db89e' : '#1a2e2b',
-                  fontWeight: route.path === link.to ? 600 : 400,
-                  background: route.path === link.to ? 'rgba(232,248,245,0.8)' : 'transparent',
-                  textDecoration: 'none',
-                }"
-            >{{ link.to === '/stamp-tour' ? '🌟 ' + link.label : link.label }}</router-link
+            :style="{
+              color: route.path === link.to ? '#3db89e' : '#1a2e2b',
+              fontWeight: route.path === link.to ? 600 : 400,
+              background: route.path === link.to ? 'rgba(232,248,245,0.8)' : 'transparent',
+              textDecoration: 'none',
+            }"
+            >{{ link.label }}</router-link
           >
         </div>
 
@@ -132,23 +122,14 @@ const NAV_LINKS = [
         :key="link.label"
         :to="link.to"
         class="py-3 px-4 rounded-xl text-sm block text-right"
-        :style="link.to === '/stamp-tour'
-          ? {
-              color: route.path === link.to ? '#fff' : '#3db89e',
-              background: route.path === link.to
-                ? 'linear-gradient(135deg,#3db89e,#2da08a)'
-                : 'rgba(61,184,158,0.08)',
-              fontWeight: 600,
-              textDecoration: 'none',
-            }
-          : {
-              color: route.path === link.to ? '#3db89e' : '#1a2e2b',
-              background: route.path === link.to ? '#E8F8F5' : 'transparent',
-              fontWeight: route.path === link.to ? 600 : 400,
-              textDecoration: 'none',
-            }"
+        :style="{
+          color: route.path === link.to ? '#3db89e' : '#1a2e2b',
+          background: route.path === link.to ? '#E8F8F5' : 'transparent',
+          fontWeight: route.path === link.to ? 600 : 400,
+          textDecoration: 'none',
+        }"
         @click="mobileMenuOpen = false"
-        >{{ link.to === '/stamp-tour' ? '🌟 ' + link.label : link.label }}</router-link
+        >{{ link.label }}</router-link
       >
 
       <div class="flex gap-3 pt-3">

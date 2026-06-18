@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowLeft, MapPin, CheckCircle, Loader2, Camera, X } from 'lucide-vue-next'
+import { ArrowLeft, MapPin, CheckCircle, Loader2, Camera, X, Route } from 'lucide-vue-next'
+import { useCourseStore } from '@/stores/course'
+import { useStampStore } from '@/stores/stamp'
+
+const courseStore = useCourseStore()
+const stampStore = useStampStore()
 
 type Step = 'timeline' | 'verifying' | 'guide' | 'camera' | 'result'
 
@@ -107,45 +112,45 @@ function renderStampMap() {
     bounds.extend(pos)
 
     const isNext = idx === nextPlaceIdx.value && !place.visited
+    const num = idx + 1
     const content = place.visited
       ? `<div style="
-          width:44px;height:44px;border-radius:50%;
-          background:linear-gradient(135deg,#B2E4DC,#3db89e);
+          width:36px;height:36px;border-radius:50%;
+          background:linear-gradient(135deg,#3db89e,#2da08a);
           border:3px solid #fff;
-          box-shadow:0 3px 12px rgba(61,184,158,0.5);
+          box-shadow:0 3px 12px rgba(61,184,158,0.45);
           display:flex;align-items:center;justify-content:center;
-          font-size:22px;
-        ">🌟</div>`
+          color:#fff;font-size:13px;font-weight:800;font-family:sans-serif;
+        ">${num}</div>`
       : isNext
-        ? `<div style="
-            display:flex;flex-direction:column;align-items:center;gap:2px;
-          ">
+        ? `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">
             <div style="
-              width:40px;height:40px;border-radius:50%;
+              width:36px;height:36px;border-radius:50%;
               background:#fff;
               border:3px solid #3db89e;
-              box-shadow:0 0 0 5px rgba(61,184,158,0.2),0 3px 12px rgba(0,0,0,0.12);
+              box-shadow:0 0 0 5px rgba(61,184,158,0.2),0 3px 10px rgba(0,0,0,0.1);
               display:flex;align-items:center;justify-content:center;
-              font-size:20px;animation:pulse-ring 1.5s infinite;
-            ">${place.guideEmoji}</div>
+              color:#3db89e;font-size:13px;font-weight:800;font-family:sans-serif;
+            ">${num}</div>
             <div style="
               background:#3db89e;color:#fff;
-              font-size:9px;font-weight:700;
-              padding:2px 6px;border-radius:8px;white-space:nowrap;
+              font-size:9px;font-weight:700;font-family:sans-serif;
+              padding:2px 7px;border-radius:8px;white-space:nowrap;
             ">다음 목적지</div>
           </div>`
         : `<div style="
-            width:36px;height:36px;border-radius:50%;
-            background:#f3f4f6;
-            border:2.5px dashed #d1d5db;
+            width:32px;height:32px;border-radius:50%;
+            background:#fff;
+            border:2.5px solid #d1d5db;
             display:flex;align-items:center;justify-content:center;
-            font-size:18px;opacity:0.7;
-          ">${place.guideEmoji}</div>`
+            color:#9ca3af;font-size:12px;font-weight:700;font-family:sans-serif;
+            opacity:0.75;
+          ">${num}</div>`
 
     const overlay = new kakao.maps.CustomOverlay({
       position: pos,
       content,
-      yAnchor: place.visited ? 0.5 : isNext ? 1 : 0.5,
+      yAnchor: isNext ? 1 : 0.5,
     })
     overlay.setMap(mapObject)
     overlays.push(overlay)
@@ -154,10 +159,10 @@ function renderStampMap() {
   // 루트 폴리라인
   polylineObject = new kakao.maps.Polyline({
     path: linePath,
-    strokeWeight: 4,
+    strokeWeight: 3,
     strokeColor: '#3db89e',
-    strokeOpacity: 0.75,
-    strokeStyle: 'solid',
+    strokeOpacity: 0.8,
+    strokeStyle: 'dot',
   })
   polylineObject.setMap(mapObject)
 
@@ -312,6 +317,18 @@ function stopCamera() {
 function confirmResult() {
   if (currentPlaceIdx.value === null) return
   const idx = currentPlaceIdx.value
+  const place = places.value[idx]
+
+  stampStore.addPhoto({
+    id: `${place.id}_${Date.now()}`,
+    url: resultImageUrl.value,
+    placeName: place.name,
+    placeEmoji: place.guideEmoji,
+    takenAt: new Date().toISOString(),
+    lat: place.lat,
+    lng: place.lng,
+  })
+
   stampAnimIdx.value = idx
   currentStep.value = 'timeline'
   currentPlaceIdx.value = null
@@ -385,8 +402,36 @@ onUnmounted(() => {
 <template>
   <div style="background:#f0faf8;min-height:calc(100vh - 64px)">
 
+    <!-- ── 코스 미확정 게이트 ──────────────────────────────── -->
+    <div v-if="!courseStore.hasConfirmedCourse"
+      class="flex flex-col items-center justify-center px-6 text-center"
+      style="min-height:calc(100vh - 64px)">
+      <div class="w-full max-w-sm">
+        <div class="text-6xl mb-6">🗺️</div>
+        <h2 style="font-weight:800;font-size:1.25rem;color:#1a2e2b;margin-bottom:10px;line-height:1.45">
+          코스를 완성하고<br />스탬프를 채워보세요
+        </h2>
+        <p style="font-size:0.85rem;color:#9ca3af;line-height:1.7;margin-bottom:32px">
+          대전 환승 코스를 확정하면<br />스탬프 투어를 시작할 수 있어요
+        </p>
+        <button @click="router.push('/map')"
+          class="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all active:scale-95 hover:opacity-90"
+          style="background:linear-gradient(135deg,#3db89e,#2da08a);box-shadow:0 4px 16px rgba(61,184,158,0.3)">
+          코스 추천 받으러 가기
+        </button>
+        <button @click="router.back()"
+          class="w-full py-3 mt-2 rounded-2xl font-semibold text-sm transition-all hover:opacity-70"
+          style="color:#9ca3af">
+          돌아가기
+        </button>
+      </div>
+    </div>
+
+    <!-- ── 스탬프 투어 본편 (코스 확정 후) ───────────────── -->
+    <template v-else>
+
     <!-- ── 타임라인 뷰 ─────────────────────────────────────── -->
-    <div v-if="currentStep === 'timeline'">
+    <div v-if="currentStep === 'timeline'" class="flex flex-col" style="min-height:calc(100vh - 64px)">
 
       <!-- ░░ 게이미피케이션 히어로 ░░ -->
       <div class="relative overflow-hidden px-5 pt-5 pb-6"
@@ -487,134 +532,118 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- ░░ 카카오 지도 루트 ░░ -->
-      <div class="relative" style="height:260px;background:#e5e9f0">
+      <!-- ░░ 지도 + 스탬프 오버레이 ░░ -->
+      <div class="relative flex-1" style="min-height:320px;background:#e5e9f0">
         <div id="stamp-tour-map" style="width:100%;height:100%" />
 
-        <!-- 지도 라벨 -->
-        <div class="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl"
-          style="background:rgba(255,255,255,0.92);backdrop-filter:blur(6px);border:1px solid rgba(61,184,158,0.25);box-shadow:0 2px 8px rgba(0,0,0,0.08)">
-          <span class="text-sm">🗺️</span>
-          <span style="font-size:0.72rem;font-weight:700;color:#1a2e2b">스탬프 투어 루트</span>
+        <!-- ── 스탬프 목록 패널 (지도 위 왼쪽) ── -->
+        <div class="absolute top-3 left-3 z-10 flex flex-col overflow-y-auto"
+          style="width:196px;max-height:calc(100% - 24px);
+                 background:rgba(255,255,255,0.95);backdrop-filter:blur(10px);
+                 border-radius:18px;border:1px solid rgba(178,228,220,0.45);
+                 box-shadow:0 4px 20px rgba(0,0,0,0.1);padding:12px 10px">
+
+          <!-- 패널 헤더 -->
+          <div class="flex items-center justify-between pb-2 mb-1"
+            style="border-bottom:1px solid rgba(178,228,220,0.35)">
+            <span style="font-size:0.75rem;font-weight:800;color:#1a2e2b">투어 코스</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold"
+              style="background:linear-gradient(135deg,#3db89e,#2da08a);color:#fff">
+              {{ completedCount }}/{{ places.length }}
+            </span>
+          </div>
+
+          <!-- 에러 -->
+          <div v-if="errorMsg" class="px-2 py-1.5 rounded-lg text-xs mb-2"
+            style="background:#fff0f0;color:#c0392b;border:1px solid #fecaca">
+            {{ errorMsg }}
+          </div>
+
+          <!-- 장소 목록 -->
+          <div class="flex flex-col gap-1.5">
+            <div v-for="(place, idx) in places" :key="place.id"
+              class="flex items-center gap-2 px-2 py-2 rounded-xl transition-all"
+              :style="place.visited
+                ? 'opacity:0.55'
+                : idx === nextPlaceIdx
+                  ? 'background:rgba(61,184,158,0.08);border:1px solid rgba(61,184,158,0.25)'
+                  : 'border:1px solid transparent'">
+
+              <!-- 스탬프 아이콘 -->
+              <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                :class="stampAnimIdx === idx ? 'stamp-entering' : ''"
+                :style="place.visited
+                  ? 'background:linear-gradient(135deg,#B2E4DC,#3db89e);box-shadow:0 2px 6px rgba(61,184,158,0.3)'
+                  : idx === nextPlaceIdx
+                    ? 'background:#fff;border:2px solid #3db89e;box-shadow:0 0 0 3px rgba(61,184,158,0.12)'
+                    : 'background:#f3f4f6;border:2px dashed #d1d5db'">
+                <transition name="stamp-pop">
+                  <span v-if="place.visited" style="font-size:0.9rem">🌟</span>
+                  <span v-else-if="idx === nextPlaceIdx" style="font-size:0.85rem">📍</span>
+                  <span v-else style="font-size:0.7rem;opacity:0.35">○</span>
+                </transition>
+              </div>
+
+              <!-- 장소 정보 -->
+              <div class="flex-1 min-w-0">
+                <p class="truncate" style="font-size:0.78rem;font-weight:700;color:#1a2e2b;line-height:1.3">
+                  {{ place.guideEmoji }} {{ place.name }}
+                </p>
+                <p v-if="idx === nextPlaceIdx && !place.visited"
+                  style="font-size:0.65rem;color:#3db89e;font-weight:600">다음 목적지</p>
+                <span v-else-if="place.visited"
+                  style="font-size:0.62rem;font-weight:700;color:#065f46;background:#d1fae5;padding:1px 5px;border-radius:6px">완료</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 인증 버튼 -->
+          <div v-if="nextPlaceIdx !== -1" class="mt-3 pt-2"
+            style="border-top:1px solid rgba(178,228,220,0.3)">
+            <button @click="startVerify(nextPlaceIdx)"
+              class="w-full py-2 rounded-xl font-bold text-xs text-white transition-all hover:opacity-90 active:scale-95"
+              style="background:linear-gradient(135deg,#3db89e,#2da08a)">
+              <MapPin :size="11" class="inline mr-0.5 -mt-0.5" />
+              인증하기
+            </button>
+          </div>
+
+          <!-- 투어 완료 -->
+          <div v-if="completedCount === places.length" class="mt-2 p-3 rounded-xl text-center"
+            style="background:linear-gradient(135deg,#E8F8F5,#f0faf8);border:1px solid rgba(178,228,220,0.4)">
+            <div class="text-2xl mb-1">🎉</div>
+            <p style="font-weight:800;font-size:0.8rem;color:#1a2e2b;margin-bottom:2px">투어 완료!</p>
+            <p style="font-size:0.68rem;color:#6b8c87;line-height:1.5;margin-bottom:6px">모든 장소를 인증했어요!</p>
+            <button @click="router.push('/mypage/characters')"
+              class="w-full py-1.5 rounded-lg font-bold text-xs text-white"
+              style="background:linear-gradient(135deg,#3db89e,#2da08a)">
+              꿈돌이 컬렉션 보기
+            </button>
+          </div>
         </div>
 
-        <!-- 진행률 뱃지 -->
+        <!-- 진행률 뱃지 (오른쪽 위) -->
         <div class="absolute top-3 right-3 z-10 px-3 py-1.5 rounded-xl flex items-center gap-1"
           style="background:linear-gradient(135deg,#3db89e,#2da08a);box-shadow:0 2px 8px rgba(61,184,158,0.35)">
           <span style="font-size:0.72rem;font-weight:800;color:#fff">{{ completedCount }}/{{ places.length }} 완료</span>
         </div>
 
-        <!-- 범례 -->
-        <div class="absolute bottom-3 left-3 z-10 flex items-center gap-3 px-3 py-1.5 rounded-xl"
+        <!-- 범례 (왼쪽 아래) -->
+        <div class="absolute bottom-3 right-3 z-10 flex items-center gap-3 px-3 py-1.5 rounded-xl"
           style="background:rgba(255,255,255,0.88);backdrop-filter:blur(6px);border:1px solid rgba(178,228,220,0.4)">
           <div class="flex items-center gap-1">
             <div class="w-4 h-4 rounded-full flex items-center justify-center text-xs"
               style="background:linear-gradient(135deg,#B2E4DC,#3db89e)">🌟</div>
-            <span style="font-size:0.65rem;color:#6b8c87;font-weight:600">방문 완료</span>
+            <span style="font-size:0.65rem;color:#6b8c87;font-weight:600">완료</span>
           </div>
           <div class="flex items-center gap-1">
             <div class="w-4 h-4 rounded-full" style="background:#fff;border:2px solid #3db89e" />
-            <span style="font-size:0.65rem;color:#6b8c87;font-weight:600">다음 목적지</span>
+            <span style="font-size:0.65rem;color:#6b8c87;font-weight:600">다음</span>
           </div>
           <div class="flex items-center gap-1">
             <div class="w-4 h-4 rounded-full" style="background:#f3f4f6;border:2px dashed #d1d5db" />
             <span style="font-size:0.65rem;color:#9ca3af;font-weight:600">미방문</span>
           </div>
-        </div>
-      </div>
-
-      <!-- ░░ 타임라인 목록 ░░ -->
-      <div class="max-w-lg mx-auto px-4 py-5">
-
-        <!-- 에러 -->
-        <div v-if="errorMsg" class="mb-4 px-4 py-3 rounded-xl text-sm font-medium"
-          style="background:#fff0f0;color:#c0392b;border:1px solid #fecaca">
-          {{ errorMsg }}
-        </div>
-
-        <!-- 섹션 타이틀 -->
-        <div class="flex items-center justify-between mb-4">
-          <p style="font-weight:700;font-size:0.9rem;color:#1a2e2b">투어 코스</p>
-          <span style="font-size:0.78rem;color:#6b8c87">{{ completedCount }}곳 방문 완료</span>
-        </div>
-
-        <!-- 타임라인 -->
-        <div class="relative">
-          <div class="absolute left-6 top-8 bottom-8 w-0.5"
-            style="background:linear-gradient(to bottom,#B2E4DC,rgba(178,228,220,0.2))" />
-
-          <div v-for="(place, idx) in places" :key="place.id" class="relative flex gap-4 mb-4">
-            <!-- 노드 -->
-            <div class="relative z-10 flex-shrink-0 w-12 h-12 flex items-center justify-center">
-              <transition name="stamp-pop">
-                <div v-if="place.visited"
-                  class="w-12 h-12 rounded-full flex items-center justify-center text-2xl"
-                  :class="stampAnimIdx === idx ? 'stamp-entering' : ''"
-                  style="background:linear-gradient(135deg,#B2E4DC,#3db89e);box-shadow:0 2px 10px rgba(61,184,158,0.35)">
-                  🌟
-                </div>
-                <div v-else class="w-12 h-12 rounded-full flex items-center justify-center"
-                  :style="idx === nextPlaceIdx
-                    ? 'background:#fff;border:2.5px solid #3db89e;box-shadow:0 0 0 4px rgba(61,184,158,0.15)'
-                    : 'background:#f3f4f6;border:2.5px dashed #d1d5db'">
-                  <span v-if="idx === nextPlaceIdx" style="font-size:1.1rem">📍</span>
-                  <span v-else style="font-size:1rem;opacity:0.4">○</span>
-                </div>
-              </transition>
-            </div>
-
-            <!-- 장소 카드 -->
-            <div class="flex-1 rounded-2xl p-4"
-              :style="place.visited
-                ? 'background:#fff;border:1.5px solid rgba(178,228,220,0.5);opacity:0.75'
-                : idx === nextPlaceIdx
-                  ? 'background:#fff;border:1.5px solid rgba(61,184,158,0.5);box-shadow:0 4px 16px rgba(61,184,158,0.12)'
-                  : 'background:#fafafa;border:1.5px solid rgba(220,220,220,0.5)'">
-              <div class="flex items-start justify-between gap-2">
-                <div>
-                  <div class="flex items-center gap-2 mb-0.5">
-                    <span style="font-size:1rem">{{ place.guideEmoji }}</span>
-                    <p :style="`font-weight:700;font-size:0.92rem;${place.visited ? 'color:#9ca3af' : 'color:#1a2e2b'}`">
-                      {{ place.name }}
-                    </p>
-                    <span v-if="place.visited" class="text-xs font-bold px-1.5 py-0.5 rounded-full"
-                      style="background:#d1fae5;color:#065f46">완료</span>
-                  </div>
-                  <p style="font-size:0.78rem;color:#9ca3af;line-height:1.5">{{ place.description }}</p>
-                </div>
-                <CheckCircle v-if="place.visited" :size="18" style="color:#3db89e;flex-shrink:0;margin-top:2px" />
-              </div>
-
-              <!-- 인증 버튼 -->
-              <div v-if="idx === nextPlaceIdx && !place.visited" class="flex gap-2 mt-3">
-                <button @click="startVerify(idx)"
-                  class="flex-1 py-2.5 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90 active:scale-95"
-                  style="background:linear-gradient(135deg,#3db89e,#2da08a)">
-                  <MapPin :size="14" class="inline mr-1 -mt-0.5" />
-                  도착 인증하기
-                </button>
-                <button @click="devVerify(idx)"
-                  class="px-3 py-2.5 rounded-xl font-bold text-xs transition-all hover:opacity-90"
-                  style="background:#f0faf8;color:#3db89e;border:1px solid rgba(61,184,158,0.3)"
-                  title="개발용: 위치 검사 생략">
-                  DEV
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 완료 -->
-        <div v-if="completedCount === places.length" class="mt-6 p-6 rounded-2xl text-center"
-          style="background:linear-gradient(135deg,#E8F8F5,#f0faf8);border:1.5px solid rgba(178,228,220,0.4)">
-          <div class="text-4xl mb-2">🎉</div>
-          <p style="font-weight:800;font-size:1.05rem;color:#1a2e2b;margin-bottom:4px">투어 완료!</p>
-          <p style="font-size:0.82rem;color:#6b8c87">모든 장소를 인증했어요. 꿈돌이 캐릭터를 확인해보세요!</p>
-          <button @click="router.push('/mypage/characters')"
-            class="mt-4 px-6 py-2.5 rounded-xl font-bold text-sm text-white"
-            style="background:linear-gradient(135deg,#3db89e,#2da08a)">
-            꿈돌이 컬렉션 보기
-          </button>
         </div>
       </div>
     </div>
@@ -733,6 +762,8 @@ onUnmounted(() => {
         </div>
       </div>
     </Teleport>
+
+    </template>
   </div>
 </template>
 
