@@ -1,42 +1,65 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { CheckCircle, Smartphone, Train, X } from "lucide-vue-next";
+import { CheckCircle, AlertCircle, Train, X, User, Calendar, Phone } from "lucide-vue-next";
+import { findId } from "@/api/auth";
 
 type Step = "intro" | "result";
 const step = ref<Step>("intro");
-const foundId = ref("");
+const maskedEmail = ref("");
+const createdAt = ref("");
 
-// 🌟 [추가] 가상 본인인증 팝업(모달) 제어 상태
 const isModalOpen = ref(false);
-const modalStep = ref<"carrier" | "success">("carrier"); // carrier: 통신사 선택, success: 인증완료 완료단계
-const selectedCarrier = ref("");
+const isLoading = ref(false);
+const modalError = ref("");
 
-// 1. 본인인증 시작 버튼 클릭 시
+const realName = ref("");
+const birthDate = ref("");
+const phone = ref("");
+
 const openAuthModal = () => {
   isModalOpen.value = true;
-  modalStep.value = "carrier";
-  selectedCarrier.value = "";
+  modalError.value = "";
+  realName.value = "";
+  birthDate.value = "";
+  phone.value = "";
 };
 
-// 2. 가상 통신사 선택 및 인증 완료 시뮬레이션
-const completeAuth = (carrier: string) => {
-  selectedCarrier.value = carrier;
-  modalStep.value = "success";
+const handleFindId = async () => {
+  modalError.value = "";
+  if (!realName.value || !birthDate.value || !phone.value) {
+    modalError.value = "모든 항목을 입력해주세요.";
+    return;
+  }
 
-  // 1.5초 뒤 모달이 닫히면서 아이디 찾기 결과 화면으로 전환
-  setTimeout(() => {
-    isModalOpen.value = false;
-    foundId.value = "hong***@email.com";
-    step.value = "result";
-  }, 1500);
+  isLoading.value = true;
+  try {
+    const res = await findId(realName.value, birthDate.value, phone.value);
+    if (res.success) {
+      maskedEmail.value = res.data.maskedEmail;
+      createdAt.value = res.data.createdAt;
+      isModalOpen.value = false;
+      step.value = "result";
+    } else {
+      modalError.value = res.message;
+    }
+  } catch {
+    modalError.value = "아이디 찾기 중 오류가 발생했습니다.";
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const formatCreatedAt = (dateStr: string) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return `${d.getFullYear()}년 ${String(d.getMonth() + 1).padStart(2, "0")}월 ${String(d.getDate()).padStart(2, "0")}일`;
 };
 
 const inputStyle =
   "width:100%;padding:12px 16px;border-radius:14px;border:1.5px solid rgba(178,228,220,0.5);background:#ffffff;color:#1a2e2b;font-size:0.92rem;outline:none";
 const labelStyle =
   "font-size:0.8rem;font-weight:600;color:#6b8c87;letter-spacing:0.03em";
-const carrierBtnStyle =
-  "width:100%; padding:14px; border-radius:12px; border:1.5px solid rgba(178,228,220,0.4); background:#ffffff; font-weight:700; color:#1a2e2b; text-align:left; cursor:pointer; transition:all 0.2s;";
 </script>
 
 <template>
@@ -72,6 +95,7 @@ const carrierBtnStyle =
       </div>
 
       <div class="flex flex-col gap-5">
+        <!-- 결과 화면 -->
         <template v-if="step === 'result'">
           <div class="flex flex-col gap-6 items-center text-center">
             <div
@@ -100,11 +124,11 @@ const carrierBtnStyle =
                     letter-spacing: 0.02em;
                   "
                 >
-                  {{ foundId }}
+                  {{ maskedEmail }}
                 </p>
               </div>
               <p style="font-size: 0.78rem; color: #6b8c87; padding-top: 4px">
-                가입일: 2025년 03월 12일
+                가입일: {{ formatCreatedAt(createdAt) }}
               </p>
             </div>
 
@@ -147,6 +171,7 @@ const carrierBtnStyle =
           </div>
         </template>
 
+        <!-- 인트로 화면 -->
         <template v-else>
           <div class="text-center py-4">
             <p
@@ -157,22 +182,32 @@ const carrierBtnStyle =
                 line-height: 1.6;
               "
             >
-              안전한 서비스 이용을 위해<br />본인인증을 진행해주세요.
+              이름, 생년월일, 핸드폰번호로<br />가입한 아이디를 찾습니다.
             </p>
             <p style="font-size: 0.82rem; color: #6b8c87; margin-top: 6px">
-              고객님의 명의로 가입된 휴대폰을 통해 인증합니다.
+              가입 시 등록한 정보를 정확히 입력해주세요.
             </p>
           </div>
 
           <button
             @click="openAuthModal"
-            style="width:100%; padding:14px; border-radius:14px; background:linear-gradient(135deg,#B2E4DC,#3db89e); color:#fff; font-weight:700; font-size:1rem; border:none; cursor:pointer; box-shadow:0 4px 14px rgba(61,184,158,0.3); display:flex; items-center; justify-content:center; gap:8px;"
+            style="
+              width: 100%;
+              padding: 14px;
+              border-radius: 14px;
+              background: linear-gradient(135deg, #b2e4dc, #3db89e);
+              color: #fff;
+              font-weight: 700;
+              font-size: 1rem;
+              border: none;
+              cursor: pointer;
+              box-shadow: 0 4px 14px rgba(61, 184, 158, 0.3);
+            "
           >
-            <Smartphone :size="18" />
-            휴대폰 본인인증하기
+            아이디 찾기
           </button>
 
-          <div class="flex justify-center gap-4 style='margin-top:10px;'">
+          <div class="flex justify-center gap-4">
             <router-link
               to="/login"
               style="
@@ -203,6 +238,7 @@ const carrierBtnStyle =
       </div>
     </div>
 
+    <!-- 아이디 찾기 모달 -->
     <div
       v-if="isModalOpen"
       class="fixed inset-0 flex items-center justify-center z-50 px-4"
@@ -214,81 +250,120 @@ const carrierBtnStyle =
       >
         <button
           @click="isModalOpen = false"
-          class="absolute top-5 right-5 text-gray-400 hover:text-gray-600"
+          class="absolute top-5 right-5"
           style="background: none; border: none; cursor: pointer"
         >
           <X :size="20" color="#6b8c87" />
         </button>
 
-        <div v-if="modalStep === 'carrier'" class="flex flex-col gap-4">
+        <div class="flex flex-col gap-4">
           <div class="pt-2">
             <h3 style="font-weight: 800; font-size: 1.2rem; color: #1a2e2b">
-              통신사 선택
+              본인 정보 입력
             </h3>
             <p style="font-size: 0.8rem; color: #6b8c87; margin-top: 4px">
-              인증을 진행할 통신사를 선택하세요.
+              가입 시 등록한 정보를 입력하세요.
             </p>
           </div>
 
-          <div class="flex flex-col gap-2.5 pt-2">
-            <button
-              @click="completeAuth('SKT')"
-              :style="carrierBtnStyle"
-              class="hover:bg-gray-50"
-            >
-              <span style="color: #e52d2d; margin-right: 6px">SKT</span>
-              <span style="font-size: 0.85rem; font-weight: 500; color: #6b8c87"
-                >PASS로 인증하기</span
-              >
-            </button>
-            <button
-              @click="completeAuth('KT')"
-              :style="carrierBtnStyle"
-              class="hover:bg-gray-50"
-            >
-              <span style="color: #1c86ee; margin-right: 6px">KT</span>
-              <span style="font-size: 0.85rem; font-weight: 500; color: #6b8c87"
-                >PASS로 인증하기</span
-              >
-            </button>
-            <button
-              @click="completeAuth('LGU+')"
-              :style="carrierBtnStyle"
-              class="hover:bg-gray-50"
-            >
-              <span style="color: #e0115f; margin-right: 6px">LGU+</span>
-              <span style="font-size: 0.85rem; font-weight: 500; color: #6b8c87"
-                >PASS로 인증하기</span
-              >
-            </button>
-            <button
-              @click="completeAuth('알뜰폰')"
-              :style="carrierBtnStyle"
-              class="hover:bg-gray-50"
-            >
-              <span style="color: #3db89e; margin-right: 6px">알뜰폰</span>
-              <span style="font-size: 0.85rem; font-weight: 500; color: #6b8c87"
-                >PASS로 인증하기</span
-              >
-            </button>
-          </div>
-        </div>
+          <div class="flex flex-col gap-3 pt-1">
+            <!-- 이름 -->
+            <div class="flex flex-col gap-1">
+              <label :style="labelStyle">이름</label>
+              <div class="relative">
+                <User
+                  :size="14"
+                  color="#B2E4DC"
+                  style="
+                    position: absolute;
+                    left: 12px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                  "
+                />
+                <input
+                  v-model="realName"
+                  :style="`${inputStyle}padding-left:36px;`"
+                  placeholder="홍길동"
+                />
+              </div>
+            </div>
 
-        <div
-          v-else-if="modalStep === 'success'"
-          class="flex flex-col items-center justify-center py-8 gap-4 text-center"
-        >
-          <div
-            class="animate-spin w-10 h-10 border-4 border-t-transparent rounded-full"
-            style="border-color: #3db89e; border-t-color: transparent"
-          ></div>
-          <div>
-            <h4 style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b">
-              [{{ selectedCarrier }}] 본인인증 완료 중
-            </h4>
-            <p style="font-size: 0.82rem; color: #6b8c87; margin-top: 4px">
-              잠시 후 아이디 찾기 결과로 이동합니다.
-            </p>
+            <!-- 생년월일 -->
+            <div class="flex flex-col gap-1">
+              <label :style="labelStyle">생년월일</label>
+              <div class="relative">
+                <Calendar
+                  :size="14"
+                  color="#B2E4DC"
+                  style="
+                    position: absolute;
+                    left: 12px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    pointer-events: none;
+                  "
+                />
+                <input
+                  v-model="birthDate"
+                  type="date"
+                  :style="`${inputStyle}padding-left:36px;`"
+                />
+              </div>
+            </div>
+
+            <!-- 핸드폰번호 -->
+            <div class="flex flex-col gap-1">
+              <label :style="labelStyle">핸드폰번호</label>
+              <div class="relative">
+                <Phone
+                  :size="14"
+                  color="#B2E4DC"
+                  style="
+                    position: absolute;
+                    left: 12px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                  "
+                />
+                <input
+                  v-model="phone"
+                  type="tel"
+                  :style="`${inputStyle}padding-left:36px;`"
+                  placeholder="01012345678"
+                />
+              </div>
+            </div>
+
+            <!-- 에러 메시지 -->
+            <div
+              v-if="modalError"
+              class="flex items-center gap-1.5"
+              style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
+            >
+              <AlertCircle :size="13" /> {{ modalError }}
+            </div>
+
+            <button
+              @click="handleFindId"
+              :disabled="isLoading"
+              style="
+                width: 100%;
+                padding: 13px;
+                border-radius: 12px;
+                background: linear-gradient(135deg, #b2e4dc, #3db89e);
+                color: #fff;
+                font-weight: 700;
+                font-size: 0.92rem;
+                border: none;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(61, 184, 158, 0.25);
+                margin-top: 4px;
+              "
+              :style="isLoading ? 'opacity:0.7;cursor:default' : ''"
+            >
+              {{ isLoading ? "조회 중..." : "아이디 찾기" }}
+            </button>
           </div>
         </div>
       </div>
@@ -297,14 +372,9 @@ const carrierBtnStyle =
 </template>
 
 <style scoped>
-/* 회전 스피너를 위한 임시 CSS keyframe 코드 */
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 .animate-spin {
   animation: spin 1s linear infinite;

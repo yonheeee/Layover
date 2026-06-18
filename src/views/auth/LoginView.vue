@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import { Mail, Lock, Eye, EyeOff, Train } from "lucide-vue-next";
+import { Mail, Lock, Eye, EyeOff, Train, AlertCircle } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
@@ -9,42 +9,43 @@ const auth = useAuthStore();
 const loginId = ref("");
 const loginPw = ref("");
 const showPw = ref(false);
+const loginError = ref("");
 
-// 🌟 [추가] 사용자가 입력을 시도했거나 폼을 제출했는지 여부 확인 플래그
 const isIdTouched = ref(false);
 const isPwTouched = ref(false);
 
-// 🌟 [추가] 1. 아이디(이메일) 유효성 검사 로직
 const isIdValid = computed(() => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(loginId.value);
 });
 
-// 🌟 [추가] 2. 비밀번호 유효성 검사 로직 (영어, 특수문자, 숫자 포함 8자 이상)
 const isPwValid = computed(() => {
   const passwordRegex =
     /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
   return passwordRegex.test(loginPw.value);
 });
 
-// 🌟 [추가] 아이디 에러 노출 조건 (값이 있고, 형식이 틀렸거나, 포커스를 잃었을 때 등)
 const showIdError = computed(() => {
   return isIdTouched.value && loginId.value.length > 0 && !isIdValid.value;
 });
 
-// 🌟 [추가] 비밀번호 에러 노출 조건
 const showPwError = computed(() => {
   return isPwTouched.value && loginPw.value.length > 0 && !isPwValid.value;
 });
 
-// 로그인 버튼 클릭 시 전체 검사
 const handleLogin = async () => {
+  loginError.value = "";
   isIdTouched.value = true;
   isPwTouched.value = true;
 
-  if (isIdValid.value && isPwValid.value) {
+  if (!isIdValid.value || !isPwValid.value) return;
+
+  try {
     await auth.login(loginId.value, loginPw.value);
     router.push("/");
+  } catch (err) {
+    loginError.value =
+      err instanceof Error ? err.message : "로그인 중 오류가 발생했습니다.";
   }
 };
 </script>
@@ -82,6 +83,7 @@ const handleLogin = async () => {
       </div>
 
       <div class="flex flex-col gap-5">
+        <!-- 아이디 -->
         <div class="flex flex-col gap-1.5">
           <label
             style="
@@ -108,6 +110,7 @@ const handleLogin = async () => {
               type="email"
               placeholder="example@email.com"
               @blur="isIdTouched = true"
+              @input="loginError = ''"
               :style="{
                 width: '100%',
                 padding: '12px 16px 12px 40px',
@@ -136,6 +139,7 @@ const handleLogin = async () => {
           </p>
         </div>
 
+        <!-- 비밀번호 -->
         <div class="flex flex-col gap-1.5">
           <label
             style="
@@ -162,6 +166,7 @@ const handleLogin = async () => {
               :type="showPw ? 'text' : 'password'"
               placeholder="비밀번호 입력"
               @blur="isPwTouched = true"
+              @input="loginError = ''"
               :style="{
                 width: '100%',
                 padding: '12px 44px 12px 40px',
@@ -204,6 +209,15 @@ const handleLogin = async () => {
           >
             영어, 특수문자, 숫자를 포함해 8자 이상 입력해주세요.
           </p>
+        </div>
+
+        <!-- 로그인 실패 에러 -->
+        <div
+          v-if="loginError"
+          class="flex items-center gap-1.5"
+          style="color: #ff4d4f; font-size: 0.82rem; font-weight: 500"
+        >
+          <AlertCircle :size="14" /> {{ loginError }}
         </div>
 
         <div class="flex justify-end gap-4">

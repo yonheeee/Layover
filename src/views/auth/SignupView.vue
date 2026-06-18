@@ -4,19 +4,32 @@ import {
   Mail,
   Lock,
   User,
+  Phone,
   Eye,
   EyeOff,
   CheckCircle,
   AlertCircle,
   Train,
+  Calendar,
 } from "lucide-vue-next";
+import { useRouter } from "vue-router";
+import {
+  checkEmail,
+  sendEmailCode,
+  verifyEmailCode,
+  signup,
+} from "@/api/auth";
+
+const router = useRouter();
 
 const signupName = ref("");
 const signupEmail = ref("");
+const signupBirthDate = ref("");
+const signupPhone = ref("");
 const emailCode = ref("");
 const emailCodeSent = ref(false);
 const emailCodeVerified = ref(false);
-const emailDuplChecked = ref<null | boolean>(null); // null: 체크안함, true: 중복없음(사용가능), false: 중복임(사용불가)
+const emailDuplChecked = ref<null | boolean>(null);
 const signupPw = ref("");
 const signupPwConfirm = ref("");
 const showPw = ref(false);
@@ -25,20 +38,23 @@ const showPwC = ref(false);
 const isEmailTouched = ref(false);
 const isPwTouched = ref(false);
 
-// 이메일 형식 유효성 검사
+const emailCheckError = ref("");
+const sendCodeError = ref("");
+const verifyCodeError = ref("");
+const signupError = ref("");
+const isLoading = ref(false);
+
 const isEmailValid = computed(() => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(signupEmail.value);
 });
 
-// 비밀번호 형식 유효성 검사
 const isPwValid = computed(() => {
   const passwordRegex =
     /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
   return passwordRegex.test(signupPw.value);
 });
 
-// 비밀번호 일치 여부
 const pwMatch = computed(
   () =>
     signupPw.value &&
@@ -57,20 +73,104 @@ const showPwError = computed(
   () => isPwTouched.value && signupPw.value.length > 0 && !isPwValid.value,
 );
 
-// 🌟 [추가] 프론트엔드 단에서 중복확인 버튼 활성화 조건 (올바른 이메일 형식을 썼을 때만 클릭 가능)
 const canCheckDuplication = computed(() => isEmailValid.value);
 
-// 🌟 [수정] 중복확인 클릭 시 빈 값 및 형식 체크 트리거
-const handleEmailCheck = () => {
+const handleEmailCheck = async () => {
+  emailCheckError.value = "";
   if (!canCheckDuplication.value) {
     isEmailTouched.value = true;
-    alert("올바른 이메일 형식을 먼저 입력해주세요.");
+    return;
+  }
+  try {
+    const res = await checkEmail(signupEmail.value);
+    if (res.success) {
+      emailDuplChecked.value = true;
+    } else {
+      emailDuplChecked.value = false;
+      emailCheckError.value = res.message;
+    }
+  } catch {
+    emailCheckError.value = "이메일 확인 중 오류가 발생했습니다.";
+  }
+};
+
+const handleSendCode = async () => {
+  sendCodeError.value = "";
+  try {
+    const res = await sendEmailCode(signupEmail.value);
+    if (res.success) {
+      emailCodeSent.value = true;
+    } else {
+      sendCodeError.value = res.message;
+    }
+  } catch {
+    sendCodeError.value = "인증번호 발송 중 오류가 발생했습니다.";
+  }
+};
+
+const handleVerifyCode = async () => {
+  verifyCodeError.value = "";
+  try {
+    const res = await verifyEmailCode(signupEmail.value, emailCode.value);
+    if (res.success) {
+      emailCodeVerified.value = true;
+    } else {
+      verifyCodeError.value = res.message;
+    }
+  } catch {
+    verifyCodeError.value = "인증 확인 중 오류가 발생했습니다.";
+  }
+};
+
+const handleSignup = async () => {
+  signupError.value = "";
+  isEmailTouched.value = true;
+  isPwTouched.value = true;
+
+  if (!signupName.value) {
+    signupError.value = "이름을 입력해주세요.";
+    return;
+  }
+  if (!signupBirthDate.value) {
+    signupError.value = "생년월일을 입력해주세요.";
+    return;
+  }
+  if (!signupPhone.value) {
+    signupError.value = "핸드폰번호를 입력해주세요.";
+    return;
+  }
+  if (!isEmailValid.value || emailDuplChecked.value !== true || !emailCodeVerified.value) {
+    signupError.value = "이메일 중복확인 및 인증을 완료해주세요.";
+    return;
+  }
+  if (!isPwValid.value) {
+    signupError.value = "비밀번호 형식을 확인해주세요.";
+    return;
+  }
+  if (!pwMatch.value) {
+    signupError.value = "비밀번호가 일치하지 않습니다.";
     return;
   }
 
-  // 원래는 여기서 백엔드 API를 호출해야 합니다! (ex: axios.post('/api/check-email', ...))
-  // 임시로 테스트하기 위해 무조건 true(사용 가능)로 처리하는 로직
-  emailDuplChecked.value = true;
+  isLoading.value = true;
+  try {
+    const res = await signup(
+      signupEmail.value,
+      signupPw.value,
+      signupName.value,
+      signupBirthDate.value,
+      signupPhone.value,
+    );
+    if (res.success) {
+      router.push("/login");
+    } else {
+      signupError.value = res.message;
+    }
+  } catch {
+    signupError.value = "회원가입 중 오류가 발생했습니다.";
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 const inputStyle =
@@ -79,34 +179,6 @@ const labelStyle =
   "font-size:0.8rem;font-weight:600;color:#6b8c87;letter-spacing:0.03em";
 const btnOutlineStyle =
   "padding:10px 16px;border-radius:12px;border:1.5px solid #3db89e;background:#fff;color:#3db89e;font-weight:600;font-size:0.82rem;cursor:pointer;white-space:nowrap;flex-shrink:0";
-
-const handleSignup = () => {
-  isEmailTouched.value = true;
-  isPwTouched.value = true;
-
-  if (!signupName.value) {
-    alert("이름을 입력해주세요.");
-    return;
-  }
-  if (
-    !isEmailValid.value ||
-    emailDuplChecked.value !== true ||
-    !emailCodeVerified.value
-  ) {
-    alert("이메일 중복확인 및 인증을 완료해주세요.");
-    return;
-  }
-  if (!isPwValid.value) {
-    alert("비밀번호 형식을 확인해주세요.");
-    return;
-  }
-  if (!pwMatch.value) {
-    alert("비밀번호가 일치하지 않습니다.");
-    return;
-  }
-
-  console.log("회원가입 진행 완료");
-};
 </script>
 
 <template>
@@ -142,6 +214,7 @@ const handleSignup = () => {
       </div>
 
       <div class="flex flex-col gap-5">
+        <!-- 이름 -->
         <div class="flex flex-col gap-1.5">
           <label :style="labelStyle">이름</label>
           <div class="relative">
@@ -163,6 +236,53 @@ const handleSignup = () => {
           </div>
         </div>
 
+        <!-- 생년월일 -->
+        <div class="flex flex-col gap-1.5">
+          <label :style="labelStyle">생년월일</label>
+          <div class="relative">
+            <Calendar
+              :size="15"
+              color="#B2E4DC"
+              style="
+                position: absolute;
+                left: 14px;
+                top: 50%;
+                transform: translateY(-50%);
+                pointer-events: none;
+              "
+            />
+            <input
+              v-model="signupBirthDate"
+              type="date"
+              :style="`${inputStyle}padding-left:40px; border:1.5px solid rgba(178,228,220,0.5);`"
+            />
+          </div>
+        </div>
+
+        <!-- 핸드폰번호 -->
+        <div class="flex flex-col gap-1.5">
+          <label :style="labelStyle">핸드폰번호</label>
+          <div class="relative">
+            <Phone
+              :size="15"
+              color="#B2E4DC"
+              style="
+                position: absolute;
+                left: 14px;
+                top: 50%;
+                transform: translateY(-50%);
+              "
+            />
+            <input
+              v-model="signupPhone"
+              type="tel"
+              :style="`${inputStyle}padding-left:40px; border:1.5px solid rgba(178,228,220,0.5);`"
+              placeholder="01012345678"
+            />
+          </div>
+        </div>
+
+        <!-- 아이디 (이메일) -->
         <div class="flex flex-col gap-1.5">
           <label :style="labelStyle">아이디 (이메일)</label>
           <div class="flex gap-2 items-center">
@@ -186,12 +306,14 @@ const handleSignup = () => {
                   emailDuplChecked = null;
                   emailCodeSent = false;
                   emailCodeVerified = false;
+                  emailCheckError = '';
                 "
               />
             </div>
             <button
               :style="`${btnOutlineStyle}${emailDuplChecked === true ? ';background:#E8F8F5' : ''}${!canCheckDuplication ? ';opacity:0.5;cursor:not-allowed;border-color:rgba(178,228,220,0.8);color:#6b8c87' : ''}`"
               @click="handleEmailCheck"
+              :disabled="!canCheckDuplication"
             >
               {{ emailDuplChecked === true ? "✓ 확인완료" : "중복확인" }}
             </button>
@@ -201,8 +323,14 @@ const handleSignup = () => {
             class="flex items-center gap-1.5"
             style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
           >
-            <AlertCircle :size="13" /> 알맞은 형식으로 입력해주세요. (예시:
-            daejeon@layover.com)
+            <AlertCircle :size="13" /> 알맞은 형식으로 입력해주세요.
+          </div>
+          <div
+            v-else-if="emailCheckError"
+            class="flex items-center gap-1.5"
+            style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
+          >
+            <AlertCircle :size="13" /> {{ emailCheckError }}
           </div>
           <div
             v-else-if="emailDuplChecked === true && isEmailValid"
@@ -211,15 +339,9 @@ const handleSignup = () => {
           >
             <CheckCircle :size="13" /> 사용 가능한 이메일입니다.
           </div>
-          <div
-            v-else-if="emailDuplChecked === false && signupEmail.length > 0"
-            class="flex items-center gap-1.5"
-            style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
-          >
-            <AlertCircle :size="13" /> 이미 사용중인 이메일입니다.
-          </div>
         </div>
 
+        <!-- 이메일 인증 -->
         <div
           v-if="emailDuplChecked === true && isEmailValid"
           class="flex flex-col gap-1.5"
@@ -236,14 +358,14 @@ const handleSignup = () => {
             <button
               v-if="!emailCodeSent"
               :style="btnOutlineStyle"
-              @click="emailCodeSent = true"
+              @click="handleSendCode"
             >
               인증번호 발송
             </button>
             <button
               v-else-if="!emailCodeVerified"
               :style="btnOutlineStyle"
-              @click="emailCodeVerified = emailCode === '123456'"
+              @click="handleVerifyCode"
             >
               인증 확인
             </button>
@@ -265,12 +387,25 @@ const handleSignup = () => {
             </button>
           </div>
           <div
-            v-if="emailCodeSent && !emailCodeVerified"
+            v-if="sendCodeError"
+            class="flex items-center gap-1.5"
+            style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
+          >
+            <AlertCircle :size="13" /> {{ sendCodeError }}
+          </div>
+          <div
+            v-else-if="emailCodeSent && !emailCodeVerified"
             class="flex items-center gap-1.5"
             style="color: #3db89e; font-size: 0.78rem; font-weight: 500"
           >
-            <CheckCircle :size="13" /> 인증번호가 발송되었습니다. (테스트:
-            123456)
+            <CheckCircle :size="13" /> 인증번호가 발송되었습니다.
+          </div>
+          <div
+            v-if="verifyCodeError"
+            class="flex items-center gap-1.5"
+            style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
+          >
+            <AlertCircle :size="13" /> {{ verifyCodeError }}
           </div>
           <div
             v-if="emailCodeVerified"
@@ -281,6 +416,7 @@ const handleSignup = () => {
           </div>
         </div>
 
+        <!-- 비밀번호 -->
         <div class="flex flex-col gap-1.5">
           <label :style="labelStyle">비밀번호</label>
           <div class="relative">
@@ -328,6 +464,7 @@ const handleSignup = () => {
           </div>
         </div>
 
+        <!-- 비밀번호 확인 -->
         <div class="flex flex-col gap-1.5">
           <label :style="labelStyle">비밀번호 확인</label>
           <div class="relative">
@@ -380,8 +517,18 @@ const handleSignup = () => {
           </div>
         </div>
 
+        <!-- 공통 에러 -->
+        <div
+          v-if="signupError"
+          class="flex items-center gap-1.5"
+          style="color: #ff4d4f; font-size: 0.82rem; font-weight: 500"
+        >
+          <AlertCircle :size="14" /> {{ signupError }}
+        </div>
+
         <button
           @click="handleSignup"
+          :disabled="isLoading"
           style="
             width: 100%;
             padding: 13px;
@@ -395,8 +542,9 @@ const handleSignup = () => {
             box-shadow: 0 4px 14px rgba(61, 184, 158, 0.3);
             margin-top: 4px;
           "
+          :style="isLoading ? 'opacity:0.7;cursor:default' : ''"
         >
-          회원가입 완료
+          {{ isLoading ? "처리 중..." : "회원가입 완료" }}
         </button>
 
         <p class="text-center" style="font-size: 0.82rem; color: #6b8c87">
