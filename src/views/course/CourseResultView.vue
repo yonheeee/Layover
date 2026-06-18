@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
+
+const router = useRouter();
 import {
   MapPin,
   Clock,
@@ -19,6 +22,9 @@ import {
 } from "lucide-vue-next";
 import type { Course, CourseStop } from "@/types/course";
 import { fetchResultCourses, fetchMockSearch } from "@/api/courses";
+import { useCourseStore } from "@/stores/course";
+
+const courseStore = useCourseStore();
 
 const courses = ref<Course[]>([]);
 
@@ -122,11 +128,9 @@ const showConfirmModal = ref(false);
 const showShareToast = ref(false);
 
 function confirmCourse() {
+  courseStore.setConfirmed();
   showConfirmModal.value = false;
-  showShareToast.value = true;
-  setTimeout(() => {
-    showShareToast.value = false;
-  }, 5000);
+  router.push("/stamp-tour");
 }
 </script>
 

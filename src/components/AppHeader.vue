@@ -21,6 +21,7 @@ const NAV_LINKS = [
   { label: "지도", to: "/map" },
   { label: "관광지", to: "/place" },
   { label: "커뮤니티", to: "/community" },
+  { label: "스탬프", to: "/stamp-tour" },
   { label: "마이페이지", to: "/mypage" },
 ];
 </script>
@@ -58,10 +59,7 @@ const NAV_LINKS = [
             :style="{
               color: route.path === link.to ? '#3db89e' : '#1a2e2b',
               fontWeight: route.path === link.to ? 600 : 400,
-              background:
-                route.path === link.to
-                  ? 'rgba(232,248,245,0.8)'
-                  : 'transparent',
+              background: route.path === link.to ? 'rgba(232,248,245,0.8)' : 'transparent',
               textDecoration: 'none',
             }"
             >{{ link.label }}</router-link

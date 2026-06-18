@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import {
   Camera,
@@ -37,6 +37,9 @@ import {
   fetchCharacters,
   fetchPostcardData,
 } from "@/api/user";
+import { useStampStore } from "@/stores/stamp";
+
+const stampStore = useStampStore();
 
 const router = useRouter();
 type Tab = "activity" | "info" | "postcard";
@@ -139,6 +142,82 @@ const mapPins = ref<MapPinType[]>([]);
 
 // 엽서 - 사진
 const userPhotos = ref<UserPhoto[]>([]);
+
+// 엽서 - 스탬프 사진 지도
+let postcardMap: any = null
+let postcardOverlays: any[] = []
+
+function initPostcardMap() {
+  const container = document.getElementById('postcard-stamp-map')
+  if (!container) return
+  const kakao = (window as any).kakao
+  if (!kakao?.maps) return
+
+  const center = new kakao.maps.LatLng(36.3619, 127.4100)
+  postcardMap = new kakao.maps.Map(container, { center, level: 8 })
+  renderPostcardPins()
+}
+
+function renderPostcardPins() {
+  if (!postcardMap) return
+  const kakao = (window as any).kakao
+
+  postcardOverlays.forEach((o) => o.setMap(null))
+  postcardOverlays = []
+
+  if (stampStore.photos.length === 0) return
+
+  const bounds = new kakao.maps.LatLngBounds()
+
+  stampStore.photos.forEach((photo) => {
+    const pos = new kakao.maps.LatLng(photo.lat, photo.lng)
+    bounds.extend(pos)
+
+    const content = `
+      <div style="
+        width:52px;height:52px;border-radius:12px;
+        border:3px solid #3db89e;
+        box-shadow:0 3px 12px rgba(61,184,158,0.4);
+        overflow:hidden;cursor:pointer;
+      ">
+        <img src="${photo.url}" style="width:100%;height:100%;object-fit:cover;" />
+      </div>`
+
+    const overlay = new kakao.maps.CustomOverlay({
+      position: pos,
+      content,
+      yAnchor: 1,
+    })
+    overlay.setMap(postcardMap)
+    postcardOverlays.push(overlay)
+  })
+
+  postcardMap.setBounds(bounds)
+}
+
+watch(
+  () => activeTab.value,
+  async (tab) => {
+    if (tab === 'postcard') {
+      await nextTick()
+      if (!postcardMap) {
+        if (!(window as any).kakao?.maps) {
+          if (!document.getElementById('kakao-map-script')) {
+            const script = document.createElement('script')
+            script.id = 'kakao-map-script'
+            script.src = '//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&autoload=false'
+            document.head.appendChild(script)
+            script.onload = () => (window as any).kakao.maps.load(() => initPostcardMap())
+          }
+        } else {
+          initPostcardMap()
+        }
+      } else {
+        renderPostcardPins()
+      }
+    }
+  }
+)
 
 const activePhotoModal = ref<string | null>(null);
 const activeMapPopup = ref<(typeof mapPins.value)[0] | null>(null);
@@ -693,96 +772,58 @@ const labelBase =
               >
                 스탬프 지도
               </h2>
+
+              <!-- 사진 없을 때 -->
               <div
-                class="relative w-full h-[340px] rounded-2xl bg-teal-50/50 border border-teal-100 overflow-hidden flex items-center justify-center"
+                v-if="stampStore.photos.length === 0"
+                class="flex flex-col items-center justify-center h-[200px] rounded-2xl"
+                style="background:#f9fafb;border:1.5px dashed #e5e7eb"
               >
-                <!-- 지도 컨테이너 Mockup -->
-                <div
-                  class="absolute inset-0 bg-[#eef7f6] flex items-center justify-center text-xs text-teal-700 font-medium"
-                >
-                  [ Kakao Map API Map Container ]
+                <span class="text-4xl mb-3">🗺️</span>
+                <p style="font-size:0.85rem;font-weight:600;color:#9ca3af">인증한 장소가 지도에 표시돼요</p>
+                <p style="font-size:0.75rem;color:#d1d5db;margin-top:4px">스탬프 투어에서 장소를 방문해보세요!</p>
+              </div>
 
-                  <!-- 핀 1: 여백 없이 초록 테두리 안에 사진을 꽉 채운 핀 -->
-                  <div
-                    @click="activeMapPopup = mapPins[0]"
-                    class="absolute top-1/3 left-1/4 w-12 h-12 rounded-xl border-2 border-teal-500 shadow-md cursor-pointer hover:scale-110 transition-transform overflow-hidden"
-                  >
-                    <img
-                      :src="mapPins[0].url"
-                      class="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  <!-- 핀 2 -->
-                  <div
-                    @click="activeMapPopup = mapPins[1]"
-                    class="absolute top-1/2 right-1/3 w-12 h-12 rounded-xl border-2 border-teal-500 shadow-md cursor-pointer hover:scale-110 transition-transform overflow-hidden"
-                  >
-                    <img
-                      :src="mapPins[1].url"
-                      class="w-full h-full object-cover"
-                    />
-                  </div>
-                </div>
-
-                <!-- 위치핀 클릭 시 뜨는 여행 일정 정보 연동 팝업 -->
-                <div
-                  v-if="activeMapPopup"
-                  class="absolute bottom-4 left-4 right-4 p-4 bg-white/95 backdrop-blur shadow-lg rounded-xl flex items-center justify-between border border-teal-100 z-10 animate-fade-in"
-                >
-                  <div class="flex items-center gap-3.5">
-                    <!-- 팝업 내부 이미지도 정방형으로 알맞게 채움 -->
-                    <img
-                      :src="activeMapPopup.url"
-                      class="w-14 h-14 object-cover rounded-lg border border-gray-100"
-                    />
-                    <div class="flex flex-col gap-0.5">
-                      <span
-                        class="text-[0.68rem] text-teal-600 font-bold tracking-wide"
-                        >{{ activeMapPopup.visitDate }} 방문</span
-                      >
-                      <p class="text-sm font-extrabold text-[#1a2e2b]">
-                        {{ activeMapPopup.journalTitle }}
-                      </p>
-                      <p
-                        class="text-[0.72rem] text-gray-500 flex items-center gap-0.5"
-                      >
-                        <span class="font-semibold text-gray-700">{{
-                          activeMapPopup.location
-                        }}</span
-                        >에서 기록한 발자국
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    @click="activeMapPopup = null"
-                    class="text-xs text-gray-400 font-bold px-2.5 py-1.5 hover:bg-gray-100 rounded-md transition-colors shrink-0"
-                  >
-                    닫기
-                  </button>
-                </div>
+              <!-- 카카오 지도 + 사진 핀 -->
+              <div
+                v-else
+                class="relative w-full h-[340px] rounded-2xl overflow-hidden"
+                style="border:1px solid rgba(178,228,220,0.4)"
+              >
+                <div id="postcard-stamp-map" style="width:100%;height:100%" />
               </div>
             </div>
 
-            <!-- 사진 섹션 (PC 최적화 내부 스크롤 디자인 적용) -->
+            <!-- 사진 섹션 (스탬프 투어 인증 사진) -->
             <div class="py-6 border-t border-gray-100">
               <div class="flex items-center justify-between mb-4">
                 <h2
                   style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
                 >
-                  사진
+                  스탬프 인증 사진
                 </h2>
                 <span class="text-xs text-gray-400 font-medium"
-                  >총 {{ userPhotos.length }}장</span
+                  >총 {{ stampStore.photos.length }}장</span
                 >
               </div>
 
-              <!-- max-h를 주어 3열 형태를 유지하면서 스크롤되도록 처리 (스크롤바는 스타일 숨김 처리 가능) -->
+              <!-- 사진 없을 때 -->
               <div
+                v-if="stampStore.photos.length === 0"
+                class="flex flex-col items-center justify-center py-12 rounded-2xl"
+                style="background:#f9fafb;border:1.5px dashed #e5e7eb"
+              >
+                <span class="text-4xl mb-3">📮</span>
+                <p style="font-size:0.85rem;font-weight:600;color:#9ca3af">아직 인증한 사진이 없어요</p>
+                <p style="font-size:0.75rem;color:#d1d5db;margin-top:4px">스탬프 투어에서 장소를 인증해보세요!</p>
+              </div>
+
+              <div
+                v-else
                 class="grid grid-cols-3 gap-2 overflow-y-auto pr-1 max-h-[420px] custom-scrollbar"
               >
                 <div
-                  v-for="photo in userPhotos"
+                  v-for="photo in stampStore.photos"
                   :key="photo.id"
                   @click="activePhotoModal = photo.url"
                   class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer border border-gray-100"
@@ -794,10 +835,9 @@ const labelBase =
                   <div
                     class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2"
                   >
-                    <span
-                      class="text-[0.7rem] text-white font-medium truncate"
-                      >{{ photo.location }}</span
-                    >
+                    <span class="text-[0.7rem] text-white font-medium truncate">
+                      {{ photo.placeEmoji }} {{ photo.placeName }}
+                    </span>
                   </div>
                 </div>
               </div>
