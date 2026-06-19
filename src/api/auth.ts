@@ -1,4 +1,4 @@
-import { httpPost, httpPut } from './http'
+import { httpGet, httpPost, httpPut } from './http'
 import type { ApiResponse } from './http'
 
 export interface LoginData {
@@ -63,4 +63,16 @@ export function resetPassword(email: string, newPassword: string): Promise<ApiRe
 
 export function refreshAccessToken(refreshToken: string): Promise<ApiResponse<RefreshData>> {
   return httpPost('/api/auth/refresh', { refreshToken })
+}
+
+export function getKakaoAuthUrl(): Promise<ApiResponse<string>> {
+  return httpGet('/api/login/kakao')
+}
+
+export function updateKakaoProfile(
+  name: string,
+  birthDate: string,
+  phone: string,
+): Promise<ApiResponse<null>> {
+  return httpPut('/api/user/profile', { name, birthDate, phone })
 }
