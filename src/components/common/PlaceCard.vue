@@ -9,7 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   click: [spot: Place];
-  toggleLike: [id: number];
+  toggleLike: [id: string];
 }>();
 
 function onMouseEnter(e: MouseEvent) {
@@ -24,6 +24,14 @@ function onMouseLeave(e: MouseEvent) {
   el.style.transform = "translateY(0)";
   el.style.boxShadow =
     "0 4px 24px rgba(178,228,220,0.2), 0 1px 4px rgba(0,0,0,0.04)";
+}
+
+function shortAddress(address?: string): string {
+  if (!address) return "";
+  const gu = address.split(" ")[1];
+  const dongMatch = address.match(/\(([^)]+)\)/);
+  const dong = dongMatch?.[1];
+  return dong ? `${gu} ${dong}` : gu ?? "";
 }
 </script>
 
@@ -41,7 +49,10 @@ function onMouseLeave(e: MouseEvent) {
     @click="emit('click', spot)"
   >
     <!-- 이미지 영역 -->
-    <div class="spot-card-image relative overflow-hidden" style="background: #f0faf8">
+    <div
+      class="spot-card-image relative overflow-hidden"
+      style="background: #f0faf8"
+    >
       <img
         :src="spot.image"
         :alt="spot.name"
@@ -66,7 +77,10 @@ function onMouseLeave(e: MouseEvent) {
       <!-- 좋아요 버튼 -->
       <button
         class="absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center hover:scale-110 transition-all"
-        style="background: rgba(255,255,255,0.92); backdrop-filter: blur(6px)"
+        style="
+          background: rgba(255, 255, 255, 0.92);
+          backdrop-filter: blur(6px);
+        "
         @click.stop="emit('toggleLike', spot.id)"
       >
         <Heart
@@ -113,7 +127,7 @@ function onMouseLeave(e: MouseEvent) {
         class="spot-description"
         style="font-size: 0.8rem; color: #6b8c87; line-height: 1.6"
       >
-        {{ spot.description }}
+        {{ shortAddress(spot.address) }}
       </p>
       <div
         class="spot-distance-time rounded-xl p-2.5 flex items-center justify-center"
