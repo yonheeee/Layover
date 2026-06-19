@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/types/user'
-import { login as loginApi } from '@/api/auth'
+import { login as loginApi, getKakaoAuthUrl } from '@/api/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(localStorage.getItem('accessToken'))
@@ -28,5 +28,18 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refreshToken')
   }
 
-  return { accessToken, refreshToken, user, isLoggedIn, login, logout }
+  async function kakaoLogin(): Promise<void> {
+    const res = await getKakaoAuthUrl()
+    if (!res.success) throw new Error(res.message)
+    window.location.href = res.data
+  }
+
+  function handleKakaoCallback(token: string, refresh: string): void {
+    accessToken.value = token
+    refreshToken.value = refresh
+    localStorage.setItem('accessToken', token)
+    localStorage.setItem('refreshToken', refresh)
+  }
+
+  return { accessToken, refreshToken, user, isLoggedIn, login, logout, kakaoLogin, handleKakaoCallback }
 })
