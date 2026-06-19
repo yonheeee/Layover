@@ -3,16 +3,28 @@ import { ref, onMounted } from "vue";
 import { MapPin, ChevronLeft, ChevronRight } from "lucide-vue-next";
 import type { Place } from "@/types/place";
 import PlaceCard from "@/components/common/PlaceCard.vue";
+import { getPlaces } from "@/api/places";
 
 const props = defineProps<{
-  spots: Place[];
-  likedSpots: number[];
+  likedSpots: string[];
 }>();
 
 const emit = defineEmits<{
-  openSpotModal: [spot: Place];
-  toggleLike: [id: number];
+  openSpotModal: [id: string];
+  toggleLike: [id: string];
 }>();
+
+const CATEGORY_TABS = [
+  { key: "", label: "전체" },
+  { key: "TOUR", label: "관광" },
+  { key: "FOOD", label: "음식" },
+  { key: "CULTURE", label: "문화" },
+  { key: "SHOPPING", label: "쇼핑" },
+];
+
+const spots = ref<Place[]>([]);
+const loading = ref(false);
+const activeCategory = ref("");
 
 const scrollContainer = ref<HTMLDivElement | null>(null);
 const isAtStart = ref(true);
@@ -36,14 +48,30 @@ const checkScrollPosition = () => {
     container.scrollLeft + container.clientWidth >= container.scrollWidth - 5;
 };
 
-onMounted(() => {
-  setTimeout(checkScrollPosition, 100);
-});
+async function fetchSpots(category?: string) {
+  loading.value = true;
+  try {
+    const result = await getPlaces(category || undefined);
+    spots.value = result.content;
+  } catch (e) {
+    console.error("관광지 목록 로딩 실패:", e);
+  } finally {
+    loading.value = false;
+    setTimeout(checkScrollPosition, 100);
+  }
+}
+
+async function selectCategory(key: string) {
+  activeCategory.value = key;
+  await fetchSpots(key);
+}
+
+onMounted(() => fetchSpots());
 </script>
 
 <template>
   <section style="max-width: 1440px; margin: 0 auto; padding: 4rem 2rem">
-    <div class="flex items-end justify-between mb-6">
+    <div class="flex items-end justify-between mb-4">
       <div class="space-y-2">
         <div
           class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm"
@@ -71,7 +99,32 @@ onMounted(() => {
       </router-link>
     </div>
 
-    <div class="relative px-16">
+    <!-- 카테고리 탭 -->
+    <div class="flex gap-2 mb-6 overflow-x-auto pb-1 scrollbar-none">
+      <button
+        v-for="tab in CATEGORY_TABS"
+        :key="tab.key"
+        @click="selectCategory(tab.key)"
+        class="px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all"
+        :style="
+          activeCategory === tab.key
+            ? 'background: #3db89e; color: #ffffff;'
+            : 'background: #ffffff; color: #6b8c87; border: 1px solid #e2e8f0;'
+        "
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <!-- 로딩 -->
+    <div v-if="loading" class="flex justify-center items-center h-48">
+      <div
+        class="w-8 h-8 rounded-full border-2 border-teal-300 border-t-teal-600 animate-spin"
+      />
+    </div>
+
+    <!-- 카드 슬라이더 -->
+    <div v-else class="relative px-16">
       <button
         @click="scroll('left')"
         type="button"
@@ -92,7 +145,7 @@ onMounted(() => {
             :key="spot.id"
             :spot="spot"
             :liked="likedSpots.includes(spot.id)"
-            @click="emit('openSpotModal', spot)"
+            @click="emit('openSpotModal', spot.id)"
             @toggleLike="emit('toggleLike', spot.id)"
           />
         </div>
@@ -131,5 +184,12 @@ onMounted(() => {
 }
 .scroll-smooth {
   scroll-behavior: smooth;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 </style>
