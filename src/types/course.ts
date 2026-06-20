@@ -1,3 +1,13 @@
+export interface CourseGenerateRequest {
+  departureStation?: string
+  durationMinutes: number
+  travelMode: 'WALK' | 'TAXI'
+  weatherCondition?: string
+  themeTags?: string[]
+}
+
+export type CourseResponse = Course
+
 export interface TransportInfo {
   walkTime: string
   busTime: string
@@ -7,7 +17,7 @@ export interface TransportInfo {
 
 /** 코스 경유지. MapView·CourseResultView 양쪽 필드를 모두 포함한 superset. */
 export interface CourseStop {
-  id: number
+  id: string
   name: string
   category: string
   isOpen: boolean
@@ -25,7 +35,7 @@ export interface CourseStop {
 }
 
 export interface Course {
-  id: number
+  id: string
   title: string
   subTitle: string
   totalTime?: string
@@ -35,7 +45,7 @@ export interface Course {
 
 /** 지도 검색 패널에서 코스에 추가할 수 있는 장소 (MapView 전용). */
 export interface DiPlace {
-  id: number
+  id: string
   name: string
   category: string
   isOpen: boolean

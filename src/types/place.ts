@@ -1,12 +1,12 @@
 export interface NearbyPlace {
-  id: number
+  id: string
   name: string
   category: string
   distance: string
 }
 
 export interface Place {
-  id: number
+  id: string
   name: string
   category: string
   isOpen: boolean

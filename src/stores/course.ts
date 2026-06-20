@@ -1,8 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { Course } from '@/types/course'
 
 export const useCourseStore = defineStore('course', () => {
   const hasConfirmedCourse = ref(localStorage.getItem('course_confirmed') === 'true')
+  const generatedCourses = ref<Course[]>([])
+
+  function setCourses(courses: Course[]) {
+    generatedCourses.value = courses
+  }
 
   function setConfirmed() {
     hasConfirmedCourse.value = true
@@ -14,5 +20,5 @@ export const useCourseStore = defineStore('course', () => {
     localStorage.removeItem('course_confirmed')
   }
 
-  return { hasConfirmedCourse, setConfirmed, reset }
+  return { hasConfirmedCourse, generatedCourses, setCourses, setConfirmed, reset }
 })

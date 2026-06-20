@@ -20,7 +20,8 @@ import {
   Unlock,
 } from "lucide-vue-next";
 import type { Course, DiPlace } from "@/types/course";
-import { fetchMapCourses, fetchDiPlaces } from "@/api/courses";
+import { fetchDiPlaces } from "@/api/courses";
+import { useCourseStore } from "@/stores/course";
 
 // 카카오 지도 객체 타입 정의
 declare global {
@@ -29,6 +30,7 @@ declare global {
   }
 }
 
+const courseStore = useCourseStore();
 const courses = ref<Course[]>([]);
 
 const activeTab = ref(0);
@@ -155,15 +157,13 @@ watch(
 );
 
 onMounted(async () => {
-  [courses.value, allDiPlaces.value] = await Promise.all([
-    fetchMapCourses(),
-    fetchDiPlaces(),
-  ]);
+  courses.value = courseStore.generatedCourses;
+  allDiPlaces.value = await fetchDiPlaces();
   if (!document.getElementById("kakao-map-script")) {
     const script = document.createElement("script");
     script.id = "kakao-map-script";
     script.src =
-      "//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&autoload=false";
+      `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
     document.head.appendChild(script);
     script.onload = () => {
       (window as any).kakao.maps.load(() => {

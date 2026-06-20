@@ -1,20 +1,60 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { MapPin, Train, Navigation, Users } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { useCourseStore } from "@/stores/course";
+import { generateCourses } from "@/api/courses";
 import HeroSearchPanel from "@/components/home/HeroSearchPanel.vue";
 
 const router = useRouter();
 const auth = useAuthStore();
+const courseStore = useCourseStore();
+const isLoading = ref(false);
 
-function handleRecommendCourse() {
+const FILTER_MAP: Record<string, string> = {
+  food: "FOOD", cafe: "CAFE", culture: "CULTURE", nature: "NATURE",
+};
+const STATION_MAP: Record<string, string> = {
+  daejeon: "DAEJEON", "seo-daejeon": "SEODDAEJEON", sintanjin: "SINTANJIN",
+};
+
+async function handleRecommendCourse(filters: {
+  station: string;
+  searchMode: "train" | "stay";
+  stayDuration: number | string;
+  selectedFilters: string[];
+  travelDate: string;
+  useWeather: boolean;
+}) {
   if (!auth.isLoggedIn) {
     alert("로그인이 필요한 서비스입니다. 로그인 페이지로 이동합니다.");
     router.push("/login");
     return;
   }
-  alert("맞춤 환승 코스를 생성합니다!");
-  // TODO(백엔드 연동): 코스 추천 API 호출
+
+  const durationMinutes =
+    filters.searchMode === "stay" && filters.stayDuration
+      ? Number(filters.stayDuration) * 60
+      : 120;
+
+  isLoading.value = true;
+  try {
+    const courses = await generateCourses({
+      departureStation: STATION_MAP[filters.station] ?? "DAEJEON",
+      durationMinutes,
+      travelMode: "TAXI",
+      themeTags: filters.selectedFilters
+        .map((f) => FILTER_MAP[f])
+        .filter(Boolean),
+    });
+    courseStore.setCourses(courses);
+    router.push("/map");
+  } catch {
+    alert("코스 생성에 실패했습니다. 다시 시도해주세요.");
+  } finally {
+    isLoading.value = false;
+  }
 }
 </script>
 
@@ -124,7 +164,7 @@ function handleRecommendCourse() {
 
       <!-- 우측: 검색 패널 -->
       <div class="w-full flex justify-center md:justify-center">
-        <HeroSearchPanel @recommend="handleRecommendCourse" />
+        <HeroSearchPanel @recommend="handleRecommendCourse" :isLoading="isLoading" />
       </div>
     </div>
   </section>

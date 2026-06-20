@@ -21,7 +21,7 @@ import {
   RefreshCw,
 } from "lucide-vue-next";
 import type { Course, CourseStop } from "@/types/course";
-import { fetchResultCourses, fetchMockSearch } from "@/api/courses";
+import { searchPlaces } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
 
 const courseStore = useCourseStore();
@@ -29,10 +29,8 @@ const courseStore = useCourseStore();
 const courses = ref<Course[]>([]);
 
 onMounted(async () => {
-  [courses.value, allMockSearch.value] = await Promise.all([
-    fetchResultCourses(),
-    fetchMockSearch(),
-  ]);
+  courses.value = courseStore.generatedCourses;
+  allMockSearch.value = await searchPlaces("");
   searchResults.value = allMockSearch.value;
 });
 

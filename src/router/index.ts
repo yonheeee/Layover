@@ -14,10 +14,11 @@ const router = createRouter({
       path: "/find-password",
       component: () => import("@/views/find/FindPasswordView.vue"),
     },
-    { path: "/map", component: () => import("@/views/map/MapView.vue") },
+    { path: "/map", component: () => import("@/views/map/MapView.vue"), meta: { requiresAuth: true } },
     {
       path: "/courses/result",
       component: () => import("@/views/course/CourseResultView.vue"),
+      meta: { requiresAuth: true },
     },
     {
       path: "/community",
@@ -26,6 +27,7 @@ const router = createRouter({
     {
       path: "/community/write",
       component: () => import("@/views/community/CommunityWriteView.vue"),
+      meta: { requiresAuth: true },
     },
     {
       path: "/community/:id",
@@ -38,20 +40,32 @@ const router = createRouter({
     {
       path: "/bookmarks",
       component: () => import("@/views/bookmark/BookmarkView.vue"),
+      meta: { requiresAuth: true },
     },
     {
       path: "/mypage",
       component: () => import("@/views/mypage/MypageView.vue"),
+      meta: { requiresAuth: true },
     },
     {
       path: "/mypage/characters",
       component: () => import("@/views/mypage/CharactersView.vue"),
+      meta: { requiresAuth: true },
     },
     {
       path: "/stamp-tour",
       component: () => import("@/views/stamp/StampTourView.vue"),
+      meta: { requiresAuth: true },
     },
   ],
 });
+
+router.beforeEach((to, _from, next) => {
+  if (to.meta.requiresAuth && !localStorage.getItem('accessToken')) {
+    next({ path: '/login', query: { redirect: to.fullPath } })
+  } else {
+    next()
+  }
+})
 
 export default router;
