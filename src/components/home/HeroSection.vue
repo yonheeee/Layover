@@ -48,7 +48,12 @@ async function handleRecommendCourse(filters: {
         .map((f) => FILTER_MAP[f])
         .filter(Boolean),
     });
-    courseStore.setCourses(courses);
+    courseStore.setCourses(courses, {
+      departureStation: STATION_MAP[filters.station] ?? "DAEJEON",
+      durationMinutes,
+      travelMode: "TAXI",
+      themeTags: filters.selectedFilters.map((f) => FILTER_MAP[f]).filter(Boolean),
+    });
     router.push("/map");
   } catch {
     alert("코스 생성에 실패했습니다. 다시 시도해주세요.");

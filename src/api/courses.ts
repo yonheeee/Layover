@@ -16,3 +16,8 @@ export async function generateCourses(req: CourseGenerateRequest): Promise<Cours
   const res = await httpPost<CourseResponse[]>('/api/courses/generate', req)
   return res.data
 }
+
+export async function saveCourse(req: CourseGenerateRequest, places: { placeId: string; orderIndex: number; travelTimeMin?: number }[]): Promise<string> {
+  const res = await httpPost<string>('/api/courses/save', { ...req, places })
+  return res.data
+}
