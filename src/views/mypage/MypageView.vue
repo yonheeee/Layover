@@ -225,6 +225,7 @@ const activeCharacterDetail = ref<{
   name: string;
   description: string;
   poses: string[];
+  emoji: string;
 } | null>(null);
 
 async function saveInfo() {
@@ -252,7 +253,7 @@ async function changePw() {
 const journals = ref<Journal[]>([]);
 const myCourses = ref<MyCourse[]>([]);
 const likedPlaces = ref<Place[]>([]);
-const likedSpotIds = ref<number[]>([]);
+const likedSpotIds = ref<string[]>([]);
 const likedScrollRef = ref<HTMLDivElement | null>(null);
 const characters = ref<Character[]>([]);
 

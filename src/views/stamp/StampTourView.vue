@@ -5,6 +5,7 @@ import { ArrowLeft, MapPin, CheckCircle, Loader2, Camera, X, Route } from 'lucid
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
 import { fetchDiPlaces } from '@/api/courses'
+import { saveStamp } from '@/api/stamps'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -51,6 +52,8 @@ const errorMsg = ref('')
 const guideCountdown = ref(2)
 const resultImageUrl = ref('')
 const stampAnimIdx = ref<number | null>(null)
+const newCharacterPopup = ref<{ name: string; imageUrl: string; requiredStamps: number } | null>(null)
+const isSavingStamp = ref(false)
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -321,11 +324,12 @@ function stopCamera() {
 }
 
 // ── Step 5: 완료 → 타임라인 ──────────────────────────────
-function confirmResult() {
+async function confirmResult() {
   if (currentPlaceIdx.value === null) return
   const idx = currentPlaceIdx.value
   const place = places.value[idx]
 
+  // 로컬 저장
   stampStore.addPhoto({
     id: `${place.id}_${Date.now()}`,
     url: resultImageUrl.value,
@@ -336,6 +340,7 @@ function confirmResult() {
     lng: place.lng,
   })
 
+  // UI 전환 먼저 (API 응답 기다리지 않음)
   stampAnimIdx.value = idx
   currentStep.value = 'timeline'
   currentPlaceIdx.value = null
@@ -343,6 +348,19 @@ function confirmResult() {
     places.value[idx].visited = true
     setTimeout(() => (stampAnimIdx.value = null), 800)
   }, 100)
+
+  // 백엔드 저장 (비동기 - UI 블로킹 없음)
+  isSavingStamp.value = true
+  try {
+    const res = await saveStamp(place.id)
+    if (res.newCharacter) {
+      newCharacterPopup.value = res.newCharacter
+    }
+  } catch {
+    // 로그인 안 된 경우 등 - 로컬 저장은 이미 완료됐으므로 조용히 무시
+  } finally {
+    isSavingStamp.value = false
+  }
 }
 
 function goBack() {
@@ -771,6 +789,32 @@ onUnmounted(() => {
     </Teleport>
 
     </template>
+
+    <!-- ── 캐릭터 획득 팝업 ────────────────────────────────── -->
+    <Teleport to="body">
+      <div v-if="newCharacterPopup"
+        class="fixed inset-0 flex items-center justify-center z-50"
+        style="background:rgba(0,0,0,0.6)"
+        @click.self="newCharacterPopup = null">
+        <div class="rounded-3xl p-8 text-center shadow-2xl mx-6"
+          style="background:#fff;max-width:320px;width:100%">
+          <div class="text-5xl mb-3">🎉</div>
+          <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">새 캐릭터 획득!</p>
+          <h3 style="font-size:1.2rem;font-weight:800;color:#1a2e2b;margin-bottom:8px">
+            {{ newCharacterPopup.name }}
+          </h3>
+          <p style="font-size:0.82rem;color:#9ca3af;margin-bottom:24px">
+            스탬프 {{ newCharacterPopup.requiredStamps }}개 달성으로 획득했어요!
+          </p>
+          <button @click="newCharacterPopup = null"
+            class="w-full py-3 rounded-2xl font-bold text-white text-sm"
+            style="background:linear-gradient(135deg,#3db89e,#2da08a)">
+            확인
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 

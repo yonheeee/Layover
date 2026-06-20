@@ -21,7 +21,7 @@ export const mockJournals: Journal[] = [
 
 export const mockMyCourses: MyCourse[] = [
   {
-    id: 1,
+    id: '1',
     title: '성심당 → 한밭수목원',
     rating: 4.5,
     badge: '방문완료',
@@ -30,7 +30,7 @@ export const mockMyCourses: MyCourse[] = [
     duration: '3시간',
   },
   {
-    id: 2,
+    id: '2',
     title: '중앙시장 → 지림미술관',
     rating: 4.0,
     badge: '분류미정',
@@ -44,7 +44,7 @@ export const mockMyCourses: MyCourse[] = [
 // TODO(백엔드 연동): 실제 좋아요 장소는 관광지 API에서 id 기반으로 조회
 export const mockLikedPlaces: Place[] = [
   {
-    id: 1,
+    id: '1',
     name: '성심당 본점',
     category: '음식 · 베이커리',
     isOpen: true,
@@ -56,7 +56,7 @@ export const mockLikedPlaces: Place[] = [
     reviewCount: 3240,
   },
   {
-    id: 2,
+    id: '2',
     name: '한밭수목원',
     category: '자연 · 공원',
     isOpen: true,
@@ -68,7 +68,7 @@ export const mockLikedPlaces: Place[] = [
     reviewCount: 1820,
   },
   {
-    id: 3,
+    id: '3',
     name: '중앙시장',
     category: '쇼핑 · 시장',
     isOpen: false,
@@ -83,7 +83,7 @@ export const mockLikedPlaces: Place[] = [
 
 export const mockCharacters: Character[] = [
   {
-    id: 1,
+    id: '1',
     name: '꿈돌이 베이직',
     emoji: '🌟',
     unlocked: true,
@@ -91,7 +91,7 @@ export const mockCharacters: Character[] = [
     poses: ['🌟', '✨', '🎵'],
   },
   {
-    id: 2,
+    id: '2',
     name: '꿈돌이 탐험가',
     emoji: '🗺️',
     unlocked: true,
@@ -99,7 +99,7 @@ export const mockCharacters: Character[] = [
     poses: ['🗺️', '🧭', '🎒'],
   },
   {
-    id: 3,
+    id: '3',
     name: '꿈돌이 미식가',
     emoji: '🍞',
     unlocked: true,
@@ -107,7 +107,7 @@ export const mockCharacters: Character[] = [
     poses: ['🍞', '🍕', '🍰'],
   },
   {
-    id: 4,
+    id: '4',
     name: '꿈돌이 문화인',
     emoji: '🎭',
     unlocked: false,
@@ -115,7 +115,7 @@ export const mockCharacters: Character[] = [
     poses: ['🎭'],
   },
   {
-    id: 5,
+    id: '5',
     name: '꿈돌이 자연인',
     emoji: '🌿',
     unlocked: false,
@@ -123,7 +123,7 @@ export const mockCharacters: Character[] = [
     poses: ['🌿'],
   },
   {
-    id: 6,
+    id: '6',
     name: '꿈돌이 대전왕',
     emoji: '👑',
     unlocked: false,
@@ -134,14 +134,14 @@ export const mockCharacters: Character[] = [
 
 export const mockMapPins: MapPin[] = [
   {
-    id: 1,
+    id: '1',
     location: '성심당 본점',
     journalTitle: '성심당 빵지순례 투어',
     visitDate: '2026년 12월 03일',
     url: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93',
   },
   {
-    id: 2,
+    id: '2',
     location: '한밭수목원',
     journalTitle: '주말 힐링 산책 코스',
     visitDate: '2026년 01월 21일',
@@ -150,10 +150,10 @@ export const mockMapPins: MapPin[] = [
 ]
 
 export const mockUserPhotos: UserPhoto[] = [
-  { id: 1, url: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93', location: '성심당 본점' },
-  { id: 2, url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c', location: '한밭수목원' },
-  { id: 3, url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38', location: '중앙시장' },
-  { id: 4, url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4', location: '대흥동 카페거리' },
-  { id: 5, url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b', location: '식장산 야경' },
-  { id: 6, url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e', location: '대청호 오백리길' },
+  { id: '1', url: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93', location: '성심당 본점' },
+  { id: '2', url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c', location: '한밭수목원' },
+  { id: '3', url: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38', location: '중앙시장' },
+  { id: '4', url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4', location: '대흥동 카페거리' },
+  { id: '5', url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b', location: '식장산 야경' },
+  { id: '6', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e', location: '대청호 오백리길' },
 ]

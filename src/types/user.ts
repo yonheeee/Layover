@@ -21,7 +21,7 @@ export interface Journal {
 }
 
 export interface MyCourse {
-  id: number
+  id: string
   title: string
   rating: number
   badge: string
@@ -34,7 +34,7 @@ export interface MyCourse {
 // (백엔드 연동 시 관광지 API에서 id 기반으로 조회)
 
 export interface Character {
-  id: number
+  id: string
   name: string
   emoji: string
   unlocked: boolean
@@ -43,7 +43,7 @@ export interface Character {
 }
 
 export interface MapPin {
-  id: number
+  id: string
   location: string
   journalTitle: string
   visitDate: string
@@ -51,7 +51,7 @@ export interface MapPin {
 }
 
 export interface UserPhoto {
-  id: number
+  id: string
   url: string
   location: string
 }

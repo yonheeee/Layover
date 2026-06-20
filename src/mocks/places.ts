@@ -3,7 +3,7 @@ import type { Place } from '@/types/place'
 /** HomeView 인기 명소 카드 목록 */
 export const mockSpots: Place[] = [
   {
-    id: 1,
+    id: '1',
     name: '성심당',
     category: '맛집 · 베이커리',
     description: '1956년부터 이어온 대전의 대표 빵집. 튀김소보로와 부추빵으로 유명한 전국구 명소.',
@@ -17,7 +17,7 @@ export const mockSpots: Place[] = [
     tag: '🍞 베이커리',
   },
   {
-    id: 2,
+    id: '2',
     name: '한밭수목원',
     category: '자연 · 공원',
     description:
@@ -32,7 +32,7 @@ export const mockSpots: Place[] = [
     tag: '🌿 자연',
   },
   {
-    id: 3,
+    id: '3',
     name: '테미오래',
     category: '문화 · 역사',
     description:
@@ -47,7 +47,7 @@ export const mockSpots: Place[] = [
     tag: '🏛 문화',
   },
   {
-    id: 4,
+    id: '4',
     name: '중앙시장',
     category: '쇼핑 · 시장',
     description:
@@ -62,7 +62,7 @@ export const mockSpots: Place[] = [
     tag: '🛍 쇼핑',
   },
   {
-    id: 5,
+    id: '5',
     name: '국립중앙과학관',
     category: '문화 · 과학',
     description: '과학과 기술의 역사를 한눈에. 아이들과 함께 오기 좋은 체험형 과학 전시관.',
@@ -76,7 +76,7 @@ export const mockSpots: Place[] = [
     tag: '🔬 과학',
   },
   {
-    id: 6,
+    id: '6',
     name: '보문산',
     category: '자연 · 등산',
     description:
@@ -95,7 +95,7 @@ export const mockSpots: Place[] = [
 /** PlaceDetailContents 상세 정보 데이터베이스 */
 export const allPlacesDatabase: Place[] = [
   {
-    id: 1,
+    id: '1',
     name: '성심당 본점',
     category: '맛집/빵집',
     tags: ['베이커리', '대전 명물', '튀김소보로'],
@@ -112,12 +112,12 @@ export const allPlacesDatabase: Place[] = [
       '1956년에 창업한 대전의 대표 빵집입니다. 대전을 방문하면 반드시 들러야 하는 명소로, 튀김소보로, 판타롱슈크림빵 등 다양한 명물 빵들이 가득합니다.',
     liked: false,
     nearbyPlaces: [
-      { id: 3, name: '중앙시장', category: '맛집/빵집', distance: '도보 5분' },
-      { id: 4, name: '소제동 카페거리', category: '카페', distance: '택시 7분' },
+      { id: '3', name: '중앙시장', category: '맛집/빵집', distance: '도보 5분' },
+      { id: '4', name: '소제동 카페거리', category: '카페', distance: '택시 7분' },
     ],
   },
   {
-    id: 2,
+    id: '2',
     name: '한밭수목원',
     category: '관광명소',
     tags: ['자연', '힐링명소', '산책코스'],
@@ -133,10 +133,10 @@ export const allPlacesDatabase: Place[] = [
     description:
       '도심 속 녹색 쉼터이자 정부대전청사와 엑스포과학공원의 중앙에 위치한 대한민국 최대 규모의 도심 수목원입니다. 사계절 아름다운 인공수목원을 감상할 수 있습니다.',
     liked: false,
-    nearbyPlaces: [{ id: 5, name: '이응노미술관', category: '문화/예술', distance: '도보 3분' }],
+    nearbyPlaces: [{ id: '5', name: '이응노미술관', category: '문화/예술', distance: '도보 3분' }],
   },
   {
-    id: 3,
+    id: '3',
     name: '중앙시장',
     category: '맛집/빵집',
     tags: ['전통시장', '먹거리', '대전역근처'],
@@ -153,7 +153,7 @@ export const allPlacesDatabase: Place[] = [
       '대전역 바로 앞에 위치한 중부권 최대 규모의 전통 재래시장입니다. 다양한 로컬 주전부리와 먹자골목이 발달해 있어 가벼운 레이오버 여행에 제격입니다.',
     liked: false,
     nearbyPlaces: [
-      { id: 1, name: '성심당 본점', category: '맛집/빵집', distance: '도보 5분' },
+      { id: '1', name: '성심당 본점', category: '맛집/빵집', distance: '도보 5분' },
     ],
   },
 ]
