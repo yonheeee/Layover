@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/types/user'
 import { login as loginApi, getKakaoAuthUrl } from '@/api/auth'
+import { useBookmarkStore } from './bookmark'
 
 export const useAuthStore = defineStore('auth', () => {
   const accessToken = ref<string | null>(localStorage.getItem('accessToken'))
@@ -18,6 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = res.data.refreshToken
     localStorage.setItem('accessToken', res.data.accessToken)
     localStorage.setItem('refreshToken', res.data.refreshToken)
+    await useBookmarkStore().fetchBookmarks()
   }
 
   function logout() {
@@ -26,6 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
+    useBookmarkStore().$reset()
   }
 
   async function kakaoLogin(): Promise<void> {
@@ -34,11 +37,12 @@ export const useAuthStore = defineStore('auth', () => {
     window.location.href = res.data
   }
 
-  function handleKakaoCallback(token: string, refresh: string): void {
+  async function handleKakaoCallback(token: string, refresh: string): Promise<void> {
     accessToken.value = token
     refreshToken.value = refresh
     localStorage.setItem('accessToken', token)
     localStorage.setItem('refreshToken', refresh)
+    await useBookmarkStore().fetchBookmarks()
   }
 
   return { accessToken, refreshToken, user, isLoggedIn, login, logout, kakaoLogin, handleKakaoCallback }

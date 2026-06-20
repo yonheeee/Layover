@@ -6,10 +6,9 @@ import CtaBannerSection from "@/components/home/CtaBannerSection.vue";
 import PopularCoursesSection from "@/components/home/PopularCoursesSection.vue";
 import StampEventSection from "@/components/home/StampEventSection.vue";
 import PlaceDetailContent from "../place/PlaceDetailContents.vue";
-import { useRouter } from "vue-router";
-import { useAuthStore } from "@/stores/auth";
+import { useBookmarkStore } from "@/stores/bookmark";
 
-const likedSpots = ref<string[]>([]);
+const bookmarkStore = useBookmarkStore();
 const selectedSpotId = ref<string | null>(null);
 
 function openSpotModal(id: string) {
@@ -19,34 +18,15 @@ function openSpotModal(id: string) {
 function closeSpotModal() {
   selectedSpotId.value = null;
 }
-
-const router = useRouter();
-const auth = useAuthStore();
-
-function checkLogin(): boolean {
-  if (!auth.isLoggedIn) {
-    alert("로그인이 필요한 서비스입니다. 로그인 페이지로 이동합니다.");
-    router.push("/login");
-    return false;
-  }
-  return true;
-}
-
-function toggleLike(id: string) {
-  if (!checkLogin()) return;
-  const idx = likedSpots.value.indexOf(id);
-  if (idx >= 0) likedSpots.value.splice(idx, 1);
-  else likedSpots.value.push(id);
-}
 </script>
 
 <template>
   <HeroSection />
 
   <RecommendedSpotsSection
-    :likedSpots="likedSpots"
+    :likedSpots="[...bookmarkStore.bookmarked]"
     @openSpotModal="openSpotModal"
-    @toggleLike="toggleLike"
+    @toggleLike="bookmarkStore.toggleBookmark"
   />
 
   <CtaBannerSection />
