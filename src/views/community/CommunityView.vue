@@ -298,7 +298,8 @@ onMounted(async () => {
             <User :size="13" /> 내가 작성한 글 보기
           </button>
           <button
-            @click="router.push('/community/write')"
+            v-if="isLoggedIn"
+            @click="router.push(activeCategory === '전체' ? '/community/write' : `/community/write?category=${activeCategory}`)"
             class="flex items-center gap-1 px-1 py-2 transition-all hover:opacity-80"
             style="
               background: transparent;

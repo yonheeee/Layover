@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
-import { ArrowLeft, Heart, MessageCircle, Eye, Trash2, Send } from "lucide-vue-next";
+import { ArrowLeft, Heart, MessageCircle, Eye, Trash2, Send, Pencil } from "lucide-vue-next";
 import type { PostDetail, PostComment } from "@/types/community";
 import {
   getPost,
@@ -73,9 +73,10 @@ async function handleAddComment() {
   isSubmittingComment.value = true;
   try {
     const newComment = await createComment(postId, commentText.value.trim());
-    post.value.comments.push(newComment);
-    post.value.commentCount++;
+    if (newComment) post.value.comments.push(newComment);
     commentText.value = "";
+    const refreshed = await getPost(postId);
+    post.value = refreshed;
   } catch {
     alert("댓글 등록에 실패했습니다.");
   } finally {
@@ -140,7 +141,7 @@ onMounted(async () => {
     <div class="max-w-2xl mx-auto px-4 py-6">
       <!-- 뒤로가기 -->
       <button
-        @click="router.back()"
+        @click="router.replace('/community')"
         class="flex items-center gap-2 mb-6 transition-opacity hover:opacity-70"
         style="color: #6b8c87; font-size: 0.88rem; font-weight: 600"
       >
@@ -226,6 +227,12 @@ onMounted(async () => {
                   {{ formatDate(post.createdAt) }}
                 </span>
                 <template v-if="isOwner">
+                  <button
+                    @click="router.push(`/community/${postId}/edit`)"
+                    class="flex items-center gap-1 text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <Pencil :size="13" /> 수정
+                  </button>
                   <button
                     @click="handleDeletePost"
                     class="flex items-center gap-1 text-xs font-semibold text-red-400 hover:text-red-600 transition-colors"
@@ -313,7 +320,7 @@ onMounted(async () => {
 
             <!-- 댓글 목록 -->
             <div
-              v-if="post.comments.length === 0"
+              v-if="isLoggedIn && post.comments.length === 0"
               class="text-center py-8 text-xs text-gray-400 font-medium"
             >
               아직 댓글이 없습니다. 첫 댓글을 남겨보세요!
@@ -334,6 +341,10 @@ onMounted(async () => {
                     <span class="font-bold text-sm text-gray-800">{{
                       comment.username
                     }}</span>
+                    <span
+                      v-if="comment.userId === post.userId"
+                      style="background:#e8f8f5; color:#3db89e; font-size:10px; padding:1px 6px; border-radius:4px; font-weight:700;"
+                    >작성자</span>
                     <span class="text-xs text-gray-400">{{
                       formatDate(comment.createdAt)
                     }}</span>

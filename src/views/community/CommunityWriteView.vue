@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { useRouter } from "vue-router";
-import { createPost, CATEGORY_TO_CODE } from "@/api/community";
+import { ref, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import {
+  createPost,
+  getPost,
+  updatePost,
+  CATEGORY_TO_CODE,
+  CODE_TO_CATEGORY,
+} from "@/api/community";
 import {
   ArrowLeft,
   MapPin,
@@ -21,12 +27,20 @@ import {
   Theater,
 } from "lucide-vue-next";
 
+const route = useRoute();
 const router = useRouter();
+
+const editPostId = route.params.id as string | undefined;
+const isEditMode = !!editPostId;
 
 // ─── [폼 입력 데이터 상태] ───
 const title = ref("");
-const selectedCategory = ref("공유해요");
 const categories = ["공유해요", "궁금해요", "함께해요", "자유"];
+const selectedCategory = ref(
+  categories.includes(route.query.category as string)
+    ? (route.query.category as string)
+    : "공유해요",
+);
 
 // 팝업 모달 제어 상태
 const isCourseModalOpen = ref(false);
@@ -131,8 +145,8 @@ function triggerImageBlock(index: number) {
 }
 
 function deleteBlock(index: number) {
-  if (blocks.value.length === 1 && blocks.value[0].type === "text") {
-    blocks.value[0].value = "";
+  if (blocks.value.length === 1) {
+    if (blocks.value[0].type === "text") blocks.value[0].value = "";
     return;
   }
   blocks.value.splice(index, 1);
@@ -160,11 +174,29 @@ function handleCancel() {
   }
 }
 
+onMounted(async () => {
+  if (isEditMode && editPostId) {
+    try {
+      const post = await getPost(editPostId);
+      title.value = post.title;
+      selectedCategory.value = CODE_TO_CATEGORY[post.category] ?? "공유해요";
+      blocks.value = [{ id: Date.now(), type: "text", value: post.content }];
+    } catch {
+      alert("게시글을 불러올 수 없습니다.");
+      router.back();
+    }
+  }
+});
+
 async function handleRegister() {
   const textContent = blocks.value
     .filter((b) => b.type === "text" && b.value.trim())
     .map((b) => b.value.trim())
     .join("\n\n");
+
+  const hasAnyContent = blocks.value.some((b) =>
+    b.type === "text" ? b.value.trim() !== "" : b.value !== "",
+  );
 
   if (!selectedCategory.value) {
     alert("카테고리를 선택해주세요.");
@@ -174,18 +206,41 @@ async function handleRegister() {
     alert("제목을 입력해주세요.");
     return;
   }
-  if (!textContent) {
+  if (!hasAnyContent) {
     alert("내용을 입력해주세요.");
+    return;
+  }
+  if (!textContent) {
+    alert("텍스트 내용을 입력해주세요.");
     return;
   }
 
   isSubmitting.value = true;
   try {
-    const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
-    const newPost = await createPost(apiCategory, title.value.trim(), textContent);
-    router.push(`/community/${newPost.id}`);
+    if (isEditMode && editPostId) {
+      const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
+      await updatePost(
+        editPostId,
+        title.value.trim(),
+        textContent,
+        apiCategory,
+      );
+      router.replace(`/community/${editPostId}`);
+    } else {
+      const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
+      const newPost = await createPost(
+        apiCategory,
+        title.value.trim(),
+        textContent,
+      );
+      router.replace(newPost?.id ? `/community/${newPost.id}` : "/community");
+    }
   } catch {
-    alert("게시글 등록에 실패했습니다. 다시 시도해주세요.");
+    alert(
+      isEditMode
+        ? "게시글 수정에 실패했습니다. 다시 시도해주세요."
+        : "게시글 등록에 실패했습니다. 다시 시도해주세요.",
+    );
   } finally {
     isSubmitting.value = false;
   }
@@ -226,6 +281,11 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
         class="bg-white rounded-2xl p-8"
         style="box-shadow: 0 10px 30px rgba(26, 46, 43, 0.04)"
       >
+        <!-- 페이지 제목 -->
+        <h2 class="text-lg font-extrabold mb-5" style="color: #1a2e2b">
+          {{ isEditMode ? "게시글 수정" : "게시글 작성" }}
+        </h2>
+
         <!-- 카테고리 칩 -->
         <div class="flex gap-2 mb-5">
           <button
@@ -352,12 +412,16 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
                 <ArrowDown :size="14" />
               </button>
               <button
+                v-if="blocks.length > 1"
                 type="button"
                 @click="deleteBlock(idx)"
                 class="p-1 hover:bg-red-50 text-red-400 rounded"
               >
                 <Trash2 :size="14" />
               </button>
+              <span v-else class="p-1 text-gray-200 cursor-not-allowed">
+                <Trash2 :size="14" />
+              </span>
             </div>
 
             <div v-if="block.type === 'text'">
@@ -388,38 +452,17 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
                 @click="addTextBlock(idx)"
                 class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600"
               >
-                <Plus :size="11" /> 글줄 추가
+                <Plus :size="11" /> 글 추가하기
               </button>
               <button
                 type="button"
                 @click="triggerImageBlock(idx)"
                 class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600"
               >
-                <ImageIcon :size="11" /> 사진 추가
+                <ImageIcon :size="11" /> 사진 추가하기
               </button>
             </div>
           </div>
-        </div>
-
-        <!-- 하단 컨트롤 바 -->
-        <div
-          class="mt-8 pt-6 border-t flex gap-4 justify-center"
-          style="border-color: rgba(178, 228, 220, 0.2)"
-        >
-          <button
-            type="button"
-            @click="addTextBlock(blocks.length - 1)"
-            class="flex items-center gap-1.5 px-4 py-2 border border-dashed rounded-sm text-xs font-bold text-gray-500 hover:bg-gray-50 transition-colors"
-          >
-            <Plus :size="13" /> 글 추가하기
-          </button>
-          <button
-            type="button"
-            @click="triggerImageBlock(blocks.length - 1)"
-            class="flex items-center gap-1.5 px-4 py-2 border border-dashed rounded-sm text-xs font-bold text-gray-500 hover:bg-gray-50 transition-colors"
-          >
-            <ImageIcon :size="13" /> 사진 추가하기
-          </button>
         </div>
       </div>
 
@@ -443,7 +486,15 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
               : 'background: linear-gradient(135deg, #b2e4dc, #3db89e); cursor:pointer;'
           "
         >
-          {{ isSubmitting ? "등록 중..." : "게시글 등록" }}
+          {{
+            isSubmitting
+              ? isEditMode
+                ? "수정 중..."
+                : "등록 중..."
+              : isEditMode
+                ? "수정 완료"
+                : "게시글 등록"
+          }}
         </button>
       </div>
     </div>

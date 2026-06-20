@@ -1,4 +1,11 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+
+function requireAuth(_: any, __: any, next: Function) {
+  const auth = useAuthStore();
+  if (!auth.isLoggedIn) next("/login");
+  else next();
+}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -26,6 +33,12 @@ const router = createRouter({
     {
       path: "/community/write",
       component: () => import("@/views/community/CommunityWriteView.vue"),
+      beforeEnter: requireAuth,
+    },
+    {
+      path: "/community/:id/edit",
+      component: () => import("@/views/community/CommunityWriteView.vue"),
+      beforeEnter: requireAuth,
     },
     {
       path: "/community/:id",
