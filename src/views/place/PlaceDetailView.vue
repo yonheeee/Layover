@@ -7,8 +7,10 @@ import PlaceCard from "@/components/common/PlaceCard.vue";
 import { getPlaces } from "@/api/places";
 import type { PlacePage } from "@/api/places";
 import type { Place } from "@/types/place";
+import { useBookmarkStore } from "@/stores/bookmark";
 
 const router = useRouter();
+const bookmarkStore = useBookmarkStore();
 
 const recommendedPlaces = ref([
   {
@@ -66,7 +68,6 @@ const places = ref<PlacePage>({
   hasNext: false,
 });
 const loading = ref(false);
-const likedIds = ref(new Set<string>());
 let debounceTimer: any = null;
 
 async function fetchPlaces(page = 0) {
@@ -93,14 +94,6 @@ watch(searchQuery, () => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => fetchPlaces(0), 300);
 });
-
-function toggleLike(id: string) {
-  if (likedIds.value.has(id)) {
-    likedIds.value.delete(id);
-  } else {
-    likedIds.value.add(id);
-  }
-}
 
 const pageNumbers = computed(() => {
   const total = places.value.totalPages;
@@ -251,9 +244,9 @@ onUnmounted(() => {
             v-for="place in places.content"
             :key="place.id"
             :spot="place"
-            :liked="likedIds.has(place.id)"
+            :liked="bookmarkStore.bookmarked.has(place.id)"
             @click="openDetail(place)"
-            @toggle-like="toggleLike(place.id)"
+            @toggle-like="bookmarkStore.toggleBookmark(place.id)"
           />
         </div>
 

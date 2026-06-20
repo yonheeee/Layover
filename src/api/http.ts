@@ -110,3 +110,8 @@ export async function httpPut<T>(path: string, body?: unknown): Promise<ApiRespo
   const res = await http.put<ApiResponse<T>>(path, body)
   return res.data
 }
+
+export async function httpDelete<T>(path: string): Promise<ApiResponse<T>> {
+  const res = await http.delete<ApiResponse<T>>(path)
+  return res.data
+}

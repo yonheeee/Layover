@@ -10,7 +10,7 @@ import {
   Footprints,
 } from "lucide-vue-next";
 import { getPlaceById } from "@/api/places";
-import { useCheckLogin } from "@/utils/auth";
+import { useBookmarkStore } from "@/stores/bookmark";
 
 const props = defineProps<{
   id?: string | null;
@@ -30,7 +30,6 @@ const EMPTY_PLACE = {
   distance: "",
   image: "",
   description: "",
-  liked: false,
   nearbyPlaces: [] as any[],
 };
 
@@ -64,11 +63,10 @@ watch(
   { immediate: true },
 );
 
-const { checkLogin } = useCheckLogin();
+const bookmarkStore = useBookmarkStore();
 
 function toggleLike() {
-  if (!checkLogin()) return;
-  place.value.liked = !place.value.liked;
+  if (place.value.id) bookmarkStore.toggleBookmark(place.value.id);
 }
 
 const categoryColor: Record<string, string> = {
@@ -160,9 +158,9 @@ const categoryColor: Record<string, string> = {
           <button
             @click="toggleLike"
             class="flex flex-col items-center gap-1 flex-shrink-0"
-            :style="place.liked ? 'color:#3db89e' : 'color:#9ca3af'"
+            :style="bookmarkStore.isBookmarked(place.id) ? 'color:#3db89e' : 'color:#9ca3af'"
           >
-            <Heart :size="22" :fill="place.liked ? '#3db89e' : 'none'" />
+            <Heart :size="22" :fill="bookmarkStore.isBookmarked(place.id) ? '#3db89e' : 'none'" />
             <span style="font-size: 0.7rem; font-weight: 600">찜</span>
           </button>
         </div>
