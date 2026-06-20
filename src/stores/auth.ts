@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { jwtDecode } from 'jwt-decode'
 import type { User } from '@/types/user'
 import { login as loginApi, getKakaoAuthUrl } from '@/api/auth'
 import { useBookmarkStore } from './bookmark'
@@ -9,6 +10,26 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = ref<string | null>(localStorage.getItem('refreshToken'))
   const user = ref<User | null>(null)
   const isLoggedIn = computed(() => !!accessToken.value)
+
+  const userId = computed<string | null>(() => {
+    if (!accessToken.value) return null
+    try {
+      const payload = jwtDecode<{ sub: string }>(accessToken.value)
+      return payload.sub ?? null
+    } catch {
+      return null
+    }
+  })
+
+  const nickname = computed<string | null>(() => {
+    if (!accessToken.value) return null
+    try {
+      const payload = jwtDecode<{ nickname?: string; username?: string }>(accessToken.value)
+      return payload.nickname ?? payload.username ?? null
+    } catch {
+      return null
+    }
+  })
 
   async function login(email: string, password: string): Promise<void> {
     const res = await loginApi(email, password)
@@ -45,5 +66,5 @@ export const useAuthStore = defineStore('auth', () => {
     await useBookmarkStore().fetchBookmarks()
   }
 
-  return { accessToken, refreshToken, user, isLoggedIn, login, logout, kakaoLogin, handleKakaoCallback }
+  return { accessToken, refreshToken, user, isLoggedIn, userId, nickname, login, logout, kakaoLogin, handleKakaoCallback }
 })

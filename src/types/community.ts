@@ -1,43 +1,60 @@
-export interface Review {
-  id: number
+export interface Post {
+  id: string
+  userId: string
+  username: string
   category: string
-  author: string
-  initials: string
-  station: string
-  duration: string
-  places: string[]
-  preview: string
-  images: string[]
-  date: string
-  likes: number
-  comments: number
-  liked: boolean
-  isMine: boolean
+  title: string
+  viewCount: number
+  likeCount: number
+  commentCount: number
+  createdAt: string
+}
+
+export interface PostComment {
+  id: string
+  userId?: string
+  username: string
+  content: string
+  createdAt: string
+}
+
+export interface PostDetail extends Post {
+  content: string
+  updatedAt: string
+  comments: PostComment[]
+}
+
+export interface PagedResponse<T> {
+  content: T[]
+  totalElements: number
+  totalPages: number
+  currentPage: number
+  size: number
+  hasNext: boolean
 }
 
 export interface Notice {
-  id: number
-  type: string
-  tag: string
+  id: string
   title: string
-  date: string
-  content: string
-  pinned: boolean
-  open: boolean
+  content?: string
+  createdAt: string
 }
 
 export interface FaqItem {
-  id: number
+  id: string
   question: string
   answer: string
-  open: boolean
+  createdAt: string
 }
 
-export interface Inquiry {
-  id: number
+export interface InquiryItem {
+  id: string
   title: string
-  date: string
   status: string
+  createdAt: string
+}
+
+export interface InquiryDetail extends InquiryItem {
   content: string
-  answer: string
+  answer?: string
 }

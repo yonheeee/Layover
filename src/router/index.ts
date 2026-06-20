@@ -14,7 +14,11 @@ const router = createRouter({
       path: "/find-password",
       component: () => import("@/views/find/FindPasswordView.vue"),
     },
-    { path: "/map", component: () => import("@/views/map/MapView.vue"), meta: { requiresAuth: true } },
+    {
+      path: "/map",
+      component: () => import("@/views/map/MapView.vue"),
+      meta: { requiresAuth: true },
+    },
     {
       path: "/courses/result",
       component: () => import("@/views/course/CourseResultView.vue"),
@@ -26,6 +30,11 @@ const router = createRouter({
     },
     {
       path: "/community/write",
+      component: () => import("@/views/community/CommunityWriteView.vue"),
+      meta: { requiresAuth: true }, // ← 팀원 방식으로 통일
+    },
+    {
+      path: "/community/:id/edit", // ← 우리가 추가한 라우트 유지
       component: () => import("@/views/community/CommunityWriteView.vue"),
       meta: { requiresAuth: true },
     },
@@ -65,11 +74,11 @@ const router = createRouter({
 });
 
 router.beforeEach((to, _from, next) => {
-  if (to.meta.requiresAuth && !localStorage.getItem('accessToken')) {
-    next({ path: '/login', query: { redirect: to.fullPath } })
+  if (to.meta.requiresAuth && !localStorage.getItem("accessToken")) {
+    next({ path: "/login", query: { redirect: to.fullPath } });
   } else {
-    next()
+    next();
   }
-})
+});
 
 export default router;
