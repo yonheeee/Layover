@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { createPost, CATEGORY_TO_CODE } from "@/api/community";
 import {
   ArrowLeft,
   MapPin,
@@ -151,19 +152,43 @@ function selectCourse(course: any) {
   isCourseModalOpen.value = false;
 }
 
+const isSubmitting = ref(false);
+
 function handleCancel() {
   if (confirm("내용이 전부 삭제됩니다. 정말 취소하고 목록으로 가시겠습니까?")) {
     router.back();
   }
 }
 
-function handleRegister() {
+async function handleRegister() {
+  const textContent = blocks.value
+    .filter((b) => b.type === "text" && b.value.trim())
+    .map((b) => b.value.trim())
+    .join("\n\n");
+
+  if (!selectedCategory.value) {
+    alert("카테고리를 선택해주세요.");
+    return;
+  }
   if (!title.value.trim()) {
     alert("제목을 입력해주세요.");
     return;
   }
-  alert("게시글이 성공적으로 등록되었습니다!");
-  router.push("/community/99");
+  if (!textContent) {
+    alert("내용을 입력해주세요.");
+    return;
+  }
+
+  isSubmitting.value = true;
+  try {
+    const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
+    const newPost = await createPost(apiCategory, title.value.trim(), textContent);
+    router.push(`/community/${newPost.id}`);
+  } catch {
+    alert("게시글 등록에 실패했습니다. 다시 시도해주세요.");
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 const categoryMeta: Record<string, { icon: any; color: string }> = {
@@ -410,10 +435,15 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
         <button
           type="button"
           @click="handleRegister"
-          class="px-6 py-2.5 rounded-sm text-sm font-bold text-white transition-all cursor-pointer shadow-sm hover:brightness-90"
-          style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
+          :disabled="isSubmitting"
+          class="px-6 py-2.5 rounded-sm text-sm font-bold text-white transition-all shadow-sm"
+          :style="
+            isSubmitting
+              ? 'background:#9ca3af; cursor:not-allowed;'
+              : 'background: linear-gradient(135deg, #b2e4dc, #3db89e); cursor:pointer;'
+          "
         >
-          게시글 등록
+          {{ isSubmitting ? "등록 중..." : "게시글 등록" }}
         </button>
       </div>
     </div>
