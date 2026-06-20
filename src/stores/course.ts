@@ -4,10 +4,13 @@ import type { Course } from '@/types/course'
 
 export const useCourseStore = defineStore('course', () => {
   const hasConfirmedCourse = ref(localStorage.getItem('course_confirmed') === 'true')
-  const generatedCourses = ref<Course[]>([])
+  const generatedCourses = ref<Course[]>(
+    JSON.parse(localStorage.getItem('generated_courses') ?? '[]')
+  )
 
   function setCourses(courses: Course[]) {
     generatedCourses.value = courses
+    localStorage.setItem('generated_courses', JSON.stringify(courses))
   }
 
   function setConfirmed() {
@@ -17,7 +20,9 @@ export const useCourseStore = defineStore('course', () => {
 
   function reset() {
     hasConfirmedCourse.value = false
+    generatedCourses.value = []
     localStorage.removeItem('course_confirmed')
+    localStorage.removeItem('generated_courses')
   }
 
   return { hasConfirmedCourse, generatedCourses, setCourses, setConfirmed, reset }

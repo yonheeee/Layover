@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, MapPin, CheckCircle, Loader2, Camera, X, Route } from 'lucide-vue-next'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
+import { fetchDiPlaces } from '@/api/courses'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -11,7 +12,7 @@ const stampStore = useStampStore()
 type Step = 'timeline' | 'verifying' | 'guide' | 'camera' | 'result'
 
 interface TourPlace {
-  id: number
+  id: string
   name: string
   description: string
   lat: number
@@ -23,48 +24,26 @@ interface TourPlace {
 
 const router = useRouter()
 
-const places = ref<TourPlace[]>([
-  {
-    id: 1,
-    name: '성심당',
-    description: '대전의 명물 빵집, 튀김소보로가 유명해요!',
-    lat: 36.3276,
-    lng: 127.4272,
-    guideText: '성심당 간판 앞에서 정면으로 찍어보세요!',
-    guideEmoji: '🍞',
-    visited: false,
-  },
-  {
-    id: 2,
-    name: '대전 엑스포 과학공원',
-    description: '1993 대전 엑스포의 상징, 한빛탑이 있어요.',
-    lat: 36.3724,
-    lng: 127.3874,
-    guideText: '한빛탑을 배경으로 양팔을 벌려 찍어보세요!',
-    guideEmoji: '🗼',
-    visited: false,
-  },
-  {
-    id: 3,
-    name: '유성온천',
-    description: '천연 온천수로 유명한 대전의 힐링 스팟.',
-    lat: 36.3619,
-    lng: 127.3444,
-    guideText: '온천 표지판 옆에서 엄지를 올려 찍어보세요!',
-    guideEmoji: '♨️',
-    visited: false,
-  },
-  {
-    id: 4,
-    name: '계족산 황톳길',
-    description: '맨발로 걷는 힐링의 명소!',
-    lat: 36.4213,
-    lng: 127.4872,
-    guideText: '황톳길 입구 표지판 앞에서 찍어보세요!',
-    guideEmoji: '🌿',
-    visited: false,
-  },
-])
+const places = ref<TourPlace[]>([])
+
+function emojiFor(category: string) {
+  switch (category) {
+    case 'FOOD':    return '🍽️'
+    case 'CAFE':    return '☕'
+    case 'NATURE':  return '🌿'
+    case 'CULTURE': return '🏛️'
+    default:        return '📍'
+  }
+}
+function guideTextFor(category: string) {
+  switch (category) {
+    case 'FOOD':    return '식당 간판 앞에서 정면으로 찍어보세요!'
+    case 'CAFE':    return '카페 입구 앞에서 찍어보세요!'
+    case 'NATURE':  return '자연 경관을 배경으로 찍어보세요!'
+    case 'CULTURE': return '문화시설 앞에서 찍어보세요!'
+    default:        return '장소 앞에서 찍어보세요!'
+  }
+}
 
 const currentStep = ref<Step>('timeline')
 const currentPlaceIdx = ref<number | null>(null)
@@ -169,12 +148,40 @@ function renderStampMap() {
   if (places.value.length > 0) mapObject.setBounds(bounds)
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 코스 확정된 경우 해당 코스 장소 사용, 아니면 API에서 가져옴
+  const coursePlaces = courseStore.generatedCourses[0]?.places ?? []
+  if (coursePlaces.length > 0) {
+    places.value = coursePlaces
+      .filter((p) => p.lat && p.lng)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.category,
+        lat: p.lat!,
+        lng: p.lng!,
+        guideText: guideTextFor(p.category),
+        guideEmoji: emojiFor(p.category),
+        visited: false,
+      }))
+  } else {
+    const diPlaces = await fetchDiPlaces()
+    places.value = diPlaces.slice(0, 4).map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.desc,
+      lat: p.lat,
+      lng: p.lng,
+      guideText: guideTextFor(p.category),
+      guideEmoji: emojiFor(p.category),
+      visited: false,
+    }))
+  }
+
   if (!document.getElementById('kakao-map-script')) {
     const script = document.createElement('script')
     script.id = 'kakao-map-script'
-    script.src =
-      '//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&autoload=false'
+    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`
     document.head.appendChild(script)
     script.onload = () => {
       ;(window as any).kakao.maps.load(() => initKakaoMap())
