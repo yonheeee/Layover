@@ -4,6 +4,8 @@ import { Train, ChevronRight, CloudSun, Navigation } from "lucide-vue-next";
 import type { Train as TrainType } from "@/types/train";
 import { fetchTrains } from "@/api/trains";
 
+defineProps<{ isLoading?: boolean }>()
+
 const emit = defineEmits<{
   recommend: [filters: {
     station: string;
@@ -528,16 +530,21 @@ onMounted(async () => {
 
     <button
       @click="handleRecommendCourse"
+      :disabled="isLoading"
       class="w-full py-4 rounded-2xl text-white flex items-center justify-center gap-2 transition-all duration-200 hover:opacity-90 active:scale-[0.98]"
       :style="{
         background: 'linear-gradient(135deg, #B2E4DC 0%, #3db89e 100%)',
         fontWeight: 700,
         fontSize: '1rem',
         boxShadow: '0 6px 20px rgba(61,184,158,0.35)',
-        opacity: selectedTrain ? 1 : 0.7,
+        opacity: isLoading ? 0.7 : (selectedTrain ? 1 : 0.7),
+        cursor: isLoading ? 'not-allowed' : 'pointer',
       }"
     >
-      <Navigation :size="17" />코스 추천받기<ChevronRight :size="17" />
+      <Navigation v-if="!isLoading" :size="17" />
+      <span v-if="isLoading">코스 생성 중...</span>
+      <span v-else>코스 추천받기</span>
+      <ChevronRight v-if="!isLoading" :size="17" />
     </button>
     <p
       class="text-center mt-3"
