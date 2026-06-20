@@ -1,9 +1,17 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { CheckCircle, AlertCircle, Train, X, User, Calendar, Phone } from "lucide-vue-next";
+import {
+  CheckCircle,
+  AlertCircle,
+  Train,
+  X,
+  User,
+  Calendar,
+  Phone,
+} from "lucide-vue-next";
 import { findId } from "@/api/auth";
 
-type Step = "intro" | "result";
+type Step = "intro" | "result" | "kakao";
 const step = ref<Step>("intro");
 const maskedEmail = ref("");
 const createdAt = ref("");
@@ -39,6 +47,10 @@ const handleFindId = async () => {
       createdAt.value = res.data.createdAt;
       isModalOpen.value = false;
       step.value = "result";
+    } else if (res.message.includes("카카오")) {
+      // 카카오 가입자면 모달 닫고 카카오 결과 화면으로
+      isModalOpen.value = false;
+      step.value = "kakao";
     } else {
       modalError.value = res.message;
     }
@@ -166,6 +178,51 @@ const labelStyle =
                   text-decoration: none;
                 "
                 >비밀번호 찾기</router-link
+              >
+            </div>
+          </div>
+        </template>
+        <!-- 카카오 계정 안내 화면 -->
+        <template v-else-if="step === 'kakao'">
+          <div class="flex flex-col gap-6 items-center text-center">
+            <div
+              class="w-16 h-16 rounded-full flex items-center justify-center"
+              style="background: #fff3cd"
+            >
+              <span style="font-size: 2rem">🟡</span>
+            </div>
+            <div class="space-y-2 w-full">
+              <p style="font-size: 0.88rem; color: #6b8c87">
+                카카오 계정으로 가입된 회원입니다.
+              </p>
+              <div
+                class="px-6 py-4 rounded-2xl"
+                style="
+                  background: #fff9e6;
+                  border: 1.5px solid rgba(255, 196, 0, 0.3);
+                "
+              >
+                <p style="font-weight: 700; font-size: 1rem; color: #1a2e2b">
+                  카카오 로그인을 이용해 주세요.
+                </p>
+              </div>
+            </div>
+            <div class="flex flex-col gap-3 w-full">
+              <router-link
+                to="/login"
+                style="
+                  display: block;
+                  width: 100%;
+                  padding: 13px;
+                  border-radius: 14px;
+                  background: #fee500;
+                  color: #1a1a1a;
+                  font-weight: 700;
+                  font-size: 0.95rem;
+                  text-align: center;
+                  text-decoration: none;
+                "
+                >카카오로 로그인하기</router-link
               >
             </div>
           </div>
@@ -373,8 +430,12 @@ const labelStyle =
 
 <style scoped>
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .animate-spin {
   animation: spin 1s linear infinite;

@@ -1,61 +1,32 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref } from "vue";
 import HeroSection from "@/components/home/HeroSection.vue";
 import RecommendedSpotsSection from "@/components/home/RecommendedSpotsSection.vue";
 import CtaBannerSection from "@/components/home/CtaBannerSection.vue";
 import PopularCoursesSection from "@/components/home/PopularCoursesSection.vue";
 import StampEventSection from "@/components/home/StampEventSection.vue";
 import PlaceDetailContent from "../place/PlaceDetailContents.vue";
-import type { Place } from "@/types/place";
-import { fetchPlaces } from "@/api/places";
-import { useRouter } from "vue-router";
-import { useAuthStore } from "@/stores/auth";
+import { useBookmarkStore } from "@/stores/bookmark";
 
-const spots = ref<Place[]>([]);
-const likedSpots = ref<number[]>([]);
+const bookmarkStore = useBookmarkStore();
+const selectedSpotId = ref<string | null>(null);
 
-const selectedSpotForModal = ref<Place | null>(null);
-
-function openSpotModal(spot: Place) {
-  selectedSpotForModal.value = spot;
+function openSpotModal(id: string) {
+  selectedSpotId.value = id;
 }
 
 function closeSpotModal() {
-  selectedSpotForModal.value = null;
+  selectedSpotId.value = null;
 }
-
-const router = useRouter();
-const auth = useAuthStore();
-
-function checkLogin(): boolean {
-  if (!auth.isLoggedIn) {
-    alert("로그인이 필요한 서비스입니다. 로그인 페이지로 이동합니다.");
-    router.push("/login");
-    return false;
-  }
-  return true;
-}
-
-function toggleLike(id: number) {
-  if (!checkLogin()) return;
-  const idx = likedSpots.value.indexOf(id);
-  if (idx >= 0) likedSpots.value.splice(idx, 1);
-  else likedSpots.value.push(id);
-}
-
-onMounted(async () => {
-  spots.value = await fetchPlaces();
-});
 </script>
 
 <template>
   <HeroSection />
 
   <RecommendedSpotsSection
-    :spots="spots"
-    :likedSpots="likedSpots"
+    :likedSpots="[...bookmarkStore.bookmarked]"
     @openSpotModal="openSpotModal"
-    @toggleLike="toggleLike"
+    @toggleLike="bookmarkStore.toggleBookmark"
   />
 
   <CtaBannerSection />
@@ -67,7 +38,7 @@ onMounted(async () => {
   <!-- 장소 상세 모달 -->
   <Transition name="fade-modal">
     <div
-      v-if="selectedSpotForModal"
+      v-if="selectedSpotId"
       class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       @click="closeSpotModal"
     >
@@ -87,7 +58,7 @@ onMounted(async () => {
           </button>
         </div>
         <div class="overflow-y-auto pr-1" style="max-height: calc(85vh - 80px)">
-          <PlaceDetailContent :initialData="selectedSpotForModal" />
+          <PlaceDetailContent :id="selectedSpotId" />
         </div>
       </div>
     </div>

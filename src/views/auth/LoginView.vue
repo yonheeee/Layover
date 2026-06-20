@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { Mail, Lock, Eye, EyeOff, Train, AlertCircle } from "lucide-vue-next";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 const loginId = ref("");
 const loginPw = ref("");
@@ -32,6 +33,26 @@ const showIdError = computed(() => {
 const showPwError = computed(() => {
   return isPwTouched.value && loginPw.value.length > 0 && !isPwValid.value;
 });
+
+onMounted(async () => {
+  const { accessToken, refreshToken, needsProfile } = route.query;
+  if (typeof accessToken === "string" && typeof refreshToken === "string") {
+    auth.handleKakaoCallback(accessToken, refreshToken);
+    if (needsProfile === "true") {
+      router.replace("/kakao-profile");
+    } else {
+      router.replace("/");
+    }
+  }
+});
+
+const handleKakaoLogin = async () => {
+  try {
+    await auth.kakaoLogin();
+  } catch {
+    loginError.value = "카카오 로그인 중 오류가 발생했습니다.";
+  }
+};
 
 const handleLogin = async () => {
   loginError.value = "";
@@ -276,6 +297,7 @@ const handleLogin = async () => {
         </div>
 
         <button
+          @click="handleKakaoLogin"
           class="w-full flex items-center justify-center gap-2.5 py-3.5 transition-opacity hover:opacity-90"
           style="
             background: #fee500;

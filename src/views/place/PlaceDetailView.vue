@@ -1,29 +1,34 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Star, Heart, MapPin, Eye, Search } from "lucide-vue-next";
+import { ArrowLeft, Search } from "lucide-vue-next";
 import PlaceDetailContent from "./PlaceDetailContents.vue";
+import PlaceCard from "@/components/common/PlaceCard.vue";
+import { getPlaces } from "@/api/places";
+import type { PlacePage } from "@/api/places";
+import type { Place } from "@/types/place";
+import { useBookmarkStore } from "@/stores/bookmark";
 
 const router = useRouter();
+const bookmarkStore = useBookmarkStore();
 
-// 1. 상단 슬라이드 배너용 더미 데이터 & 로직
 const recommendedPlaces = ref([
   {
-    id: 101,
+    id: "banner-1",
     name: "장태산 자연휴양림",
     desc: "메타세쿼이아 숲길에서 즐기는 이국적인 힐링",
     img: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1200&q=80",
     tag: "#인생샷 #힐링명소",
   },
   {
-    id: 102,
+    id: "banner-2",
     name: "대청호 오백리길",
     desc: "푸른 호수를 따라 걷는 대전 최고의 드라이브 코스",
     img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
     tag: "#데이트코스 #산책",
   },
   {
-    id: 103,
+    id: "banner-3",
     name: "엑스포 과학공원 한빛탑",
     desc: "화려한 음악분수와 대전의 아름다운 야경을 한눈에",
     img: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=80",
@@ -38,118 +43,87 @@ const startSlideShow = () => {
   slideTimer = setInterval(() => {
     currentSlide.value =
       (currentSlide.value + 1) % recommendedPlaces.value.length;
-  }, 4000); // 4초마다 자동 전환
+  }, 4000);
 };
 
-// 2. 카테고리 및 전체 관광지 더미 데이터
-const categories = ["전체", "관광명소", "맛집/빵집", "카페", "문화/예술"];
-const activeCategory = ref("전체");
+const CATEGORY_TABS = [
+  { key: "", label: "전체" },
+  { key: "TOUR", label: "관광명소" },
+  { key: "FOOD", label: "음식" },
+  { key: "CULTURE", label: "문화/예술" },
+  { key: "FESTIVAL", label: "축제" },
+  { key: "LEPORTS", label: "레포츠" },
+  { key: "SHOPPING", label: "쇼핑" },
+  { key: "STAY", label: "숙박" },
+];
+
+const activeCategory = ref("");
 const searchQuery = ref("");
+const places = ref<PlacePage>({
+  content: [],
+  totalElements: 0,
+  totalPages: 0,
+  currentPage: 0,
+  size: 30,
+  hasNext: false,
+});
+const loading = ref(false);
+let debounceTimer: any = null;
 
-const allPlaces = ref([
-  {
-    id: 1,
-    name: "성심당 본점",
-    category: "맛집/빵집",
-    rating: 4.8,
-    reviewCount: 2453,
-    viewCount: 12050,
-    address: "중구 은행동",
-    emoji: "🍞",
-    img: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: 2,
-    name: "한밭수목원",
-    category: "관광명소",
-    rating: 4.6,
-    reviewCount: 892,
-    viewCount: 5430,
-    address: "서구 만년동",
-    emoji: "🌿",
-    img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: 3,
-    name: "중앙시장",
-    category: "맛집/빵집",
-    rating: 4.3,
-    reviewCount: 412,
-    viewCount: 3120,
-    address: "동구 중앙동",
-    emoji: "🏪",
-    img: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: 4,
-    name: "소제동 카페거리",
-    category: "카페",
-    rating: 4.5,
-    reviewCount: 654,
-    viewCount: 4890,
-    address: "동구 소제동",
-    emoji: "☕",
-    img: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: 5,
-    name: "이응노미술관",
-    category: "문화/예술",
-    rating: 4.7,
-    reviewCount: 187,
-    viewCount: 2110,
-    address: "서구 만년동",
-    emoji: "🎨",
-    img: "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&w=500&q=80",
-  },
-  {
-    id: 6,
-    name: "뿌리공원",
-    category: "관광명소",
-    rating: 4.4,
-    reviewCount: 231,
-    viewCount: 1980,
-    address: "중구 안영동",
-    emoji: "🌳",
-    img: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=500&q=80",
-  },
-]);
+async function fetchPlaces(page = 0) {
+  loading.value = true;
+  try {
+    places.value = await getPlaces(
+      activeCategory.value || undefined,
+      searchQuery.value || undefined,
+      page,
+    );
+  } catch (e) {
+    console.error("관광지 목록 로딩 실패:", e);
+  } finally {
+    loading.value = false;
+  }
+}
 
-// 필터링된 관광지 리스트 산출
-const filteredPlaces = computed(() => {
-  return allPlaces.value.filter((place) => {
-    const matchesCategory =
-      activeCategory.value === "전체" ||
-      place.category === activeCategory.value;
-    const matchesSearch =
-      place.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      place.address.includes(searchQuery.value);
-    return matchesCategory && matchesSearch;
-  });
+async function selectCategory(key: string) {
+  activeCategory.value = key;
+  await fetchPlaces(0);
+}
+
+watch(searchQuery, () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => fetchPlaces(0), 300);
 });
 
-// 상세 페이지 이동 함수
-const goToDetail = (id: number) => {
-  router.push(`/place/${id}`);
-};
+const pageNumbers = computed(() => {
+  const total = places.value.totalPages;
+  const current = places.value.currentPage;
+  let start = Math.max(0, current - 2);
+  let end = Math.min(total - 1, current + 2);
+  if (end - start < 4) {
+    if (start === 0) end = Math.min(4, total - 1);
+    else start = Math.max(0, end - 4);
+  }
+  return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+});
+
+const isDetailOpen = ref(false);
+const selectedPlaceId = ref<string | null>(null);
+
+function openDetail(place: Place) {
+  selectedPlaceId.value = place.id;
+  isDetailOpen.value = true;
+}
 
 onMounted(() => {
   startSlideShow();
+  fetchPlaces();
 });
 
 onUnmounted(() => {
   if (slideTimer) clearInterval(slideTimer);
+  clearTimeout(debounceTimer);
 });
-
-// 팝업 열림 상태 및 현재 선택된 관광지 ID를 관리하는 반응형 변수
-const isDetailOpen = ref(false);
-const selectedPlaceId = ref<number | null>(null);
-
-// 카드를 클릭했을 때 실행할 함수
-const openPlaceDetail = (id: number) => {
-  selectedPlaceId.value = id; // 어떤 관광지인지 ID 저장
-  isDetailOpen.value = true; // 팝업 열기
-};
 </script>
 
 <template>
@@ -185,6 +159,7 @@ const openPlaceDetail = (id: number) => {
         </div>
       </div>
 
+      <!-- 배너 슬라이더 -->
       <section
         class="relative w-full h-[260px] md:h-[320px] rounded-2xl overflow-hidden shadow-sm mb-10 group"
       >
@@ -201,7 +176,6 @@ const openPlaceDetail = (id: number) => {
             :src="slide.img"
             class="w-full h-full object-cover transform scale-100 group-hover:scale-102 transition-transform duration-[4000ms]"
           />
-
           <div class="absolute bottom-6 left-6 right-6 z-20 text-white">
             <span
               class="px-2.5 py-1 rounded-md bg-teal-500/90 text-[0.68rem] font-bold tracking-wider mb-2 inline-block"
@@ -228,95 +202,52 @@ const openPlaceDetail = (id: number) => {
         </div>
       </section>
 
+      <!-- 카테고리 필터 + 결과 수 -->
       <section>
         <div
           class="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-3 mb-6 gap-4"
         >
           <div class="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
             <button
-              v-for="cat in categories"
-              :key="cat"
-              @click="activeCategory = cat"
+              v-for="tab in CATEGORY_TABS"
+              :key="tab.key"
+              @click="selectCategory(tab.key)"
               class="px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all"
               :style="
-                activeCategory === cat
-                  ? 'background: #3db89e; color: #ffffff; shadow: 0 2px 8px rgba(61,184,158,0.2);'
+                activeCategory === tab.key
+                  ? 'background: #3db89e; color: #ffffff;'
                   : 'background: #ffffff; color: #6b8c87; border: 1px solid #e2e8f0;'
               "
             >
-              {{ cat }}
+              {{ tab.label }}
             </button>
           </div>
 
-          <span
-            class="text-xs text-gray-400 font-semibold self-end md:self-auto"
-          >
-            총 <span class="text-teal-600">{{ filteredPlaces.length }}</span
-            >개의 장소
+          <span class="text-xs text-gray-400 font-semibold self-end md:self-auto">
+            총 <span class="text-teal-600">{{ places.totalElements }}</span>개의 장소
           </span>
         </div>
 
-        <div
-          v-if="filteredPlaces.length > 0"
-          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6"
-        >
+        <!-- 로딩 -->
+        <div v-if="loading" class="flex justify-center items-center h-48">
           <div
-            v-for="place in filteredPlaces"
+            class="w-8 h-8 rounded-full border-2 border-teal-300 border-t-teal-600 animate-spin"
+          />
+        </div>
+
+        <!-- 카드 그리드 -->
+        <div
+          v-else-if="places.content.length > 0"
+          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 justify-items-center"
+        >
+          <PlaceCard
+            v-for="place in places.content"
             :key="place.id"
-            @click="openPlaceDetail(place.id)"
-            class="bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer flex flex-col group"
-          >
-            <div
-              class="relative aspect-[4/3] w-full overflow-hidden bg-gray-50"
-            >
-              <img
-                :src="place.img"
-                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-              <span
-                class="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-[0.68rem] font-bold px-2 py-0.5 rounded text-teal-700 border border-teal-50"
-              >
-                {{ place.emoji }} {{ place.category }}
-              </span>
-            </div>
-
-            <div class="p-4 flex-1 flex flex-col justify-between gap-3">
-              <div>
-                <div class="flex items-start justify-between gap-2 mb-1">
-                  <h3
-                    class="font-extrabold text-sm text-[#1a2e2b] line-clamp-1 group-hover:text-teal-600 transition-colors"
-                  >
-                    {{ place.name }}
-                  </h3>
-                </div>
-
-                <div class="flex items-center gap-1 text-xs mb-2">
-                  <div class="flex items-center text-amber-400">
-                    <Star :size="13" fill="currentColor" />
-                    <span class="font-bold ml-0.5 text-gray-800">{{
-                      place.rating.toFixed(1)
-                    }}</span>
-                  </div>
-                  <span class="text-gray-300">|</span>
-                  <span class="text-gray-500 font-medium"
-                    >리뷰 {{ place.reviewCount.toLocaleString() }}</span
-                  >
-                </div>
-              </div>
-
-              <div
-                class="flex items-center justify-between text-[0.72rem] text-gray-400 pt-2.5 border-t border-gray-50"
-              >
-                <p class="flex items-center gap-0.5">
-                  <MapPin :size="12" class="text-gray-300" />
-                  {{ place.address }}
-                </p>
-                <p class="flex items-center gap-0.5 opacity-80">
-                  <Eye :size="12" /> {{ place.viewCount.toLocaleString() }}
-                </p>
-              </div>
-            </div>
-          </div>
+            :spot="place"
+            :liked="bookmarkStore.bookmarked.has(place.id)"
+            @click="openDetail(place)"
+            @toggle-like="bookmarkStore.toggleBookmark(place.id)"
+          />
         </div>
 
         <div
@@ -324,12 +255,59 @@ const openPlaceDetail = (id: number) => {
           class="w-full text-center py-20 bg-white rounded-2xl border border-dashed border-gray-200"
         >
           <p class="text-sm text-gray-400 font-medium">
-            해당 카테고리나 조건에 맞는 관광지가 아직 없습니다.
+            해당 카테고리나 조건에 맞는 관광지가 없습니다.
           </p>
+        </div>
+
+        <!-- 페이지네이션 -->
+        <div
+          v-if="places.totalPages > 1"
+          class="flex items-center justify-center gap-2 mt-10"
+        >
+          <button
+            @click="fetchPlaces(places.currentPage - 1)"
+            :disabled="places.currentPage === 0"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+            :style="
+              places.currentPage === 0
+                ? 'background: #f1f5f9; color: #b0c4c1; cursor: not-allowed;'
+                : 'background: #ffffff; color: #3db89e; border: 1px solid #b2e4dc;'
+            "
+          >
+            &lt; 이전
+          </button>
+
+          <button
+            v-for="n in pageNumbers"
+            :key="n"
+            @click="fetchPlaces(n)"
+            class="w-8 h-8 rounded-xl text-xs font-bold transition-all"
+            :style="
+              places.currentPage === n
+                ? 'background: #3db89e; color: #ffffff;'
+                : 'background: #ffffff; color: #6b8c87; border: 1px solid #e2e8f0;'
+            "
+          >
+            {{ n + 1 }}
+          </button>
+
+          <button
+            @click="fetchPlaces(places.currentPage + 1)"
+            :disabled="!places.hasNext"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+            :style="
+              !places.hasNext
+                ? 'background: #f1f5f9; color: #b0c4c1; cursor: not-allowed;'
+                : 'background: #ffffff; color: #3db89e; border: 1px solid #b2e4dc;'
+            "
+          >
+            다음 &gt;
+          </button>
         </div>
       </section>
     </div>
 
+    <!-- 상세 모달 -->
     <div
       v-if="isDetailOpen"
       class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
@@ -353,7 +331,6 @@ const openPlaceDetail = (id: number) => {
 </template>
 
 <style scoped>
-/* 가로 스크롤바 가리기 전용 */
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }

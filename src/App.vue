@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
+import { useBookmarkStore } from '@/stores/bookmark'
 
 const route = useRoute()
 const showFooter = computed(() => route.path === '/')
+
+const bookmarkStore = useBookmarkStore()
+
+onMounted(() => {
+  if (localStorage.getItem('accessToken')) {
+    bookmarkStore.fetchBookmarks()
+  }
+})
 </script>
 
 <template>

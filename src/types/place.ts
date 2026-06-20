@@ -10,7 +10,7 @@ export interface Place {
   name: string
   category: string
   isOpen: boolean
-  rating: number
+  rating?: number
   description?: string
   distance?: string
   image?: string

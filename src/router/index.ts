@@ -57,6 +57,10 @@ const router = createRouter({
       component: () => import("@/views/stamp/StampTourView.vue"),
       meta: { requiresAuth: true },
     },
+    {
+      path: "/kakao-profile",
+      component: () => import("@/views/auth/KakaoProfileView.vue"),
+    },
   ],
 });
 
