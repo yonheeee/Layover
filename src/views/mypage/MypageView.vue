@@ -77,6 +77,7 @@ onMounted(async () => {
     ]);
   user.value = fetchedUser;
   editName.value = fetchedUser.username;
+  editPhone.value = fetchedUser.phone ?? "";
   myCourses.value = activity.myCourses;
   likedPlaces.value = activity.likedPlaces;
   likedSpotIds.value = activity.likedPlaces.map((p) => p.id);
@@ -88,6 +89,7 @@ onMounted(async () => {
 
 // ─── 내 정보 탭 ───
 const editName = ref("");
+const nicknameError = ref("");
 const currentPw = ref("");
 const newPw = ref("");
 const newPwConfirm = ref("");
@@ -98,6 +100,10 @@ const savingInfo = ref(false);
 const savingPw = ref(false);
 const showDeleteDialog = ref(false);
 const isPwEditing = ref(false);
+
+const isNicknameChanged = computed(
+  () => editName.value !== user.value.username,
+);
 
 const pwRegex =
   /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
@@ -113,10 +119,38 @@ const pwMismatch = computed(
 );
 
 async function saveInfo() {
+  nicknameError.value = "";
   savingInfo.value = true;
-  await httpPut("/api/user/me/nickname", { username: editName.value });
-  user.value.username = editName.value;
-  savingInfo.value = false;
+  try {
+    await httpPut("/api/user/me/nickname", { username: editName.value });
+    user.value.username = editName.value;
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? "닉네임 변경에 실패했습니다.";
+    if (msg.includes("이미 사용 중인")) {
+      nicknameError.value = "이미 사용중인 닉네임입니다.";
+    } else {
+      nicknameError.value = msg;
+    }
+  } finally {
+    savingInfo.value = false;
+  }
+}
+
+const editPhone = ref("");
+const savingPhone = ref(false);
+
+async function savePhone() {
+  savingPhone.value = true;
+  try {
+    await httpPut("/api/user/me/phone", { phone: editPhone.value });
+    user.value.phone = editPhone.value;
+    alert("전화번호가 변경되었습니다.");
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? "전화번호 변경에 실패했습니다.";
+    alert(msg);
+  } finally {
+    savingPhone.value = false;
+  }
 }
 
 async function changePw() {
@@ -610,17 +644,32 @@ function formatDate(dateStr: string): string {
                   <div class="flex justify-between items-center gap-2">
                     <input
                       v-model="editName"
-                      :style="inputBase"
-                      style="background: #ffffff; border-radius: 4px"
+                      :style="[
+                        inputBase,
+                        {
+                          borderColor: nicknameError
+                            ? '#ef4444'
+                            : 'rgba(178,228,220,0.5)',
+                          background: '#ffffff',
+                          borderRadius: '4px',
+                        },
+                      ]"
+                      @input="nicknameError = ''"
                     />
                     <button
                       @click="saveInfo"
-                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
-                      :disabled="savingInfo"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      :disabled="savingInfo || !isNicknameChanged"
                     >
                       {{ savingInfo ? "저장중" : "변경" }}
                     </button>
                   </div>
+                  <p
+                    v-if="nicknameError"
+                    class="text-xs text-red-500 font-semibold pl-1"
+                  >
+                    {{ nicknameError }}
+                  </p>
                 </div>
 
                 <!-- 이메일 (수정 불가 + 가입방식 뱃지) -->
@@ -663,6 +712,42 @@ function formatDate(dateStr: string): string {
                     "
                   >
                     <span>{{ user.email }}</span>
+                  </div>
+                </div>
+
+                <!-- 전화번호 -->
+                <div class="flex flex-col gap-1.5">
+                  <span :style="labelBase">전화번호</span>
+                  <!-- 전화번호 없을 때: 입력 가능 -->
+                  <div
+                    v-if="!user.phone"
+                    class="flex justify-between items-center gap-2"
+                  >
+                    <input
+                      v-model="editPhone"
+                      :style="inputBase"
+                      style="background: #ffffff; border-radius: 4px"
+                      placeholder="전화번호를 입력하세요"
+                    />
+                    <button
+                      @click="savePhone"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
+                      :disabled="savingPhone"
+                    >
+                      {{ savingPhone ? "저장중" : "변경" }}
+                    </button>
+                  </div>
+                  <!-- 전화번호 있을 때: 수정 불가 -->
+                  <div
+                    v-else
+                    :style="infoBoxBase"
+                    style="
+                      background: #f3f4f6;
+                      color: #9ca3af;
+                      cursor: not-allowed;
+                    "
+                  >
+                    <span>{{ user.phone }}</span>
                   </div>
                 </div>
               </div>
