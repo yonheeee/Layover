@@ -7,6 +7,7 @@ import type {
   FaqItem,
   InquiryItem,
   InquiryDetail,
+  MyPost,
 } from "@/types/community";
 import { httpGet, httpPost, httpPut, httpDelete } from "./http";
 
@@ -92,6 +93,12 @@ export async function getLikeStatus(postId: string) {
   const res = await httpGet<{ liked: boolean }>(
     `/api/posts/${postId}/likes/status`,
   );
+  return res.data;
+}
+
+// ─── 내가 쓴 글 ───
+export async function getMyPosts() {
+  const res = await httpGet<MyPost[]>("/api/posts/my");
   return res.data;
 }
 

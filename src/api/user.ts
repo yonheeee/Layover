@@ -1,7 +1,6 @@
 import type {
   User,
   MyCourse,
-  Journal,
   Character,
   MapPin,
   UserPhoto,
@@ -9,12 +8,7 @@ import type {
 import type { Place } from "@/types/place";
 import type { BookmarkPlace } from "@/api/bookmarks";
 import { httpGet, httpPut } from "./http";
-import {
-  mockJournals,
-  mockCharacters,
-  mockMapPins,
-  mockUserPhotos,
-} from "@/mocks/user";
+import { mockCharacters, mockMapPins, mockUserPhotos } from "@/mocks/user";
 
 export async function fetchUser(): Promise<User> {
   const res = await httpGet<User>("/api/user/me");
@@ -38,10 +32,6 @@ export async function fetchUserActivity(): Promise<{
     isOpen: false,
   }));
   return { myCourses: coursesRes.data, likedPlaces };
-}
-
-export async function fetchJournals(): Promise<Journal[]> {
-  return Promise.resolve(mockJournals);
 }
 
 export async function fetchCharacters(): Promise<Character[]> {
