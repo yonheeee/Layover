@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import {
   ChevronDown,
@@ -32,6 +32,7 @@ import {
 } from "@/api/community";
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 const isLoggedIn = computed(() => auth.isLoggedIn);
 
@@ -213,6 +214,23 @@ async function submitInquiry() {
   }
 }
 
+// 쿼리 파라미터 감지 (onMounted + watch 둘 다)
+function applyRouteQuery() {
+  if (route.query.tab === "notices") {
+    activeTab.value = "notices";
+    if (route.query.sub) {
+      const sub = route.query.sub as string;
+      // sub가 '자주 묻는 질문' 또는 '1:1 문의하기'면 문의사항 카테고리로
+      if (sub === "자주 묻는 질문" || sub === "1:1 문의하기") {
+        activeNoticeCategory.value = "문의사항";
+        activeFaqSubCategory.value = sub;
+      } else {
+        activeNoticeCategory.value = sub;
+      }
+    }
+  }
+}
+
 // ─── 초기 데이터 로드 ───
 onMounted(async () => {
   isPostsLoading.value = true;
@@ -243,6 +261,8 @@ onMounted(async () => {
     }
   }
 });
+
+watch(() => route.query, applyRouteQuery, { immediate: true });
 </script>
 
 <template>
@@ -299,7 +319,13 @@ onMounted(async () => {
           </button>
           <button
             v-if="isLoggedIn"
-            @click="router.push(activeCategory === '전체' ? '/community/write' : `/community/write?category=${activeCategory}`)"
+            @click="
+              router.push(
+                activeCategory === '전체'
+                  ? '/community/write'
+                  : `/community/write?category=${activeCategory}`,
+              )
+            "
             class="flex items-center gap-1 px-1 py-2 transition-all hover:opacity-80"
             style="
               background: transparent;
