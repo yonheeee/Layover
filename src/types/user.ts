@@ -1,5 +1,3 @@
-import type { Component } from "vue";
-
 export interface User {
   username: string;
   realName: string;
@@ -10,15 +8,6 @@ export interface User {
   stampCount: number;
   role: string;
   kakao: boolean;
-}
-
-export interface Journal {
-  date: string;
-  icon: Component;
-  title: string;
-  count: number;
-  bg: string;
-  iconColor: string;
 }
 
 export interface MyCourse {

@@ -12,10 +12,11 @@ import {
   Eye,
   EyeOff,
   Trash2,
+  Heart,
+  MessageCircle,
 } from "lucide-vue-next";
 import type {
   User as UserType,
-  Journal,
   MyCourse,
   Character,
   MapPin as MapPinType,
@@ -23,13 +24,15 @@ import type {
 } from "@/types/user";
 import type { Place } from "@/types/place";
 import PlaceCard from "@/components/common/PlaceCard.vue";
+import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
 import {
   fetchUser,
-  fetchJournals,
   fetchUserActivity,
   fetchCharacters,
   fetchPostcardData,
 } from "@/api/user";
+import { getMyPosts, CODE_TO_CATEGORY } from "@/api/community";
+import type { MyPost } from "@/types/community";
 import { useStampStore } from "@/stores/stamp";
 import { useAuthStore } from "@/stores/auth";
 import { httpPut } from "@/api/http";
@@ -64,32 +67,29 @@ function removeProfileImage() {
 
 // ─── 데이터 로드 ───
 onMounted(async () => {
-  const [
-    fetchedUser,
-    fetchedJournals,
-    activity,
-    fetchedCharacters,
-    postcardData,
-  ] = await Promise.all([
-    fetchUser(),
-    fetchJournals(),
-    fetchUserActivity(),
-    fetchCharacters(),
-    fetchPostcardData(),
-  ]);
+  const [fetchedUser, activity, fetchedCharacters, postcardData, fetchedPosts] =
+    await Promise.all([
+      fetchUser(),
+      fetchUserActivity(),
+      fetchCharacters(),
+      fetchPostcardData(),
+      getMyPosts(),
+    ]);
   user.value = fetchedUser;
   editName.value = fetchedUser.username;
-  journals.value = fetchedJournals;
+  editPhone.value = fetchedUser.phone ?? "";
   myCourses.value = activity.myCourses;
   likedPlaces.value = activity.likedPlaces;
   likedSpotIds.value = activity.likedPlaces.map((p) => p.id);
   characters.value = fetchedCharacters;
   mapPins.value = postcardData.mapPins;
   userPhotos.value = postcardData.userPhotos;
+  myPosts.value = fetchedPosts;
 });
 
 // ─── 내 정보 탭 ───
 const editName = ref("");
+const nicknameError = ref("");
 const currentPw = ref("");
 const newPw = ref("");
 const newPwConfirm = ref("");
@@ -100,6 +100,10 @@ const savingInfo = ref(false);
 const savingPw = ref(false);
 const showDeleteDialog = ref(false);
 const isPwEditing = ref(false);
+
+const isNicknameChanged = computed(
+  () => editName.value !== user.value.username,
+);
 
 const pwRegex =
   /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
@@ -115,10 +119,38 @@ const pwMismatch = computed(
 );
 
 async function saveInfo() {
+  nicknameError.value = "";
   savingInfo.value = true;
-  await httpPut("/api/user/me/nickname", { username: editName.value });
-  user.value.username = editName.value;
-  savingInfo.value = false;
+  try {
+    await httpPut("/api/user/me/nickname", { username: editName.value });
+    user.value.username = editName.value;
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? "닉네임 변경에 실패했습니다.";
+    if (msg.includes("이미 사용 중인")) {
+      nicknameError.value = "이미 사용중인 닉네임입니다.";
+    } else {
+      nicknameError.value = msg;
+    }
+  } finally {
+    savingInfo.value = false;
+  }
+}
+
+const editPhone = ref("");
+const savingPhone = ref(false);
+
+async function savePhone() {
+  savingPhone.value = true;
+  try {
+    await httpPut("/api/user/me/phone", { phone: editPhone.value });
+    user.value.phone = editPhone.value;
+    alert("전화번호가 변경되었습니다.");
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? "전화번호 변경에 실패했습니다.";
+    alert(msg);
+  } finally {
+    savingPhone.value = false;
+  }
 }
 
 async function changePw() {
@@ -208,8 +240,10 @@ watch(
 );
 
 // ─── 활동 탭 데이터 ───
-const journals = ref<Journal[]>([]);
 const myCourses = ref<MyCourse[]>([]);
+const myPosts = ref<MyPost[]>([]);
+const selectedCourse = ref<MyCourse | null>(null);
+const selectedPlaceId = ref<string | null>(null);
 const likedPlaces = ref<Place[]>([]);
 const likedSpotIds = ref<string[]>([]);
 const likedScrollRef = ref<HTMLDivElement | null>(null);
@@ -240,6 +274,22 @@ const inputBase =
   "width:100%;padding:11px 14px;border-radius:4px;border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#1a2e2b;font-size:0.9rem;outline:none";
 const labelBase =
   "font-size:0.78rem;font-weight:700;color:#6b8c87;letter-spacing:0.03em";
+
+// ─── 헬퍼 ───
+function travelModeLabel(mode: string): string {
+  return (
+    ({ WALK: "도보", TAXI: "택시", BUS: "버스" } as Record<string, string>)[
+      mode
+    ] ?? mode
+  );
+}
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
 </script>
 
 <template>
@@ -343,84 +393,70 @@ const labelBase =
                 >
                   내 여행 일지
                 </h2>
-                <button
-                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                <span
+                  style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
                 >
-                  자세히보기
-                </button>
+                  총 {{ myCourses.length }}개
+                </span>
               </div>
-              <div class="grid grid-cols-3 gap-3">
-                <div
-                  v-for="j in journals"
-                  :key="j.title"
-                  class="rounded-2xl p-4 flex flex-col gap-2"
-                  :style="`background:${j.bg};border:1.5px solid rgba(0,0,0,0.04)`"
-                >
-                  <p
-                    style="font-size: 0.72rem; font-weight: 600; color: #6b7280"
-                  >
-                    {{ j.date }}
-                  </p>
-                  <component :is="j.icon" :size="22" :color="j.iconColor" />
-                  <p
-                    style="font-weight: 700; font-size: 0.88rem; color: #1a2e2b"
-                  >
-                    {{ j.title }}
-                  </p>
-                  <p style="font-size: 0.75rem; color: #6b7280">
-                    {{ j.count }}코스 방문
-                  </p>
-                </div>
+              <div
+                v-if="myCourses.length === 0"
+                class="flex flex-col items-center justify-center py-12 rounded-2xl"
+                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
+              >
+                <span class="text-4xl mb-3">🗺️</span>
+                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
+                  아직 저장한 코스가 없어요
+                </p>
+                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
+                  코스를 만들고 여행을 기록해보세요!
+                </p>
               </div>
-            </div>
-
-            <!-- 내 코스 -->
-            <div class="py-6 border-t border-gray-100">
-              <div class="flex items-center justify-between mb-4">
-                <h2
-                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
-                >
-                  내 코스
-                </h2>
-                <button
-                  @click="router.push('/courses/result')"
-                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
-                >
-                  더보기
-                </button>
-              </div>
-              <div class="flex flex-col gap-2.5">
+              <div v-else class="flex flex-col gap-2.5">
                 <button
                   v-for="course in myCourses"
                   :key="course.id"
-                  class="flex items-center gap-3 p-4 rounded-xl text-left border border-gray-100 transition-colors hover:bg-gray-50"
+                  @click="selectedCourse = course"
+                  class="flex items-start gap-3 p-4 rounded-xl text-left border border-gray-100 transition-colors hover:bg-teal-50/30 hover:border-teal-100"
                 >
                   <div
-                    class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50"
+                    class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50 shrink-0 mt-0.5"
                   >
                     <MapPin :size="16" color="#3db89e" />
                   </div>
-                  <div class="flex-1">
+                  <div class="flex-1 min-w-0">
                     <p
                       style="
                         font-weight: 700;
                         font-size: 0.9rem;
                         color: #1a2e2b;
                       "
+                      class="truncate"
                     >
                       {{ course.subTitle }}
                     </p>
-                    <div class="flex items-center gap-2 mt-1">
+                    <div class="flex items-center gap-2 mt-1 flex-wrap">
                       <span
                         class="text-xs px-2 py-0.5 rounded-full font-semibold"
                         style="background: #e6f7f4; color: #3db89e"
-                        >{{ course.travelMode }}</span
+                        >{{ travelModeLabel(course.travelMode) }}</span
                       >
                       <span style="font-size: 0.75rem; color: #9ca3af"
                         >{{ course.durationMinutes }}분</span
                       >
+                      <span style="font-size: 0.75rem; color: #9ca3af"
+                        >· {{ course.places.length }}곳</span
+                      >
+                      <span style="font-size: 0.75rem; color: #9ca3af"
+                        >· {{ formatDate(course.createdAt) }}</span
+                      >
                     </div>
                   </div>
+                  <ChevronRight
+                    :size="16"
+                    color="#d1d5db"
+                    class="shrink-0 mt-1"
+                  />
                 </button>
               </div>
             </div>
@@ -457,7 +493,7 @@ const labelBase =
                       :key="place.id"
                       :spot="place"
                       :liked="likedSpotIds.includes(place.id)"
-                      @click="() => {}"
+                      @click="selectedPlaceId = place.id"
                       @toggleLike="
                         (id) => {
                           const idx = likedSpotIds.indexOf(id);
@@ -477,6 +513,102 @@ const labelBase =
                 >
                   <ChevronRight :size="28" :stroke-width="3" />
                 </button>
+              </div>
+            </div>
+
+            <!-- 내가 쓴 글 -->
+            <div class="pt-6 border-t border-gray-100">
+              <div class="flex items-center justify-between mb-4">
+                <h2
+                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+                >
+                  내가 쓴 글
+                </h2>
+                <div class="flex items-center gap-3">
+                  <span
+                    style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
+                  >
+                    총 {{ myPosts.length }}개
+                  </span>
+                  <button
+                    @click="router.push('/community?my=true')"
+                    style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                  >
+                    더보기
+                  </button>
+                </div>
+              </div>
+              <div
+                v-if="myPosts.length === 0"
+                class="flex flex-col items-center justify-center py-12 rounded-2xl"
+                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
+              >
+                <span class="text-4xl mb-3">✍️</span>
+                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
+                  아직 작성한 글이 없어요
+                </p>
+                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
+                  커뮤니티에서 첫 글을 남겨보세요!
+                </p>
+                <button
+                  @click="router.push('/community/write')"
+                  class="mt-4 px-4 py-2 rounded-xl text-white text-xs font-bold"
+                  style="background: #3db89e"
+                >
+                  글쓰기
+                </button>
+              </div>
+              <div v-else>
+                <div
+                  v-for="post in myPosts.slice(0, 5)"
+                  :key="post.id"
+                  @click="router.push('/community/' + post.id)"
+                  class="flex items-center gap-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors px-1"
+                >
+                  <span
+                    class="shrink-0 text-xs px-2 py-0.5 rounded-full font-bold"
+                    :style="
+                      post.category === 'SHARE'
+                        ? 'background:#d1fae5;color:#059669'
+                        : post.category === 'QUESTION'
+                          ? 'background:#dbeafe;color:#2563eb'
+                          : post.category === 'TOGETHER'
+                            ? 'background:#ede9fe;color:#7c3aed'
+                            : 'background:#f3f4f6;color:#6b7280'
+                    "
+                  >
+                    {{ CODE_TO_CATEGORY[post.category] }}
+                  </span>
+                  <p
+                    class="flex-1 truncate"
+                    style="font-size: 0.88rem; color: #1a2e2b; font-weight: 500"
+                  >
+                    {{ post.title }}
+                  </p>
+                  <div class="flex items-center gap-2.5 shrink-0">
+                    <span
+                      class="flex items-center gap-0.5"
+                      style="font-size: 0.72rem; color: #9ca3af"
+                    >
+                      <Eye :size="11" />&nbsp;{{ post.viewCount }}
+                    </span>
+                    <span
+                      class="flex items-center gap-0.5"
+                      style="font-size: 0.72rem; color: #9ca3af"
+                    >
+                      <Heart :size="11" />&nbsp;{{ post.likeCount }}
+                    </span>
+                    <span
+                      class="flex items-center gap-0.5"
+                      style="font-size: 0.72rem; color: #9ca3af"
+                    >
+                      <MessageCircle :size="11" />&nbsp;{{ post.commentCount }}
+                    </span>
+                    <span style="font-size: 0.72rem; color: #d1d5db">{{
+                      formatDate(post.createdAt)
+                    }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </template>
@@ -512,17 +644,32 @@ const labelBase =
                   <div class="flex justify-between items-center gap-2">
                     <input
                       v-model="editName"
-                      :style="inputBase"
-                      style="background: #ffffff; border-radius: 4px"
+                      :style="[
+                        inputBase,
+                        {
+                          borderColor: nicknameError
+                            ? '#ef4444'
+                            : 'rgba(178,228,220,0.5)',
+                          background: '#ffffff',
+                          borderRadius: '4px',
+                        },
+                      ]"
+                      @input="nicknameError = ''"
                     />
                     <button
                       @click="saveInfo"
-                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
-                      :disabled="savingInfo"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      :disabled="savingInfo || !isNicknameChanged"
                     >
                       {{ savingInfo ? "저장중" : "변경" }}
                     </button>
                   </div>
+                  <p
+                    v-if="nicknameError"
+                    class="text-xs text-red-500 font-semibold pl-1"
+                  >
+                    {{ nicknameError }}
+                  </p>
                 </div>
 
                 <!-- 이메일 (수정 불가 + 가입방식 뱃지) -->
@@ -565,6 +712,42 @@ const labelBase =
                     "
                   >
                     <span>{{ user.email }}</span>
+                  </div>
+                </div>
+
+                <!-- 전화번호 -->
+                <div class="flex flex-col gap-1.5">
+                  <span :style="labelBase">전화번호</span>
+                  <!-- 전화번호 없을 때: 입력 가능 -->
+                  <div
+                    v-if="!user.phone"
+                    class="flex justify-between items-center gap-2"
+                  >
+                    <input
+                      v-model="editPhone"
+                      :style="inputBase"
+                      style="background: #ffffff; border-radius: 4px"
+                      placeholder="전화번호를 입력하세요"
+                    />
+                    <button
+                      @click="savePhone"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
+                      :disabled="savingPhone"
+                    >
+                      {{ savingPhone ? "저장중" : "변경" }}
+                    </button>
+                  </div>
+                  <!-- 전화번호 있을 때: 수정 불가 -->
+                  <div
+                    v-else
+                    :style="infoBoxBase"
+                    style="
+                      background: #f3f4f6;
+                      color: #9ca3af;
+                      cursor: not-allowed;
+                    "
+                  >
+                    <span>{{ user.phone }}</span>
                   </div>
                 </div>
               </div>
@@ -865,6 +1048,36 @@ const labelBase =
 
     <!-- ─── 모달들 ─── -->
     <Teleport to="body">
+      <!-- 장소 상세 모달 -->
+      <div
+        v-if="selectedPlaceId"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
+        @click="selectedPlaceId = null"
+      >
+        <div
+          class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative p-6 flex flex-col"
+          style="max-height: 85vh"
+          @click.stop
+        >
+          <div
+            class="flex items-center justify-between pb-3 mb-4 border-b border-gray-100"
+          >
+            <h3 class="text-base font-bold text-gray-800">장소 상세 정보</h3>
+            <button
+              @click="selectedPlaceId = null"
+              class="text-gray-400 hover:text-gray-600 text-lg font-bold cursor-pointer transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          <div
+            class="overflow-y-auto pr-1"
+            style="max-height: calc(85vh - 80px)"
+          >
+            <PlaceDetailContent :id="selectedPlaceId" />
+          </div>
+        </div>
+      </div>
       <!-- 로그아웃 모달 -->
       <div
         v-if="showLogout"
@@ -987,6 +1200,156 @@ const labelBase =
           >
             확인
           </button>
+        </div>
+      </div>
+
+      <!-- 회고 모달 -->
+      <div
+        v-if="selectedCourse"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
+        @click.self="selectedCourse = null"
+      >
+        <div
+          class="bg-white rounded-2xl w-[480px] max-h-[80vh] overflow-y-auto shadow-2xl"
+          style="border: 1.5px solid rgba(178, 228, 220, 0.4)"
+        >
+          <div
+            class="p-5 border-b border-gray-100 flex items-start justify-between gap-3"
+          >
+            <div>
+              <p
+                style="font-weight: 800; font-size: 1.05rem; color: #1a2e2b"
+                class="leading-snug"
+              >
+                {{ selectedCourse.subTitle }}
+              </p>
+              <p style="font-size: 0.8rem; color: #9ca3af; margin-top: 4px">
+                {{ formatDate(selectedCourse.createdAt) }}
+              </p>
+            </div>
+            <button
+              @click="selectedCourse = null"
+              class="shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 transition-colors text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          <div class="p-5 flex flex-col gap-5">
+            <!-- 여행 정보 칩 -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span
+                class="px-3 py-1 rounded-full text-xs font-bold"
+                style="background: #e6f7f4; color: #3db89e"
+              >
+                {{ travelModeLabel(selectedCourse.travelMode) }}
+              </span>
+              <span
+                class="px-3 py-1 rounded-full text-xs font-semibold"
+                style="background: #f0faf8; color: #6b8c87"
+              >
+                {{ selectedCourse.durationMinutes }}분
+              </span>
+              <span
+                class="px-3 py-1 rounded-full text-xs font-semibold"
+                style="background: #f0faf8; color: #6b8c87"
+              >
+                {{ selectedCourse.places.length }}곳
+              </span>
+            </div>
+
+            <!-- 장소 목록 -->
+            <div>
+              <p
+                style="
+                  font-size: 0.78rem;
+                  font-weight: 700;
+                  color: #6b8c87;
+                  margin-bottom: 10px;
+                "
+              >
+                방문 장소
+              </p>
+              <div class="flex flex-col gap-1.5">
+                <template
+                  v-for="(place, idx) in selectedCourse.places"
+                  :key="place.id"
+                >
+                  <div
+                    class="flex items-center gap-2.5 p-2.5 rounded-xl"
+                    style="background: #f9fafb"
+                  >
+                    <div
+                      class="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                      style="background: #e6f7f4"
+                    >
+                      <MapPin :size="12" color="#3db89e" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        style="
+                          font-size: 0.85rem;
+                          font-weight: 600;
+                          color: #1a2e2b;
+                        "
+                        class="truncate"
+                      >
+                        {{ place.name }}
+                      </p>
+                      <p style="font-size: 0.7rem; color: #9ca3af">
+                        {{ place.category }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    v-if="idx < selectedCourse!.places.length - 1"
+                    class="text-center"
+                    style="font-size: 0.75rem; color: #d1d5db"
+                  >
+                    ↓
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- 확장 포인트 -->
+            <div>
+              <p
+                style="
+                  font-size: 0.78rem;
+                  font-weight: 700;
+                  color: #6b8c87;
+                  margin-bottom: 10px;
+                "
+              >
+                여행 기록
+              </p>
+              <div class="grid grid-cols-3 gap-2">
+                <div
+                  v-for="item in [
+                    { icon: '📸', label: '인증 사진' },
+                    { icon: '🎖️', label: '획득 엽서' },
+                    { icon: '⭐', label: '별점·한줄평' },
+                  ]"
+                  :key="item.label"
+                  class="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border"
+                  style="
+                    border-color: #e5e7eb;
+                    background: #fafafa;
+                    opacity: 0.6;
+                  "
+                >
+                  <span class="text-xl">{{ item.icon }}</span>
+                  <p
+                    style="font-size: 0.72rem; font-weight: 600; color: #9ca3af"
+                  >
+                    {{ item.label }}
+                  </p>
+                  <p style="font-size: 0.65rem; color: #d1d5db">준비 중</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Teleport>
