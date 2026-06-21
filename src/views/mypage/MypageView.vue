@@ -524,11 +524,19 @@ function formatDate(dateStr: string): string {
                 >
                   내가 쓴 글
                 </h2>
-                <span
-                  style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
-                >
-                  총 {{ myPosts.length }}개
-                </span>
+                <div class="flex items-center gap-3">
+                  <span
+                    style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
+                  >
+                    총 {{ myPosts.length }}개
+                  </span>
+                  <button
+                    @click="router.push('/community?my=true')"
+                    style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                  >
+                    더보기
+                  </button>
+                </div>
               </div>
               <div
                 v-if="myPosts.length === 0"
@@ -600,14 +608,6 @@ function formatDate(dateStr: string): string {
                       formatDate(post.createdAt)
                     }}</span>
                   </div>
-                </div>
-                <div class="mt-3 text-center">
-                  <button
-                    @click="router.push('/community?tab=community')"
-                    style="font-size: 0.8rem; color: #3db89e; font-weight: 600"
-                  >
-                    더보기 →
-                  </button>
                 </div>
               </div>
             </div>

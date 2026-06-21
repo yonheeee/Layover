@@ -229,6 +229,9 @@ function applyRouteQuery() {
       }
     }
   }
+  if (route.query.my === "true") {
+    isMyPostsOnly.value = true;
+  }
 }
 
 // ─── 초기 데이터 로드 ───
