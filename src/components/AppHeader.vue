@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { Menu, X } from "lucide-vue-next";
-import { useRoute } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
 const auth = useAuthStore();
+const router = useRouter();
 const mobileMenuOpen = ref(false);
 const scrolled = ref(false);
 
@@ -16,14 +17,18 @@ function onScroll() {
 onMounted(() => window.addEventListener("scroll", onScroll));
 onUnmounted(() => window.removeEventListener("scroll", onScroll));
 
-const NAV_LINKS = [
+const ALL_NAV_LINKS = [
   { label: "홈", to: "/" },
   { label: "지도", to: "/map" },
   { label: "관광지", to: "/place" },
   { label: "커뮤니티", to: "/community" },
   { label: "스탬프", to: "/stamp-tour" },
-  { label: "마이페이지", to: "/mypage" },
+  { label: "마이페이지", to: "/mypage", authOnly: true },
 ];
+
+const NAV_LINKS = computed(() =>
+  ALL_NAV_LINKS.filter((link) => !link.authOnly || auth.isLoggedIn),
+);
 </script>
 
 <template>
@@ -59,7 +64,10 @@ const NAV_LINKS = [
             :style="{
               color: route.path === link.to ? '#3db89e' : '#1a2e2b',
               fontWeight: route.path === link.to ? 600 : 400,
-              background: route.path === link.to ? 'rgba(232,248,245,0.8)' : 'transparent',
+              background:
+                route.path === link.to
+                  ? 'rgba(232,248,245,0.8)'
+                  : 'transparent',
               textDecoration: 'none',
             }"
             >{{ link.label }}</router-link
@@ -71,10 +79,20 @@ const NAV_LINKS = [
           <template v-if="auth.isLoggedIn">
             <button
               class="px-4 py-2 rounded-xl text-sm"
-              style="color: #6b8c87; font-weight: 500; background: none; border: none; cursor: pointer"
-              @click="auth.logout()"
-              >로그아웃</button
+              style="
+                color: #6b8c87;
+                font-weight: 500;
+                background: none;
+                border: none;
+                cursor: pointer;
+              "
+              @click="
+                auth.logout();
+                router.push('/');
+              "
             >
+              로그아웃
+            </button>
           </template>
           <template v-else>
             <router-link
@@ -142,9 +160,14 @@ const NAV_LINKS = [
               background: none;
               cursor: pointer;
             "
-            @click="auth.logout(); mobileMenuOpen = false"
-            >로그아웃</button
+            @click="
+              auth.logout();
+              mobileMenuOpen = false;
+              router.push('/');
+            "
           >
+            로그아웃
+          </button>
         </template>
         <template v-else>
           <router-link
