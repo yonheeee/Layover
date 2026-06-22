@@ -11,39 +11,34 @@ export interface User {
 }
 
 export interface MyCourse {
-  id: string;
-  subTitle: string;
-  travelMode: string;
-  durationMinutes: number;
-  createdAt: string;
-  places: {
-    id: string;
-    name: string;
-    category: string;
-    lat: number;
-    lng: number;
-  }[];
+  id: string
+  title: string
+  rating: number
+  badge: string
+  badgeStyle: string
+  placeCount: number
+  duration: string
 }
 
 export interface Character {
-  id: number;
-  name: string;
-  emoji: string;
-  unlocked: boolean;
-  description: string;
-  poses: string[];
+  id: string
+  name: string
+  emoji: string
+  unlocked: boolean
+  description: string
+  poses: string[]
 }
 
 export interface MapPin {
-  id: number;
-  location: string;
-  journalTitle: string;
-  visitDate: string;
-  url: string;
+  id: string
+  location: string
+  journalTitle: string
+  visitDate: string
+  url: string
 }
 
 export interface UserPhoto {
-  id: number;
-  url: string;
-  location: string;
+  id: string
+  url: string
+  location: string
 }

@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { ArrowLeft, MapPin, CheckCircle, Loader2, Camera, X, Route } from 'lucide-vue-next'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
+import { fetchDiPlaces } from '@/api/courses'
+import { saveStamp } from '@/api/stamps'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -11,7 +13,7 @@ const stampStore = useStampStore()
 type Step = 'timeline' | 'verifying' | 'guide' | 'camera' | 'result'
 
 interface TourPlace {
-  id: number
+  id: string
   name: string
   description: string
   lat: number
@@ -23,48 +25,26 @@ interface TourPlace {
 
 const router = useRouter()
 
-const places = ref<TourPlace[]>([
-  {
-    id: 1,
-    name: '성심당',
-    description: '대전의 명물 빵집, 튀김소보로가 유명해요!',
-    lat: 36.3276,
-    lng: 127.4272,
-    guideText: '성심당 간판 앞에서 정면으로 찍어보세요!',
-    guideEmoji: '🍞',
-    visited: false,
-  },
-  {
-    id: 2,
-    name: '대전 엑스포 과학공원',
-    description: '1993 대전 엑스포의 상징, 한빛탑이 있어요.',
-    lat: 36.3724,
-    lng: 127.3874,
-    guideText: '한빛탑을 배경으로 양팔을 벌려 찍어보세요!',
-    guideEmoji: '🗼',
-    visited: false,
-  },
-  {
-    id: 3,
-    name: '유성온천',
-    description: '천연 온천수로 유명한 대전의 힐링 스팟.',
-    lat: 36.3619,
-    lng: 127.3444,
-    guideText: '온천 표지판 옆에서 엄지를 올려 찍어보세요!',
-    guideEmoji: '♨️',
-    visited: false,
-  },
-  {
-    id: 4,
-    name: '계족산 황톳길',
-    description: '맨발로 걷는 힐링의 명소!',
-    lat: 36.4213,
-    lng: 127.4872,
-    guideText: '황톳길 입구 표지판 앞에서 찍어보세요!',
-    guideEmoji: '🌿',
-    visited: false,
-  },
-])
+const places = ref<TourPlace[]>([])
+
+function emojiFor(category: string) {
+  switch (category) {
+    case 'FOOD':    return '🍽️'
+    case 'CAFE':    return '☕'
+    case 'NATURE':  return '🌿'
+    case 'CULTURE': return '🏛️'
+    default:        return '📍'
+  }
+}
+function guideTextFor(category: string) {
+  switch (category) {
+    case 'FOOD':    return '식당 간판 앞에서 정면으로 찍어보세요!'
+    case 'CAFE':    return '카페 입구 앞에서 찍어보세요!'
+    case 'NATURE':  return '자연 경관을 배경으로 찍어보세요!'
+    case 'CULTURE': return '문화시설 앞에서 찍어보세요!'
+    default:        return '장소 앞에서 찍어보세요!'
+  }
+}
 
 const currentStep = ref<Step>('timeline')
 const currentPlaceIdx = ref<number | null>(null)
@@ -72,6 +52,8 @@ const errorMsg = ref('')
 const guideCountdown = ref(2)
 const resultImageUrl = ref('')
 const stampAnimIdx = ref<number | null>(null)
+const newCharacterPopup = ref<{ name: string; imageUrl: string; requiredStamps: number } | null>(null)
+const isSavingStamp = ref(false)
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -169,12 +151,40 @@ function renderStampMap() {
   if (places.value.length > 0) mapObject.setBounds(bounds)
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 코스 확정된 경우 해당 코스 장소 사용, 아니면 API에서 가져옴
+  const coursePlaces = courseStore.generatedCourses[0]?.places ?? []
+  if (coursePlaces.length > 0) {
+    places.value = coursePlaces
+      .filter((p) => p.lat && p.lng)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.category,
+        lat: p.lat!,
+        lng: p.lng!,
+        guideText: guideTextFor(p.category),
+        guideEmoji: emojiFor(p.category),
+        visited: false,
+      }))
+  } else {
+    const diPlaces = await fetchDiPlaces()
+    places.value = diPlaces.slice(0, 4).map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.desc,
+      lat: p.lat,
+      lng: p.lng,
+      guideText: guideTextFor(p.category),
+      guideEmoji: emojiFor(p.category),
+      visited: false,
+    }))
+  }
+
   if (!document.getElementById('kakao-map-script')) {
     const script = document.createElement('script')
     script.id = 'kakao-map-script'
-    script.src =
-      '//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&autoload=false'
+    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`
     document.head.appendChild(script)
     script.onload = () => {
       ;(window as any).kakao.maps.load(() => initKakaoMap())
@@ -314,11 +324,12 @@ function stopCamera() {
 }
 
 // ── Step 5: 완료 → 타임라인 ──────────────────────────────
-function confirmResult() {
+async function confirmResult() {
   if (currentPlaceIdx.value === null) return
   const idx = currentPlaceIdx.value
   const place = places.value[idx]
 
+  // 로컬 저장
   stampStore.addPhoto({
     id: `${place.id}_${Date.now()}`,
     url: resultImageUrl.value,
@@ -329,6 +340,7 @@ function confirmResult() {
     lng: place.lng,
   })
 
+  // UI 전환 먼저 (API 응답 기다리지 않음)
   stampAnimIdx.value = idx
   currentStep.value = 'timeline'
   currentPlaceIdx.value = null
@@ -336,6 +348,25 @@ function confirmResult() {
     places.value[idx].visited = true
     setTimeout(() => (stampAnimIdx.value = null), 800)
   }, 100)
+
+  // 백엔드 저장 (비동기 - UI 블로킹 없음)
+  isSavingStamp.value = true
+  try {
+    const res = await saveStamp(place.id)
+    if (res.newCharacter) {
+      newCharacterPopup.value = res.newCharacter
+    }
+  } catch (err: any) {
+    const status = err?.response?.status
+    if (status === 409) {
+      alert('이미 방문한 장소입니다.')
+    } else if (status && status !== 401) {
+      console.error('스탬프 저장 실패:', err)
+    }
+    // 401(미로그인)은 조용히 무시 — 로컬 저장은 이미 완료됨
+  } finally {
+    isSavingStamp.value = false
+  }
 }
 
 function goBack() {
@@ -764,6 +795,32 @@ onUnmounted(() => {
     </Teleport>
 
     </template>
+
+    <!-- ── 캐릭터 획득 팝업 ────────────────────────────────── -->
+    <Teleport to="body">
+      <div v-if="newCharacterPopup"
+        class="fixed inset-0 flex items-center justify-center z-50"
+        style="background:rgba(0,0,0,0.6)"
+        @click.self="newCharacterPopup = null">
+        <div class="rounded-3xl p-8 text-center shadow-2xl mx-6"
+          style="background:#fff;max-width:320px;width:100%">
+          <div class="text-5xl mb-3">🎉</div>
+          <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">새 캐릭터 획득!</p>
+          <h3 style="font-size:1.2rem;font-weight:800;color:#1a2e2b;margin-bottom:8px">
+            {{ newCharacterPopup.name }}
+          </h3>
+          <p style="font-size:0.82rem;color:#9ca3af;margin-bottom:24px">
+            스탬프 {{ newCharacterPopup.requiredStamps }}개 달성으로 획득했어요!
+          </p>
+          <button @click="newCharacterPopup = null"
+            class="w-full py-3 rounded-2xl font-bold text-white text-sm"
+            style="background:linear-gradient(135deg,#3db89e,#2da08a)">
+            확인
+          </button>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
