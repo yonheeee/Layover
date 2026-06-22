@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
-import {
-  MapPin,
-  Clock,
-  ChevronRight,
-  Edit2,
-  Check,
-  X,
-  Plus,
-  Search,
-  Footprints,
-  Bus,
-  Car,
-  Share2,
-  RefreshCw,
-  ArrowLeft,
-  Train,
-  Lock,
-  Unlock,
-} from "lucide-vue-next";
-import type { Course, DiPlace } from "@/types/course";
 import { fetchDiPlaces, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
+import type { Course, DiPlace } from "@/types/course";
+import {
+  ArrowLeft,
+  Bus,
+  Car,
+  Check,
+  ChevronRight,
+  Clock,
+  Edit2,
+  Footprints,
+  Lock,
+  MapPin,
+  Plus,
+  Search,
+  Share2,
+  Train,
+  Unlock,
+  X
+} from "lucide-vue-next";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 
 // 카카오 지도 객체 타입 정의
 declare global {
@@ -31,6 +31,7 @@ declare global {
 }
 
 const courseStore = useCourseStore();
+const router = useRouter();
 const courses = ref<Course[]>([]);
 
 const activeTab = ref(0);
@@ -158,6 +159,11 @@ watch(
 
 onMounted(async () => {
   courses.value = courseStore.generatedCourses;
+
+  if (courses.value.length === 0) {
+    router.push('/')
+  }
+  
   allDiPlaces.value = await fetchDiPlaces();
   if (!document.getElementById("kakao-map-script")) {
     const script = document.createElement("script");
@@ -238,7 +244,7 @@ async function confirmCourse() {
       }));
     await saveCourse(courseStore.lastRequest, places);
     courseStore.setConfirmed();
-    alert("코스가 저장되었습니다!");
+    router.push('/mypage')
   } catch {
     alert("저장에 실패했습니다. 로그인 상태를 확인해주세요.");
   } finally {

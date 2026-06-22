@@ -12,12 +12,17 @@ export interface User {
 
 export interface MyCourse {
   id: string
-  title: string
-  rating: number
-  badge: string
-  badgeStyle: string
-  placeCount: number
-  duration: string
+  subTitle: string
+  travelMode: string
+  durationMinutes: number
+  createdAt: string
+  places: {
+    id: string
+    name: string
+    category: string
+    lat: number
+    lng: number
+  }[]
 }
 
 export interface Character {

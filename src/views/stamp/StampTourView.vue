@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, MapPin, CheckCircle, Loader2, Camera, X, Route } from 'lucide-vue-next'
+import { fetchDiPlaces } from '@/api/courses'
+import { httpGet } from '@/api/http'
+import { saveStamp } from '@/api/stamps'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
-import { fetchDiPlaces } from '@/api/courses'
-import { saveStamp } from '@/api/stamps'
+import { ArrowLeft, Camera, Loader2, MapPin, X } from 'lucide-vue-next'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -152,21 +153,29 @@ function renderStampMap() {
 }
 
 onMounted(async () => {
-  // 코스 확정된 경우 해당 코스 장소 사용, 아니면 API에서 가져옴
-  const coursePlaces = courseStore.generatedCourses[0]?.places ?? []
-  if (coursePlaces.length > 0) {
-    places.value = coursePlaces
-      .filter((p) => p.lat && p.lng)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        description: p.category,
-        lat: p.lat!,
-        lng: p.lng!,
-        guideText: guideTextFor(p.category),
-        guideEmoji: emojiFor(p.category),
-        visited: false,
-      }))
+  await courseStore.checkConfirmedCourse()
+
+  if (courseStore.hasConfirmedCourse) {
+    try {
+      const res = await httpGet<any[]>('/api/courses/my')
+      const latestCourse = res.data[0]  // 가장 최근 코스
+      if (latestCourse?.places?.length > 0) {
+        places.value = latestCourse.places
+          .filter((p: any) => p.lat && p.lng)
+          .map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            description: p.category,
+            lat: p.lat,
+            lng: p.lng,
+            guideText: guideTextFor(p.category),
+            guideEmoji: emojiFor(p.category),
+            visited: false,
+          }))
+      }
+    } catch (err) {
+      console.error('코스 로딩 실패:', err)
+    }
   } else {
     const diPlaces = await fetchDiPlaces()
     places.value = diPlaces.slice(0, 4).map((p) => ({
@@ -445,7 +454,7 @@ onUnmounted(() => {
         <p style="font-size:0.85rem;color:#9ca3af;line-height:1.7;margin-bottom:32px">
           대전 환승 코스를 확정하면<br />스탬프 투어를 시작할 수 있어요
         </p>
-        <button @click="router.push('/map')"
+        <button @click="router.push('/')"
           class="w-full py-4 rounded-2xl font-bold text-white text-sm transition-all active:scale-95 hover:opacity-90"
           style="background:linear-gradient(135deg,#3db89e,#2da08a);box-shadow:0 4px 16px rgba(61,184,158,0.3)">
           코스 추천 받으러 가기

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { Menu, X } from "lucide-vue-next";
-import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { Menu, X } from "lucide-vue-next";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -19,7 +19,6 @@ onUnmounted(() => window.removeEventListener("scroll", onScroll));
 
 const ALL_NAV_LINKS = [
   { label: "홈", to: "/" },
-  { label: "지도", to: "/map" },
   { label: "관광지", to: "/place" },
   { label: "커뮤니티", to: "/community" },
   { label: "스탬프", to: "/stamp-tour" },
