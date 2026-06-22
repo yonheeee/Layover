@@ -1,6 +1,6 @@
 import type { DiPlace, CourseStop } from '@/types/course'
 import type { CourseGenerateRequest, CourseResponse } from '@/types/course'
-import { http, httpGet } from './http'
+import { http, httpGet, httpPost } from './http'
 
 export async function fetchDiPlaces(): Promise<DiPlace[]> {
   const res = await http.get<DiPlace[]>('/api/places/map-search')
@@ -8,7 +8,7 @@ export async function fetchDiPlaces(): Promise<DiPlace[]> {
 }
 
 export async function searchPlaces(keyword: string): Promise<Omit<CourseStop, 'stayTime' | 'isLocked'>[]> {
-  const res = await httpGet<Omit<CourseStop, 'stayTime' | 'isLocked'>[]>(`/api/places/search?keyword=${encodeURIComponent(keyword)}`)
+  const res = await http.get<Omit<CourseStop, 'stayTime' | 'isLocked'>[]>(`/api/places/search?keyword=${encodeURIComponent(keyword)}`)
   return res.data
 }
 

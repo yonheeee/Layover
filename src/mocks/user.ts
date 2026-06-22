@@ -1,6 +1,6 @@
-import { Coffee, Trees, Utensils } from 'lucide-vue-next'
-import type { User, Journal, MyCourse, Character, MapPin, UserPhoto } from '@/types/user'
 import type { Place } from '@/types/place'
+import type { Character, Journal, MapPin, MyCourse, User, UserPhoto } from '@/types/user'
+import { Coffee, Trees, Utensils } from 'lucide-vue-next'
 
 export const mockUser: User = {
   nickname: '홍길동',
