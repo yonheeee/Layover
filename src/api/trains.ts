@@ -1,13 +1,17 @@
-import type { Train, StationOption } from '@/types/train'
-import { mockTrains, stationOptions } from '@/mocks/trains'
-// import { httpGet } from './http'
+import { http } from "./http";
+import type { Train, StationOption } from "@/types/train";
 
-export async function fetchTrains(): Promise<Record<string, Train[]>> {
-  // TODO(백엔드 연동): return httpGet<Record<string, Train[]>>('/api/trains')
-  return Promise.resolve(mockTrains)
+export async function fetchTrains(
+  station: string,
+  date: string,
+): Promise<Train[]> {
+  const res = await http.get<Train[]>(
+    `/api/trains?station=${station}&date=${date}`,
+  );
+  return res.data ?? [];
 }
 
-export async function fetchStationOptions(): Promise<StationOption[]> {
-  // TODO(백엔드 연동): return httpGet<StationOption[]>('/api/stations')
-  return Promise.resolve(stationOptions)
-}
+export const stationOptions: StationOption[] = [
+  { value: "daejeon", label: "대전역" },
+  { value: "seo-daejeon", label: "서대전역" },
+];
