@@ -36,6 +36,8 @@ const showPwError = computed(() => {
 
 onMounted(async () => {
   const { accessToken, refreshToken, needsProfile } = route.query;
+  const error = route.query.error;
+
   if (typeof accessToken === "string" && typeof refreshToken === "string") {
     auth.handleKakaoCallback(accessToken, refreshToken);
     if (needsProfile === "true") {
@@ -43,6 +45,9 @@ onMounted(async () => {
     } else {
       router.replace("/");
     }
+  }
+  if (error === "withdrawn") {
+    loginError.value = "탈퇴한 계정입니다. 로그인할 수 없습니다.";
   }
 });
 

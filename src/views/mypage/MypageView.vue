@@ -35,7 +35,7 @@ import { getMyPosts, CODE_TO_CATEGORY } from "@/api/community";
 import type { MyPost } from "@/types/community";
 import { useStampStore } from "@/stores/stamp";
 import { useAuthStore } from "@/stores/auth";
-import { httpPut } from "@/api/http";
+import { httpPut, httpDelete } from "@/api/http";
 
 const stampStore = useStampStore();
 const auth = useAuthStore();
@@ -173,6 +173,18 @@ async function changePw() {
     alert(msg);
   } finally {
     savingPw.value = false;
+  }
+}
+
+async function withdraw() {
+  try {
+    await httpDelete("/api/user/me");
+    auth.logout();
+    router.push("/login");
+  } catch (e: any) {
+    const msg =
+      e?.response?.data?.message ?? "회원탈퇴 중 오류가 발생했습니다.";
+    alert(msg);
   }
 }
 
@@ -1156,7 +1168,10 @@ function formatDate(dateStr: string): string {
               취소
             </button>
             <button
-              @click="router.push('/login')"
+              @click="
+                withdraw();
+                showDeleteDialog = false;
+              "
               class="flex-1 py-2 rounded-xl bg-gray-800 text-white"
             >
               탈퇴

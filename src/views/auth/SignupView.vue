@@ -13,12 +13,7 @@ import {
   Calendar,
 } from "lucide-vue-next";
 import { useRouter } from "vue-router";
-import {
-  checkEmail,
-  sendEmailCode,
-  verifyEmailCode,
-  signup,
-} from "@/api/auth";
+import { checkEmail, sendEmailCode, verifyEmailCode, signup } from "@/api/auth";
 
 const router = useRouter();
 
@@ -30,6 +25,8 @@ const emailCode = ref("");
 const emailCodeSent = ref(false);
 const emailCodeVerified = ref(false);
 const emailDuplChecked = ref<null | boolean>(null);
+const codeTimer = ref(300);
+const codeTimerInterval = ref<ReturnType<typeof setInterval> | null>(null);
 const signupPw = ref("");
 const signupPwConfirm = ref("");
 const showPw = ref(false);
@@ -85,6 +82,7 @@ const handleEmailCheck = async () => {
     const res = await checkEmail(signupEmail.value);
     if (res.success) {
       emailDuplChecked.value = true;
+      await handleSendCode();
     } else {
       emailDuplChecked.value = false;
       emailCheckError.value = res.message;
@@ -100,6 +98,7 @@ const handleSendCode = async () => {
     const res = await sendEmailCode(signupEmail.value);
     if (res.success) {
       emailCodeSent.value = true;
+      startTimer();
     } else {
       sendCodeError.value = res.message;
     }
@@ -122,6 +121,24 @@ const handleVerifyCode = async () => {
   }
 };
 
+function startTimer() {
+  codeTimer.value = 300;
+  if (codeTimerInterval.value) clearInterval(codeTimerInterval.value);
+  codeTimerInterval.value = setInterval(() => {
+    codeTimer.value--;
+    if (codeTimer.value <= 0) {
+      clearInterval(codeTimerInterval.value!);
+      codeTimerInterval.value = null;
+    }
+  }, 1000);
+}
+
+const timerDisplay = computed(() => {
+  const m = Math.floor(codeTimer.value / 60);
+  const s = codeTimer.value % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+});
+
 const handleSignup = async () => {
   signupError.value = "";
   isEmailTouched.value = true;
@@ -139,7 +156,11 @@ const handleSignup = async () => {
     signupError.value = "핸드폰번호를 입력해주세요.";
     return;
   }
-  if (!isEmailValid.value || emailDuplChecked.value !== true || !emailCodeVerified.value) {
+  if (
+    !isEmailValid.value ||
+    emailDuplChecked.value !== true ||
+    !emailCodeVerified.value
+  ) {
     signupError.value = "이메일 중복확인 및 인증을 완료해주세요.";
     return;
   }
@@ -355,20 +376,16 @@ const btnOutlineStyle =
               maxlength="6"
               :disabled="emailCodeVerified"
             />
-            <button
-              v-if="!emailCodeSent"
-              :style="btnOutlineStyle"
-              @click="handleSendCode"
-            >
-              인증번호 발송
-            </button>
-            <button
-              v-else-if="!emailCodeVerified"
-              :style="btnOutlineStyle"
-              @click="handleVerifyCode"
-            >
-              인증 확인
-            </button>
+            <!-- 인증 완료 전: 재전송 + 인증확인 -->
+            <template v-if="!emailCodeVerified">
+              <button :style="btnOutlineStyle" @click="handleSendCode">
+                재전송
+              </button>
+              <button :style="btnOutlineStyle" @click="handleVerifyCode">
+                인증 확인
+              </button>
+            </template>
+            <!-- 인증 완료 후 -->
             <button
               v-else
               style="
@@ -386,19 +403,30 @@ const btnOutlineStyle =
               확인완료
             </button>
           </div>
+
+          <!-- 타이머 + 상태 메시지 -->
+          <div
+            v-if="emailCodeSent && !emailCodeVerified && codeTimer > 0"
+            class="flex items-center gap-1.5"
+            style="color: #3db89e; font-size: 0.78rem; font-weight: 500"
+          >
+            <CheckCircle :size="13" />
+            인증번호가 발송되었습니다. 남은 시간: {{ timerDisplay }}
+          </div>
+          <div
+            v-else-if="emailCodeSent && !emailCodeVerified && codeTimer <= 0"
+            class="flex items-center gap-1.5"
+            style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
+          >
+            <AlertCircle :size="13" /> 인증번호가 만료되었습니다.
+            재전송해주세요.
+          </div>
           <div
             v-if="sendCodeError"
             class="flex items-center gap-1.5"
             style="color: #ff4d4f; font-size: 0.78rem; font-weight: 500"
           >
             <AlertCircle :size="13" /> {{ sendCodeError }}
-          </div>
-          <div
-            v-else-if="emailCodeSent && !emailCodeVerified"
-            class="flex items-center gap-1.5"
-            style="color: #3db89e; font-size: 0.78rem; font-weight: 500"
-          >
-            <CheckCircle :size="13" /> 인증번호가 발송되었습니다.
           </div>
           <div
             v-if="verifyCodeError"
