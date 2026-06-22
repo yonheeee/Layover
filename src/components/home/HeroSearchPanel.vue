@@ -1,50 +1,87 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, watch } from "vue";
 import { Train, ChevronRight, CloudSun, Navigation } from "lucide-vue-next";
 import type { Train as TrainType } from "@/types/train";
 import { fetchTrains } from "@/api/trains";
 
-defineProps<{ isLoading?: boolean }>()
+defineProps<{ isLoading?: boolean }>();
 
 const emit = defineEmits<{
-  recommend: [filters: {
-    station: string;
-    trainId: string;
-    searchMode: "train" | "stay";
-    stayDuration: number | string;
-    travelDate: string;
-    selectedFilters: string[];
-    useWeather: boolean;
-  }];
+  recommend: [
+    filters: {
+      station: string;
+      trainId: string;
+      searchMode: "train" | "stay";
+      stayDuration: number | string;
+      travelDate: string;
+      selectedFilters: string[];
+      useWeather: boolean;
+    },
+  ];
 }>();
 
 const CATEGORY_FILTERS = [
-  { key: "food",     label: "음식",  emoji: "🍜" },
-  { key: "cafe",     label: "카페",  emoji: "☕" },
-  { key: "culture",  label: "문화",  emoji: "🏛" },
-  { key: "nature",   label: "자연",  emoji: "🌿" },
-  { key: "shopping", label: "쇼핑",  emoji: "🛍" },
+  { key: "food", label: "음식", emoji: "🍜" },
+  { key: "cafe", label: "카페", emoji: "☕" },
+  { key: "culture", label: "문화", emoji: "🏛" },
+  { key: "nature", label: "자연", emoji: "🌿" },
+  { key: "shopping", label: "쇼핑", emoji: "🛍" },
 ];
 
 const STATION_OPTIONS = [
-  { value: "daejeon",    label: "대전역"   },
+  { value: "daejeon", label: "대전역" },
   { value: "seo-daejeon", label: "서대전역" },
-  { value: "sintanjin",  label: "신탄진역" },
 ];
 
-const trainMap       = ref<Record<string, TrainType[]>>({});
+const trains = ref<TrainType[]>([]);
+const isTrainsLoading = ref(false);
 const selectedStation = ref("daejeon");
-const selectedTrain   = ref("");
+const selectedTrain = ref("");
 const selectedFilters = ref<string[]>([]);
 const isTrainModalOpen = ref(false);
-const useWeather       = ref(false);
-const searchMode       = ref<"train" | "stay">("train");
-const stayDuration     = ref<number | string>("");
-const travelDate       = ref<string>("");
+const useWeather = ref(false);
+const searchMode = ref<"train" | "stay">("train");
+const stayDuration = ref<number | string>("");
+const travelDate = ref<string>("");
 
 function selectStation(value: string) {
   selectedStation.value = value;
-  selectedTrain.value   = "";
+  selectedTrain.value = "";
+  loadTrains();
+}
+
+watch(travelDate, () => {
+  loadTrains();
+});
+
+async function loadTrains() {
+  if (!travelDate.value || !selectedStation.value) return;
+  isTrainsLoading.value = true;
+  try {
+    const date = travelDate.value.replace(/-/g, "");
+    const all = await fetchTrains(selectedStation.value, date);
+
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10).replace(/-/g, "");
+
+    if (date === todayStr) {
+      const nowHHMM = today.getHours() * 60 + today.getMinutes();
+
+      trains.value = all.filter((t) => {
+        if (!t.departTime) return false;
+
+        const [hh, mm] = t.departTime.split(":").map(Number);
+
+        return hh * 60 + mm > nowHHMM;
+      });
+    } else {
+      trains.value = all;
+    }
+  } catch {
+    trains.value = [];
+  } finally {
+    isTrainsLoading.value = false;
+  }
 }
 
 function toggleFilter(key: string) {
@@ -59,34 +96,50 @@ function toggleAccordion() {
 
 function getSelectedTrainDetails() {
   if (!selectedTrain.value) return null;
-  const trainList = trainMap.value[selectedStation.value] || [];
-  const train = trainList.find((t) => t.id === selectedTrain.value);
+  const train = trains.value.find((t) => t.trainNo === selectedTrain.value);
   if (!train) return null;
   const stationLabel =
     STATION_OPTIONS.find((s) => s.value === selectedStation.value)?.label || "";
+
+  const remaining = calcRemaining(travelDate.value, train.departTime);
+
   return {
-    station:   stationLabel,
-    name:      train.name,
-    depart:    train.depart,
-    remaining: "2시간 15분",
+    station: stationLabel,
+    name: `열차 ${train.trainNo}`,
+    depart: train.departTime,
+    remaining,
   };
+}
+
+function calcRemaining(date: string, departHhmm: string): string {
+  if (!date || !departHhmm) return "";
+  const now = new Date();
+  const [hh, mm] = departHhmm.split(":").map(Number);
+  const depart = new Date(date);
+  depart.setHours(hh, mm, 0, 0);
+
+  const diffMs = depart.getTime() - now.getTime();
+  if (diffMs <= 0) return "이미 출발";
+
+  const totalMin = Math.floor(diffMs / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}분`;
+  if (m === 0) return `${h}시간`;
+  return `${h}시간 ${m}분`;
 }
 
 function handleRecommendCourse() {
   emit("recommend", {
-    station:        selectedStation.value,
-    trainId:        selectedTrain.value,
-    searchMode:     searchMode.value,
-    stayDuration:   stayDuration.value,
-    travelDate:     travelDate.value,
+    station: selectedStation.value,
+    trainId: selectedTrain.value,
+    searchMode: searchMode.value,
+    stayDuration: stayDuration.value,
+    travelDate: travelDate.value,
     selectedFilters: selectedFilters.value,
-    useWeather:     useWeather.value,
+    useWeather: useWeather.value,
   });
 }
-
-onMounted(async () => {
-  trainMap.value = await fetchTrains();
-});
 </script>
 
 <template>
@@ -191,11 +244,7 @@ onMounted(async () => {
               </template>
               <template v-else-if="searchMode === 'stay' && stayDuration">
                 <span
-                  style="
-                    font-weight: 700;
-                    color: #3db89e;
-                    font-size: 0.95rem;
-                  "
+                  style="font-weight: 700; color: #3db89e; font-size: 0.95rem"
                 >
                   {{
                     STATION_OPTIONS.find((s) => s.value === selectedStation)
@@ -206,11 +255,7 @@ onMounted(async () => {
               </template>
               <template v-else>
                 <span
-                  style="
-                    color: #9ca3af;
-                    font-weight: 600;
-                    font-size: 0.95rem;
-                  "
+                  style="color: #9ca3af; font-weight: 600; font-size: 0.95rem"
                   >일정을 등록해주세요</span
                 >
               </template>
@@ -219,9 +264,7 @@ onMounted(async () => {
           <ChevronRight
             :size="16"
             :style="{
-              transform: isTrainModalOpen
-                ? 'rotate(270deg)'
-                : 'rotate(90deg)',
+              transform: isTrainModalOpen ? 'rotate(270deg)' : 'rotate(90deg)',
               color: '#6b8c87',
               transition: 'transform 0.2s ease',
             }"
@@ -271,7 +314,7 @@ onMounted(async () => {
             >
               출발역 선택
             </p>
-            <div class="grid grid-cols-3 gap-2">
+            <div class="grid grid-cols-2 gap-2">
               <button
                 v-for="s in STATION_OPTIONS"
                 :key="s.value"
@@ -285,8 +328,7 @@ onMounted(async () => {
                       : '1.5px solid rgba(178,228,220,0.5)',
                   background:
                     selectedStation === s.value ? '#E8F8F5' : '#ffffff',
-                  color:
-                    selectedStation === s.value ? '#3db89e' : '#6b8c87',
+                  color: selectedStation === s.value ? '#3db89e' : '#6b8c87',
                   fontWeight: selectedStation === s.value ? 700 : 500,
                   fontSize: '0.85rem',
                 }"
@@ -304,8 +346,7 @@ onMounted(async () => {
               type="button"
               class="px-4 py-2 text-xs transition-all duration-200"
               :style="{
-                background:
-                  searchMode === 'train' ? '#ffffff' : 'transparent',
+                background: searchMode === 'train' ? '#ffffff' : 'transparent',
                 color: searchMode === 'train' ? '#3db89e' : '#8fa19e',
                 fontWeight: searchMode === 'train' ? 700 : 500,
                 borderTopLeftRadius: '8px',
@@ -329,8 +370,7 @@ onMounted(async () => {
               type="button"
               class="px-4 py-2 text-xs transition-all duration-200"
               :style="{
-                background:
-                  searchMode === 'stay' ? '#ffffff' : 'transparent',
+                background: searchMode === 'stay' ? '#ffffff' : 'transparent',
                 color: searchMode === 'stay' ? '#3db89e' : '#8fa19e',
                 fontWeight: searchMode === 'stay' ? 700 : 500,
                 borderTopLeftRadius: '8px',
@@ -363,33 +403,52 @@ onMounted(async () => {
                 <div
                   class="grid px-3 py-2 text-xs"
                   :style="{
-                    gridTemplateColumns: '1fr 1fr 1fr 60px',
+                    gridTemplateColumns: '1fr 1fr 1fr',
                     background: '#f6fbf9',
                     color: '#6b8c87',
                     fontWeight: 600,
                     borderRadius: '0px',
                   }"
                 >
-                  <span>열차</span><span>출발</span><span>도착</span
-                  ><span class="text-right">잔여</span>
+                  <span>열차</span><span>출발</span><span>도착</span>
                 </div>
-                <div style="max-height: 140px; overflow-y: auto">
+                <div
+                  v-if="!travelDate"
+                  class="py-6 text-center text-sm text-gray-400"
+                >
+                  날짜를 먼저 선택해주세요
+                </div>
+                <div
+                  v-else-if="isTrainsLoading"
+                  class="py-6 text-center text-sm text-gray-400"
+                >
+                  열차 정보를 불러오는 중...
+                </div>
+                <div
+                  v-else-if="trains.length === 0"
+                  class="py-6 text-center text-sm text-gray-400"
+                >
+                  해당 날짜의 열차 정보가 없습니다
+                </div>
+                <div v-else style="max-height: 140px; overflow-y: auto">
                   <button
-                    v-for="train in trainMap[selectedStation] || []"
-                    :key="train.id"
+                    v-for="train in trains"
+                    :key="train.trainNo"
                     type="button"
                     class="w-full grid px-3 py-2.5 text-xs transition-all duration-150"
                     :style="{
-                      gridTemplateColumns: '1fr 1fr 1fr 60px',
+                      gridTemplateColumns: '1fr 1fr 1fr',
                       background:
-                        selectedTrain === train.id ? '#E8F8F5' : 'transparent',
+                        selectedTrain === train.trainNo
+                          ? '#E8F8F5'
+                          : 'transparent',
                       borderTop: '1px solid #f6fbf9',
                       color: '#1a2e2b',
                       textAlign: 'left',
                       borderRadius: '0px',
                     }"
                     @click="
-                      selectedTrain = train.id;
+                      selectedTrain = train.trainNo;
                       isTrainModalOpen = false;
                     "
                   >
@@ -397,20 +456,14 @@ onMounted(async () => {
                       :style="{
                         fontWeight: 700,
                         color:
-                          selectedTrain === train.id ? '#3db89e' : '#1a2e2b',
+                          selectedTrain === train.trainNo
+                            ? '#3db89e'
+                            : '#1a2e2b',
                       }"
-                      >{{ train.name }}</span
+                      >열차 {{ train.trainNo }}</span
                     >
-                    <span>{{ train.depart }}</span>
-                    <span style="color: #6b8c87">{{ train.arrive }}</span>
-                    <span
-                      class="text-right"
-                      :style="{
-                        fontWeight: 600,
-                        color: train.seats > 10 ? '#3db89e' : '#e05555',
-                      }"
-                      >{{ train.seats }}석</span
-                    >
+                    <span>{{ train.departTime }}</span>
+                    <span style="color: #6b8c87">{{ train.arriveTime }}</span>
                   </button>
                 </div>
               </div>
@@ -418,11 +471,7 @@ onMounted(async () => {
             <div v-if="searchMode === 'stay'">
               <div class="flex items-center gap-2 py-2">
                 <span
-                  style="
-                    font-size: 0.9rem;
-                    color: #1a2e2b;
-                    font-weight: 600;
-                  "
+                  style="font-size: 0.9rem; color: #1a2e2b; font-weight: 600"
                   >체류 예정 시간 :</span
                 >
                 <input
@@ -443,11 +492,7 @@ onMounted(async () => {
                   @keyup.enter="isTrainModalOpen = false"
                 />
                 <span
-                  style="
-                    font-size: 0.9rem;
-                    color: #1a2e2b;
-                    font-weight: 600;
-                  "
+                  style="font-size: 0.9rem; color: #1a2e2b; font-weight: 600"
                   >시간</span
                 >
               </div>
@@ -508,11 +553,7 @@ onMounted(async () => {
           >
         </div>
         <label class="relative inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            v-model="useWeather"
-            class="sr-only peer"
-          />
+          <input type="checkbox" v-model="useWeather" class="sr-only peer" />
           <div
             class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#3db89e]"
           ></div>
@@ -537,7 +578,7 @@ onMounted(async () => {
         fontWeight: 700,
         fontSize: '1rem',
         boxShadow: '0 6px 20px rgba(61,184,158,0.35)',
-        opacity: isLoading ? 0.7 : (selectedTrain ? 1 : 0.7),
+        opacity: isLoading ? 0.7 : selectedTrain ? 1 : 0.7,
         cursor: isLoading ? 'not-allowed' : 'pointer',
       }"
     >
@@ -546,10 +587,7 @@ onMounted(async () => {
       <span v-else>코스 추천받기</span>
       <ChevronRight v-if="!isLoading" :size="17" />
     </button>
-    <p
-      class="text-center mt-3"
-      style="font-size: 0.78rem; color: #6b8c87"
-    >
+    <p class="text-center mt-3" style="font-size: 0.78rem; color: #6b8c87">
       ✨ AI가 환승 대기 시간에 맞는 최적 코스를 추천합니다
     </p>
   </div>
