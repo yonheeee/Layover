@@ -258,9 +258,40 @@ const activeCharacterDetail = ref<{
   emoji: string;
   description: string;
   poses: string[];
+  emoji: string;
 } | null>(null);
 
-// ─── 사이드바 탭 ───
+async function saveInfo() {
+  savingInfo.value = true;
+  await new Promise((r) => setTimeout(r, 800));
+  user.value.nickname = editName.value;
+  savingInfo.value = false;
+}
+
+async function changePw() {
+  if (!pwMatch.value || !pwRegex.test(newPw.value)) return;
+  savingPw.value = true;
+  await new Promise((r) => setTimeout(r, 800));
+  currentPw.value = "";
+  newPw.value = "";
+  newPwConfirm.value = "";
+  savingPw.value = false;
+  isPwEditing.value = false;
+
+  // 데이터 수정 완료와 동시에 페이지 새로고침
+  window.location.reload();
+}
+
+// 활동 탭 데이터
+const journals = ref<Journal[]>([]);
+const myCourses = ref<MyCourse[]>([]);
+const likedPlaces = ref<Place[]>([]);
+const likedSpotIds = ref<string[]>([]);
+const likedScrollRef = ref<HTMLDivElement | null>(null);
+const characters = ref<Character[]>([]);
+
+const showLogout = ref(false);
+
 const sidebarTabs = [
   { key: "activity", label: "활동", icon: Activity },
   { key: "info", label: "기본정보", icon: User },

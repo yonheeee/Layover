@@ -9,7 +9,7 @@ import { fetchUserActivity } from '@/api/user'
 const router = useRouter()
 
 const bookmarks = ref<Place[]>([])
-const likedSpotIds = ref<number[]>([])
+const likedSpotIds = ref<string[]>([])
 
 async function loadBookmarks() {
   const { likedPlaces } = await fetchUserActivity()
@@ -19,7 +19,7 @@ async function loadBookmarks() {
 
 loadBookmarks()
 
-function toggleLike(id: number) {
+function toggleLike(id: string) {
   const idx = likedSpotIds.value.indexOf(id)
   if (idx >= 0) {
     likedSpotIds.value.splice(idx, 1)

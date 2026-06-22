@@ -1,9 +1,9 @@
 import type { DiPlace, CourseStop } from '@/types/course'
 import type { CourseGenerateRequest, CourseResponse } from '@/types/course'
-import { httpGet, httpPost } from './http'
+import { http, httpGet } from './http'
 
 export async function fetchDiPlaces(): Promise<DiPlace[]> {
-  const res = await httpGet<DiPlace[]>('/api/places/map-search')
+  const res = await http.get<DiPlace[]>('/api/places/map-search')
   return res.data
 }
 
@@ -13,7 +13,7 @@ export async function searchPlaces(keyword: string): Promise<Omit<CourseStop, 's
 }
 
 export async function generateCourses(req: CourseGenerateRequest): Promise<CourseResponse[]> {
-  const res = await httpPost<CourseResponse[]>('/api/courses/generate', req)
+  const res = await http.post<CourseResponse[]>('/api/courses/generate', req)
   return res.data
 }
 

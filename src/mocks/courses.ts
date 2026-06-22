@@ -3,12 +3,12 @@ import type { Course, DiPlace, CourseStop } from '@/types/course'
 /** MapView AI 코스 추천 결과 (lat/lng·nextTransport 포함) */
 export const mockMapCourses: Course[] = [
   {
-    id: 1,
+    id: '1',
     title: '현재 스케줄 A',
     subTitle: '빵돌이 콤팩트 코스',
     places: [
       {
-        id: 99,
+        id: '99',
         name: '대전역 (도착)',
         category: '🚉 출발역',
         isOpen: true,
@@ -19,7 +19,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '9분', busTime: '5분', taxiTime: '3분', taxiFare: 4000 },
       },
       {
-        id: 1,
+        id: '1',
         name: '성심당 본점',
         category: '🍞 맛집/빵집',
         isOpen: true,
@@ -31,7 +31,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '18분', busTime: '10분', taxiTime: '5분', taxiFare: 4500 },
       },
       {
-        id: 2,
+        id: '2',
         name: '중앙시장',
         category: '🍜 맛집/빵집',
         isOpen: true,
@@ -42,7 +42,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '8분', busTime: '4분', taxiTime: '2분', taxiFare: 3500 },
       },
       {
-        id: 100,
+        id: '100',
         name: '대전역 (출발)',
         category: '🚉 도착역',
         isOpen: true,
@@ -54,12 +54,12 @@ export const mockMapCourses: Course[] = [
     ],
   },
   {
-    id: 2,
+    id: '2',
     title: '현재 스케줄 B',
     subTitle: '도심 속 초록 힐링 코스',
     places: [
       {
-        id: 99,
+        id: '99',
         name: '대전역 (도착)',
         category: '🚉 출발역',
         isOpen: true,
@@ -70,7 +70,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '1시간 이상', busTime: '25분', taxiTime: '15분', taxiFare: 7200 },
       },
       {
-        id: 5,
+        id: '5',
         name: '한밭수목원',
         category: '🌿 관광명소',
         isOpen: true,
@@ -81,7 +81,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '5분', busTime: '6분', taxiTime: '3분', taxiFare: 4000 },
       },
       {
-        id: 6,
+        id: '6',
         name: '이응노 미술관',
         category: '🎨 문화/예술',
         isOpen: true,
@@ -92,7 +92,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '1시간 이상', busTime: '28분', taxiTime: '16분', taxiFare: 7500 },
       },
       {
-        id: 100,
+        id: '100',
         name: '대전역 (출발)',
         category: '🚉 도착역',
         isOpen: true,
@@ -104,12 +104,12 @@ export const mockMapCourses: Course[] = [
     ],
   },
   {
-    id: 3,
+    id: '3',
     title: '+1시간 추천 C',
     subTitle: '기차 미루고 대전 완전정복',
     places: [
       {
-        id: 99,
+        id: '99',
         name: '대전역 (도착)',
         category: '🚉 출발역',
         isOpen: true,
@@ -120,7 +120,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '11분', busTime: '7분', taxiTime: '4분', taxiFare: 4000 },
       },
       {
-        id: 4,
+        id: '4',
         name: '소제동 카페거리',
         category: '☕ 카페',
         isOpen: true,
@@ -131,7 +131,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '15분', busTime: '9분', taxiTime: '5분', taxiFare: 4200 },
       },
       {
-        id: 2,
+        id: '2',
         name: '중앙시장',
         category: '🍜 맛집/빵집',
         isOpen: true,
@@ -142,7 +142,7 @@ export const mockMapCourses: Course[] = [
         nextTransport: { walkTime: '8분', busTime: '4분', taxiTime: '2분', taxiFare: 3500 },
       },
       {
-        id: 100,
+        id: '100',
         name: '대전역 (출발)',
         category: '🚉 도착역',
         isOpen: true,
@@ -158,14 +158,14 @@ export const mockMapCourses: Course[] = [
 /** CourseResultView AI 코스 추천 결과 (transport·taxiFare 포함) */
 export const mockResultCourses: Course[] = [
   {
-    id: 1,
+    id: '1',
     title: '현재 스케줄 A',
     subTitle: '빵돌이 콤팩트 코스',
     totalTime: '약 2시간',
     estimatedCost: '약 12,000원',
     places: [
       {
-        id: 1,
+        id: '1',
         name: '성심당 본점',
         category: '🍞 맛집/빵집',
         isOpen: true,
@@ -176,7 +176,7 @@ export const mockResultCourses: Course[] = [
         transportTime: '5분',
       },
       {
-        id: 2,
+        id: '2',
         name: '중앙시장',
         category: '🍜 맛집/빵집',
         isOpen: true,
@@ -187,7 +187,7 @@ export const mockResultCourses: Course[] = [
         taxiFare: '4,500원',
       },
       {
-        id: 3,
+        id: '3',
         name: '대전역 광장',
         category: '🏛 관광명소',
         isOpen: true,
@@ -197,24 +197,24 @@ export const mockResultCourses: Course[] = [
     ],
   },
   {
-    id: 2,
+    id: '2',
     title: '현재 스케줄 B',
     subTitle: '도심 속 초록 힐링 코스',
     totalTime: '약 2시간 15분',
     estimatedCost: '약 6,000원',
     places: [
       {
-        id: 2,
+        id: '2',
         name: '한밭수목원',
         category: '🌿 관광명소',
         isOpen: true,
         stayTime: '1시간',
         isLocked: false,
         transport: 'walk',
-        transportTime: '3px',
+        transportTime: '3분',
       },
       {
-        id: 7,
+        id: '7',
         name: '이응노 미술관',
         category: '🎨 문화/예술',
         isOpen: true,
@@ -225,7 +225,7 @@ export const mockResultCourses: Course[] = [
         taxiFare: '5,500원',
       },
       {
-        id: 3,
+        id: '3',
         name: '대전역',
         category: '🏛 관광명소',
         isOpen: true,
@@ -235,14 +235,14 @@ export const mockResultCourses: Course[] = [
     ],
   },
   {
-    id: 3,
+    id: '3',
     title: '+1시간 추천 C',
     subTitle: '기차 미루고 대전 완전정복',
     totalTime: '약 3시간 30분',
     estimatedCost: '약 22,000원',
     places: [
       {
-        id: 1,
+        id: '1',
         name: '성심당 본점',
         category: '🍞 맛집/빵집',
         isOpen: true,
@@ -254,18 +254,18 @@ export const mockResultCourses: Course[] = [
         taxiFare: '6,800원',
       },
       {
-        id: 4,
+        id: '4',
         name: '소제동 카페거리',
         category: '☕ 카페',
         isOpen: true,
         stayTime: '1시간',
         isLocked: false,
         transport: 'taxi',
-        transportTime: '10分',
+        transportTime: '10분',
         taxiFare: '4,800원',
       },
       {
-        id: 2,
+        id: '2',
         name: '한밭수목원',
         category: '🌿 관광명소',
         isOpen: true,
@@ -279,7 +279,7 @@ export const mockResultCourses: Course[] = [
 /** MapView 지도 검색 패널 장소 풀 */
 export const allDiPlaces: DiPlace[] = [
   {
-    id: 10,
+    id: '10',
     name: '소제동 카페거리',
     category: '☕ 카페',
     isOpen: true,
@@ -289,7 +289,7 @@ export const allDiPlaces: DiPlace[] = [
     lng: 127.4378,
   },
   {
-    id: 11,
+    id: '11',
     name: '테미오래',
     category: '🏛 문화/예술',
     isOpen: false,
@@ -299,7 +299,7 @@ export const allDiPlaces: DiPlace[] = [
     lng: 127.4191,
   },
   {
-    id: 12,
+    id: '12',
     name: '보문산 전망대',
     category: '🌿 관광명소',
     isOpen: true,
@@ -312,8 +312,8 @@ export const allDiPlaces: DiPlace[] = [
 
 /** CourseResultView 장소 추가 검색 풀 */
 export const mockSearchPlaces: Omit<CourseStop, 'stayTime' | 'isLocked'>[] = [
-  { id: 10, name: '테미오래', category: '🏛 문화/예술', isOpen: false },
-  { id: 11, name: '보문산공원', category: '🌿 관광명소', isOpen: true },
-  { id: 12, name: '으능정이 거리', category: '🛍 쇼핑/거리', isOpen: true },
-  { id: 13, name: '대청호 오백리길', category: '🌿 관광명소', isOpen: true },
+  { id: '10', name: '테미오래', category: '🏛 문화/예술', isOpen: false },
+  { id: '11', name: '보문산공원', category: '🌿 관광명소', isOpen: true },
+  { id: '12', name: '으능정이 거리', category: '🛍 쇼핑/거리', isOpen: true },
+  { id: '13', name: '대청호 오백리길', category: '🌿 관광명소', isOpen: true },
 ]
