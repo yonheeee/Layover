@@ -356,8 +356,14 @@ async function confirmResult() {
     if (res.newCharacter) {
       newCharacterPopup.value = res.newCharacter
     }
-  } catch {
-    // 로그인 안 된 경우 등 - 로컬 저장은 이미 완료됐으므로 조용히 무시
+  } catch (err: any) {
+    const status = err?.response?.status
+    if (status === 409) {
+      alert('이미 방문한 장소입니다.')
+    } else if (status && status !== 401) {
+      console.error('스탬프 저장 실패:', err)
+    }
+    // 401(미로그인)은 조용히 무시 — 로컬 저장은 이미 완료됨
   } finally {
     isSavingStamp.value = false
   }
