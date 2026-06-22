@@ -1,46 +1,64 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
 import {
   ChevronDown,
-  ChevronUp,
   Plus,
   MessageCircle,
   User,
   Paperclip,
   X,
+  Eye,
+  Heart,
 } from "lucide-vue-next";
-import type { Review, Notice, FaqItem, Inquiry } from "@/types/community";
+import type {
+  Post,
+  Notice,
+  FaqItem,
+  InquiryItem,
+  InquiryDetail,
+} from "@/types/community";
 import {
-  fetchReviews,
-  fetchNotices,
-  fetchFaqData,
-  fetchMyInquiries,
+  getPosts,
+  getNotices,
+  getNotice,
+  getFaqs,
+  createInquiry,
+  getMyInquiries,
+  getInquiry,
+  CATEGORY_TO_CODE,
+  CODE_TO_CATEGORY,
 } from "@/api/community";
 
 const router = useRouter();
+const route = useRoute();
+const auth = useAuthStore();
+const isLoggedIn = computed(() => auth.isLoggedIn);
+
 const activeTab = ref<"reviews" | "notices">("reviews");
 
-// ─── 카테고리 정의 ───
+// ─── 커뮤니티 카테고리 ───
 const activeCategory = ref("전체");
 const categories = ["전체", "공유해요", "궁금해요", "함께해요", "자유"];
 
-// 공지사항 메뉴 구조
+// ─── 공지사항 메뉴 ───
 const activeNoticeCategory = ref("공지/이벤트");
-const isMunyeeOpen = ref(true); // 문의사항 하위 메뉴 기본 열림 상태
+const isMunyeeOpen = ref(true);
 const activeFaqSubCategory = ref("자주 묻는 질문");
 
 const isMyPostsOnly = ref(false);
-const auth = useAuthStore();
-const isLoggedIn = computed(() => auth.isLoggedIn);
-const searchQuery = ref("");
 
-// 파일 첨부 관련 상태
+// ─── 파일 첨부 ───
 const attachedFiles = ref<File[]>([]);
 const fileInput = ref<HTMLInputElement | null>(null);
 
-// 카테고리 스타일 정의
+// ─── 1:1 문의 폼 ───
+const inquiryTitle = ref("");
+const inquiryContent = ref("");
+const isSubmittingInquiry = ref(false);
+
+// ─── 카테고리 스타일 ───
 const categoryStyle: Record<
   string,
   { bg: string; color: string; border: string; desc: string }
@@ -71,84 +89,183 @@ const categoryStyle: Record<
   },
 };
 
-// --- 당일 기준 NEW 체크 로직 ---
-const checkIsNew = (dateStr: string) => {
-  const postDate = new Date(dateStr.replace(/\./g, "-"));
-  const currentDate = new Date();
-  const diffTime = currentDate.getTime() - postDate.getTime();
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+// ─── 날짜 포맷 ───
+function formatDate(isoStr: string): string {
+  return new Date(isoStr)
+    .toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+    .replace(/\. /g, ".")
+    .replace(/\.$/, "");
+}
+
+// ─── NEW 체크 ───
+const checkIsNew = (isoStr: string) => {
+  const diffDays = (Date.now() - new Date(isoStr).getTime()) / 86400000;
   return diffDays >= 0 && diffDays <= 2;
 };
 
+// ─── 게시글 ───
+const posts = ref<Post[]>([]);
+const isPostsLoading = ref(false);
+
+const filteredPosts = computed(() => {
+  if (!posts.value) return [];
+  return posts.value.filter((p) => {
+    const korCat = CODE_TO_CATEGORY[p.category] ?? p.category;
+    const matchesCat =
+      activeCategory.value === "전체" || korCat === activeCategory.value;
+    const matchesMine = !isMyPostsOnly.value || p.userId === auth.userId;
+    return matchesCat && matchesMine;
+  });
+});
+
 const hasNewPostInCategory = (category: string) => {
-  return reviews.value.some((r) => {
-    const matchesCat = category === "전체" || r.category === category;
-    return matchesCat && checkIsNew(r.date);
+  if (!posts.value || posts.value.length === 0) return false;
+  return posts.value.some((p) => {
+    const korCat = CODE_TO_CATEGORY[p.category] ?? p.category;
+    const matchesCat = category === "전체" || korCat === category;
+    return matchesCat && checkIsNew(p.createdAt);
   });
 };
 
-// --- 공지사항 데이터 ---
+// ─── 공지사항 ───
 const notices = ref<Notice[]>([]);
+const isNoticesLoading = ref(false);
+// undefined = 미로드, null = 로딩 중, string = 로드 완료
+const noticeContents = ref<Record<string, string | null | undefined>>({});
 
-const pinnedNotices = computed(() =>
-  notices.value.filter((n) => n.pinned && n.type === "공지/이벤트"),
-);
-const regularNotices = computed(() =>
-  notices.value.filter((n) => !n.pinned && n.type === "공지/이벤트"),
-);
-
-function toggleNotice(id: number) {
-  const n = notices.value.find((n) => n.id === id);
-  if (n) n.open = !n.open;
+async function onNoticeToggle(id: string, e: Event) {
+  const details = e.target as HTMLDetailsElement;
+  if (details.open && noticeContents.value[id] === undefined) {
+    noticeContents.value[id] = null; // 로딩 중
+    try {
+      const detail = await getNotice(id);
+      noticeContents.value[id] = detail.content ?? "";
+    } catch {
+      noticeContents.value[id] = "내용을 불러올 수 없습니다.";
+    }
+  }
 }
 
-// --- 문의사항 (FAQ) 데이터 ---
+// ─── FAQ ───
 const faqData = ref<FaqItem[]>([]);
+const isFaqLoading = ref(false);
 
-// 나의 1:1 문의 내역 데이터
-const myInquiries = ref<Inquiry[]>([]);
+// ─── 1:1 문의 ───
+const myInquiries = ref<InquiryItem[]>([]);
+const inquiryDetails = ref<Record<string, InquiryDetail>>({});
+const loadingInquiryIds = ref<Set<string>>(new Set());
 
-// 파일 첨부 이벤트 처리 함수
+async function onInquiryToggle(id: string, e: Event) {
+  const details = e.target as HTMLDetailsElement;
+  if (
+    details.open &&
+    !inquiryDetails.value[id] &&
+    !loadingInquiryIds.value.has(id)
+  ) {
+    loadingInquiryIds.value.add(id);
+    try {
+      inquiryDetails.value[id] = await getInquiry(id);
+    } catch {
+      // 조회 실패 시 무시
+    } finally {
+      loadingInquiryIds.value.delete(id);
+    }
+  }
+}
+
+function inquiryStatusLabel(status: string) {
+  return status === "ANSWERED" ? "답변완료" : "답변 대기";
+}
+
+// ─── 파일 첨부 ───
 function triggerFileInput() {
   fileInput.value?.click();
 }
 function handleFileUpload(e: Event) {
   const target = e.target as HTMLInputElement;
-  if (target.files) {
-    attachedFiles.value.push(...Array.from(target.files));
-  }
+  if (target.files) attachedFiles.value.push(...Array.from(target.files));
 }
 function removeFile(index: number) {
   attachedFiles.value.splice(index, 1);
 }
 
-// --- 코스 후기 데이터 ---
-const reviews = ref<Review[]>([]);
+// ─── 1:1 문의 제출 ───
+async function submitInquiry() {
+  if (!inquiryTitle.value.trim() || !inquiryContent.value.trim()) {
+    alert("제목과 내용을 입력해주세요.");
+    return;
+  }
+  isSubmittingInquiry.value = true;
+  try {
+    await createInquiry(inquiryTitle.value.trim(), inquiryContent.value.trim());
+    inquiryTitle.value = "";
+    inquiryContent.value = "";
+    attachedFiles.value = [];
+    myInquiries.value = await getMyInquiries();
+    alert("문의가 등록되었습니다.");
+  } catch {
+    alert("문의 등록에 실패했습니다. 다시 시도해주세요.");
+  } finally {
+    isSubmittingInquiry.value = false;
+  }
+}
 
-const filteredReviews = computed(() => {
-  return reviews.value.filter((r) => {
-    const matchesCategory =
-      activeCategory.value === "전체" || r.category === activeCategory.value;
-    const matchesMyPosts = !isMyPostsOnly.value || r.isMine;
-    return matchesCategory && matchesMyPosts;
-  });
-});
+// 쿼리 파라미터 감지 (onMounted + watch 둘 다)
+function applyRouteQuery() {
+  if (route.query.tab === "notices") {
+    activeTab.value = "notices";
+    if (route.query.sub) {
+      const sub = route.query.sub as string;
+      // sub가 '자주 묻는 질문' 또는 '1:1 문의하기'면 문의사항 카테고리로
+      if (sub === "자주 묻는 질문" || sub === "1:1 문의하기") {
+        activeNoticeCategory.value = "문의사항";
+        activeFaqSubCategory.value = sub;
+      } else {
+        activeNoticeCategory.value = sub;
+      }
+    }
+  }
+  if (route.query.my === "true") {
+    isMyPostsOnly.value = true;
+  }
+}
 
+// ─── 초기 데이터 로드 ───
 onMounted(async () => {
-  [reviews.value, notices.value, faqData.value, myInquiries.value] =
-    await Promise.all([
-      fetchReviews(),
-      fetchNotices(),
-      fetchFaqData(),
-      fetchMyInquiries(),
+  isPostsLoading.value = true;
+  isNoticesLoading.value = true;
+  isFaqLoading.value = true;
+  try {
+    const [postsData, noticesData, faqsData] = await Promise.all([
+      getPosts(),
+      getNotices(),
+      getFaqs(),
     ]);
+    posts.value = postsData.content;
+    notices.value = noticesData;
+    faqData.value = faqsData;
+  } catch {
+    // 네트워크 오류 무시
+  } finally {
+    isPostsLoading.value = false;
+    isNoticesLoading.value = false;
+    isFaqLoading.value = false;
+  }
+
+  if (auth.isLoggedIn) {
+    try {
+      myInquiries.value = await getMyInquiries();
+    } catch {
+      // 로그인 만료 등 무시
+    }
+  }
 });
 
-const tagColors: Record<string, string> = {
-  공지: "background:#dbeafe;color:#1e40af",
-  이벤트: "background:#fce7f3;color:#9d174d",
-  업데이트: "background:#d1fae5;color:#065f46",
-};
+watch(() => route.query, applyRouteQuery, { immediate: true });
 </script>
 
 <template>
@@ -164,6 +281,7 @@ const tagColors: Record<string, string> = {
     "
   >
     <div class="max-w-6xl mx-auto px-4 py-8">
+      <!-- 탭 바 -->
       <div
         class="flex items-center border-b mb-6"
         style="border-color: rgba(178, 228, 220, 0.3)"
@@ -203,7 +321,14 @@ const tagColors: Record<string, string> = {
             <User :size="13" /> 내가 작성한 글 보기
           </button>
           <button
-            @click="router.push('/community/write')"
+            v-if="isLoggedIn"
+            @click="
+              router.push(
+                activeCategory === '전체'
+                  ? '/community/write'
+                  : `/community/write?category=${activeCategory}`,
+              )
+            "
             class="flex items-center gap-1 px-1 py-2 transition-all hover:opacity-80"
             style="
               background: transparent;
@@ -218,7 +343,9 @@ const tagColors: Record<string, string> = {
         </div>
       </div>
 
+      <!-- ─── 공지사항 탭 ─── -->
       <div v-if="activeTab === 'notices'" class="flex gap-8 items-start mt-1">
+        <!-- 좌측 메뉴 -->
         <nav
           class="hidden md:flex flex-col gap-1 w-44 flex-shrink-0 sticky top-20"
         >
@@ -276,145 +403,128 @@ const tagColors: Record<string, string> = {
           </div>
         </nav>
 
+        <!-- 우측 콘텐츠 -->
         <div class="flex-1 min-w-0 flex flex-col">
+          <!-- 공지/이벤트 -->
           <template v-if="activeNoticeCategory === '공지/이벤트'">
             <div
-              v-if="pinnedNotices.length > 0"
-              class="mb-6 bg-white rounded-xl p-5 border shadow-sm"
-              style="border-color: rgba(126, 207, 192, 0.4)"
-            >
-              <div
-                class="flex items-center gap-1.5 mb-3 text-xs font-bold text-teal-600"
-              >
-                📌 필독 중요 공지
-              </div>
-              <div class="flex flex-col">
-                <div
-                  v-for="(pNotice, index) in pinnedNotices"
-                  :key="pNotice.id"
-                  class="py-3 flex flex-col gap-2"
-                  :class="{ 'border-t border-gray-100': index > 0 }"
-                >
-                  <button
-                    class="w-full flex items-center gap-3 text-left bg-transparent"
-                    @click="toggleNotice(pNotice.id)"
-                  >
-                    <span
-                      class="text-xs font-semibold px-2 py-0.5 rounded-sm"
-                      :style="tagColors[pNotice.tag]"
-                      >{{ pNotice.tag }}</span
-                    >
-                    <span
-                      class="flex-1 font-bold text-sm text-gray-800 hover:text-teal-600 transition-colors"
-                      >{{ pNotice.title }}</span
-                    >
-                    <span
-                      style="font-size: 0.78rem; color: #9ca3af"
-                      class="mr-1"
-                      >{{ pNotice.date }}</span
-                    >
-                    <ChevronDown
-                      v-if="!pNotice.open"
-                      :size="15"
-                      color="#9ca3af"
-                    /><ChevronUp v-else :size="15" color="#3db89e" />
-                  </button>
-                  <div
-                    v-if="pNotice.open"
-                    class="px-3 py-3 bg-gray-50/60 rounded-md mt-1"
-                  >
-                    <p
-                      class="text-xs text-gray-600 leading-relaxed white-space: pre-line;"
-                    >
-                      {{ pNotice.content }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-if="regularNotices.length === 0 && pinnedNotices.length === 0"
+              v-if="isNoticesLoading"
               class="text-center py-16 text-gray-400 text-sm font-medium"
             >
-              등록된 내용이 없습니다.
+              불러오는 중...
             </div>
             <div
-              v-for="notice in regularNotices"
-              :key="notice.id"
-              class="group pt-4 pb-5 border-b flex flex-col gap-2"
-              style="border-color: rgba(178, 228, 220, 0.25)"
+              v-else-if="notices.length === 0"
+              class="text-center py-16 text-gray-400 text-sm font-medium"
             >
-              <button
-                class="w-full flex items-center gap-3 text-left bg-transparent"
-                @click="toggleNotice(notice.id)"
-              >
-                <span
-                  class="text-xs font-semibold px-2 py-0.5 rounded-sm flex-shrink-0"
-                  :style="tagColors[notice.tag]"
-                  >{{ notice.tag }}</span
-                >
-                <span class="flex-1 font-semibold text-sm text-gray-800">{{
-                  notice.title
-                }}</span>
-                <span
-                  style="font-size: 0.78rem; color: #9ca3af"
-                  class="flex-shrink-0 mr-1"
-                  >{{ notice.date }}</span
-                >
-                <ChevronDown
-                  v-if="!notice.open"
-                  :size="16"
-                  color="#9ca3af"
-                /><ChevronUp v-else :size="16" color="#3db89e" />
-              </button>
+              등록된 공지사항이 없습니다.
+            </div>
+            <div v-else class="flex flex-col">
               <div
-                v-if="notice.open"
-                class="px-2 py-3 bg-gray-50/50 rounded-md"
+                v-for="(notice, index) in notices"
+                :key="notice.id"
+                class="border-b"
+                :class="{ 'border-t': index === 0 }"
+                style="border-color: rgba(178, 228, 220, 0.25)"
               >
-                <p style="font-size: 0.88rem; color: #374151; line-height: 1.7">
-                  {{ notice.content }}
-                </p>
+                <details
+                  class="group"
+                  @toggle="onNoticeToggle(notice.id, $event)"
+                >
+                  <summary
+                    class="list-none flex items-center gap-3 py-4 cursor-pointer"
+                  >
+                    <span
+                      class="flex-1 font-semibold text-sm text-gray-800 group-open:text-teal-600 transition-colors"
+                      >{{ notice.title }}</span
+                    >
+                    <span
+                      style="font-size: 0.78rem; color: #9ca3af; flex-shrink: 0"
+                      >{{ formatDate(notice.createdAt) }}</span
+                    >
+                    <ChevronDown
+                      :size="15"
+                      class="transition-transform group-open:rotate-180 flex-shrink-0"
+                      color="#9ca3af"
+                    />
+                  </summary>
+                  <div class="px-2 py-3 bg-gray-50/50 rounded-md mb-3">
+                    <p
+                      v-if="noticeContents[notice.id] === null"
+                      class="text-xs text-gray-400"
+                    >
+                      불러오는 중...
+                    </p>
+                    <p
+                      v-else
+                      style="
+                        font-size: 0.88rem;
+                        color: #374151;
+                        line-height: 1.7;
+                        white-space: pre-line;
+                      "
+                    >
+                      {{ noticeContents[notice.id] }}
+                    </p>
+                  </div>
+                </details>
               </div>
             </div>
           </template>
 
+          <!-- 문의사항 -->
           <template v-else-if="activeNoticeCategory === '문의사항'">
+            <!-- 자주 묻는 질문 -->
             <div
               v-if="activeFaqSubCategory === '자주 묻는 질문'"
               class="flex flex-col gap-3"
             >
               <div
-                v-for="faq in faqData"
-                :key="faq.id"
-                class="border rounded-md bg-white p-4"
-                style="border-color: rgba(178, 228, 220, 0.3)"
+                v-if="isFaqLoading"
+                class="text-center py-10 text-gray-400 text-sm"
               >
-                <details class="group">
-                  <summary
-                    class="list-none flex items-center justify-between font-bold text-sm cursor-pointer"
-                    style="color: #1a2e2b"
-                  >
-                    <span class="flex gap-2"
-                      ><span style="color: #3db89e">Q.</span>
-                      {{ faq.question }}</span
-                    >
-                    <ChevronDown
-                      :size="15"
-                      class="transition-transform group-open:rotate-180"
-                      color="#9ca3af"
-                    />
-                  </summary>
-                  <div
-                    class="mt-3 pt-3 text-xs leading-relaxed border-t text-gray-600"
-                    style="border-color: rgba(178, 228, 220, 0.2)"
-                  >
-                    <p>{{ faq.answer }}</p>
-                  </div>
-                </details>
+                불러오는 중...
               </div>
+              <template v-else>
+                <div
+                  v-for="faq in faqData"
+                  :key="faq.id"
+                  class="border rounded-md bg-white p-4"
+                  style="border-color: rgba(178, 228, 220, 0.3)"
+                >
+                  <details class="group">
+                    <summary
+                      class="list-none flex items-center justify-between font-bold text-sm cursor-pointer"
+                      style="color: #1a2e2b"
+                    >
+                      <span class="flex gap-2"
+                        ><span style="color: #3db89e">Q.</span>
+                        {{ faq.question }}</span
+                      >
+                      <ChevronDown
+                        :size="15"
+                        class="transition-transform group-open:rotate-180"
+                        color="#9ca3af"
+                      />
+                    </summary>
+                    <div
+                      class="mt-3 pt-3 text-xs leading-relaxed border-t text-gray-600"
+                      style="border-color: rgba(178, 228, 220, 0.2)"
+                    >
+                      <p>{{ faq.answer }}</p>
+                    </div>
+                  </details>
+                </div>
+                <div
+                  v-if="faqData.length === 0"
+                  class="text-center py-10 text-gray-400 text-sm font-medium"
+                >
+                  등록된 FAQ가 없습니다.
+                </div>
+              </template>
             </div>
 
+            <!-- 1:1 문의 -->
             <div v-else class="flex flex-col gap-6">
               <div
                 class="bg-white border rounded-md p-5"
@@ -423,8 +533,15 @@ const tagColors: Record<string, string> = {
                 <h4 class="text-sm font-bold text-gray-800 mb-3">
                   ✉️ 고객센터 1:1 문의하기
                 </h4>
-                <div class="flex flex-col gap-3">
+                <div
+                  v-if="!isLoggedIn"
+                  class="text-center py-6 text-sm text-gray-400 font-medium"
+                >
+                  1:1 문의는 로그인 후 이용 가능합니다.
+                </div>
+                <div v-else class="flex flex-col gap-3">
                   <input
+                    v-model="inquiryTitle"
                     placeholder="제목을 입력해주세요"
                     style="
                       width: 100%;
@@ -436,6 +553,7 @@ const tagColors: Record<string, string> = {
                     "
                   />
                   <textarea
+                    v-model="inquiryContent"
                     rows="4"
                     placeholder="문의하실 내용을 입력해주세요."
                     style="
@@ -464,7 +582,6 @@ const tagColors: Record<string, string> = {
                       multiple
                       @change="handleFileUpload"
                     />
-
                     <div
                       v-if="attachedFiles.length > 0"
                       class="flex flex-wrap gap-1.5 mt-1"
@@ -487,10 +604,16 @@ const tagColors: Record<string, string> = {
                     </div>
                   </div>
                   <button
-                    class="w-full py-2.5 rounded-md font-bold text-xs text-white mt-2"
-                    style="background: #3db89e"
+                    @click="submitInquiry"
+                    :disabled="isSubmittingInquiry"
+                    class="w-full py-2.5 rounded-md font-bold text-xs text-white mt-2 transition-opacity"
+                    :style="
+                      isSubmittingInquiry
+                        ? 'background:#9ca3af; cursor:not-allowed;'
+                        : 'background:#3db89e;'
+                    "
                   >
-                    문의 신청하기
+                    {{ isSubmittingInquiry ? "등록 중..." : "문의 신청하기" }}
                   </button>
                 </div>
               </div>
@@ -505,37 +628,45 @@ const tagColors: Record<string, string> = {
                   >
                 </h4>
                 <div
-                  v-if="myInquiries.length === 0"
+                  v-if="!isLoggedIn"
+                  class="text-center py-10 bg-white rounded border text-xs text-gray-400 font-medium"
+                >
+                  로그인 후 내 문의 내역을 확인할 수 있습니다.
+                </div>
+                <div
+                  v-else-if="myInquiries.length === 0"
                   class="text-center py-10 bg-white rounded border text-xs text-gray-400 font-medium"
                 >
                   작성한 문의 내역이 없습니다.
                 </div>
-
                 <div
                   v-for="inq in myInquiries"
                   :key="inq.id"
-                  class="bg-white border rounded p-4 flex flex-col gap-2"
+                  class="bg-white border rounded p-4"
                   style="border-color: rgba(178, 228, 220, 0.25)"
                 >
-                  <details class="group">
+                  <details
+                    class="group"
+                    @toggle="onInquiryToggle(inq.id, $event)"
+                  >
                     <summary
                       class="list-none flex items-center gap-3 cursor-pointer"
                     >
                       <span
                         class="text-[10px] px-2 py-0.5 rounded-full font-bold"
                         :style="
-                          inq.status === '답변완료'
+                          inq.status === 'ANSWERED'
                             ? 'background:#e8f8f5; color:#3db89e;'
                             : 'background:#f3f4f6; color:#6b8c87;'
                         "
-                        >{{ inq.status }}</span
+                        >{{ inquiryStatusLabel(inq.status) }}</span
                       >
                       <span
                         class="flex-1 text-xs font-bold text-gray-700 truncate group-open:text-teal-600"
                         >{{ inq.title }}</span
                       >
                       <span class="text-[11px] text-gray-400">{{
-                        inq.date
+                        formatDate(inq.createdAt)
                       }}</span>
                       <ChevronDown
                         :size="13"
@@ -546,23 +677,39 @@ const tagColors: Record<string, string> = {
                       class="mt-3 pt-3 border-t text-xs text-gray-600 flex flex-col gap-3"
                       style="border-color: rgba(178, 228, 220, 0.15)"
                     >
-                      <div class="bg-gray-50/50 p-2.5 rounded">
-                        <p class="font-semibold text-gray-500 mb-1">
-                          질문 내용:
-                        </p>
-                        <p class="leading-relaxed">{{ inq.content }}</p>
-                      </div>
                       <div
-                        v-if="inq.answer"
-                        class="bg-teal-50/30 p-2.5 border border-teal-100/50 rounded"
+                        v-if="loadingInquiryIds.has(inq.id)"
+                        class="text-center py-3 text-gray-400"
                       >
-                        <p class="font-bold text-teal-600 mb-1">
-                          ↳ 서비스 답변:
-                        </p>
-                        <p class="leading-relaxed text-gray-700">
-                          {{ inq.answer }}
-                        </p>
+                        불러오는 중...
                       </div>
+                      <template v-else-if="inquiryDetails[inq.id]">
+                        <div class="bg-gray-50/50 p-2.5 rounded">
+                          <p class="font-semibold text-gray-500 mb-1">
+                            질문 내용:
+                          </p>
+                          <p
+                            class="leading-relaxed"
+                            style="white-space: pre-line"
+                          >
+                            {{ inquiryDetails[inq.id].content }}
+                          </p>
+                        </div>
+                        <div
+                          v-if="inquiryDetails[inq.id].answer"
+                          class="bg-teal-50/30 p-2.5 border border-teal-100/50 rounded"
+                        >
+                          <p class="font-bold text-teal-600 mb-1">
+                            ↳ 서비스 답변:
+                          </p>
+                          <p
+                            class="leading-relaxed text-gray-700"
+                            style="white-space: pre-line"
+                          >
+                            {{ inquiryDetails[inq.id].answer }}
+                          </p>
+                        </div>
+                      </template>
                     </div>
                   </details>
                 </div>
@@ -572,7 +719,9 @@ const tagColors: Record<string, string> = {
         </div>
       </div>
 
+      <!-- ─── 커뮤니티 탭 ─── -->
       <div v-else class="flex gap-8 items-start mt-1">
+        <!-- 좌측 카테고리 메뉴 -->
         <nav
           class="hidden md:flex flex-col gap-1 w-40 flex-shrink-0 sticky top-20"
         >
@@ -601,7 +750,9 @@ const tagColors: Record<string, string> = {
           </button>
         </nav>
 
+        <!-- 우측 게시글 목록 -->
         <div class="flex-1 min-w-0 flex flex-col">
+          <!-- 카테고리 설명 박스 -->
           <div
             class="rounded-xl p-5 mb-4 transition-all"
             :style="`background: ${activeCategory === '전체' ? 'linear-gradient(135deg, #e8f8f5, #f0faf8)' : categoryStyle[activeCategory]?.bg}; border: 1.5px solid ${activeCategory === '전체' ? 'rgba(126, 207, 192, 0.35)' : categoryStyle[activeCategory]?.border};`"
@@ -624,39 +775,86 @@ const tagColors: Record<string, string> = {
             </div>
           </div>
 
+          <!-- 로딩 -->
           <div
-            v-for="review in filteredReviews"
-            :key="review.id"
+            v-if="isPostsLoading"
+            class="text-center py-16 text-gray-400 text-sm font-medium"
+          >
+            불러오는 중...
+          </div>
+
+          <!-- 게시글 없음 -->
+          <div
+            v-else-if="filteredPosts.length === 0"
+            class="text-center py-16 text-gray-400 text-sm font-medium"
+          >
+            {{
+              isMyPostsOnly
+                ? "내가 작성한 게시글이 없습니다."
+                : "게시글이 없습니다. 첫 글을 작성해보세요!"
+            }}
+          </div>
+
+          <!-- 게시글 목록 -->
+          <div
+            v-for="post in filteredPosts"
+            :key="post.id"
             class="group cursor-pointer pt-4 pb-5 transition-colors border-b flex gap-5 items-start"
             style="border-color: rgba(178, 228, 220, 0.25)"
-            @click="router.push(`/community/${review.id}`)"
+            @click="router.push(`/community/${post.id}`)"
           >
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-3 pb-2.5">
+              <!-- 카테고리 + 통계 -->
+              <div class="flex items-center gap-2 pb-2">
                 <span
-                  class="text-[11px] font-bold px-2.5 py-0.5 rounded-none flex-shrink-0"
-                  :style="`background:${categoryStyle[review.category]?.bg ?? '#f3f4f6'}; color:${categoryStyle[review.category]?.color ?? '#374151'}; border: 1px solid ${categoryStyle[review.category]?.border ?? '#e5e7eb'}; font-weight: 700;`"
-                  >{{ review.category }}</span
+                  class="text-[11px] font-bold px-2.5 py-0.5 flex-shrink-0"
+                  :style="`background:${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.bg ?? '#f3f4f6'}; color:${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.color ?? '#374151'}; border: 1px solid ${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.border ?? '#e5e7eb'}; font-weight: 700;`"
                 >
-                <div class="flex items-center gap-2 ml-auto">
-                  <div
-                    class="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 font-bold text-[10px]"
-                    style="
-                      background: linear-gradient(135deg, #b2e4dc, #3db89e);
-                      color: #fff;
-                    "
+                  {{ CODE_TO_CATEGORY[post.category] ?? post.category }}
+                </span>
+                <div
+                  class="flex items-center gap-3 ml-auto text-[11px] text-gray-400 font-medium"
+                >
+                  <span class="flex items-center gap-1"
+                    ><Eye :size="11" /> {{ post.viewCount }}</span
                   >
-                    {{ review.initials }}
-                  </div>
-                  <span
-                    style="font-size: 0.82rem; font-weight: 600; color: #1a2e2b"
-                    >{{ review.author }}</span
+                  <span class="flex items-center gap-1"
+                    ><Heart :size="11" /> {{ post.likeCount }}</span
+                  >
+                  <span class="flex items-center gap-1"
+                    ><MessageCircle :size="11" /> {{ post.commentCount }}</span
                   >
                 </div>
               </div>
-              <p class="pb-3 text-sm text-gray-600 line-clamp-2">
-                {{ review.preview }}
+
+              <!-- 제목 -->
+              <p
+                class="pb-2.5 text-sm font-semibold text-gray-800 group-hover:text-teal-600 transition-colors line-clamp-2"
+              >
+                {{ post.title }}
               </p>
+
+              <!-- 작성자 + 날짜 -->
+              <div class="flex items-center gap-2">
+                <div
+                  class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 font-bold text-[9px]"
+                  style="
+                    background: linear-gradient(135deg, #b2e4dc, #3db89e);
+                    color: #fff;
+                  "
+                >
+                  {{ post.username.charAt(0) }}
+                </div>
+                <span
+                  style="font-size: 0.8rem; font-weight: 600; color: #1a2e2b"
+                  >{{ post.username }}</span
+                >
+                <span
+                  class="ml-auto"
+                  style="font-size: 0.75rem; color: #9ca3af"
+                  >{{ formatDate(post.createdAt) }}</span
+                >
+              </div>
             </div>
           </div>
         </div>
@@ -666,15 +864,7 @@ const tagColors: Record<string, string> = {
 </template>
 
 <style scoped>
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-.animate-spin {
-  animation: spin 1s linear infinite;
+details > summary::-webkit-details-marker {
+  display: none;
 }
 </style>

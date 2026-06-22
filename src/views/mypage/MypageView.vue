@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import {
   Camera,
@@ -8,21 +8,15 @@ import {
   Award,
   ChevronLeft,
   ChevronRight,
-  Star,
-  Heart,
   MapPin,
-  Clock,
   Eye,
   EyeOff,
-  LogOut,
-  AlertTriangle,
-  Save,
-  Lock,
   Trash2,
+  Heart,
+  MessageCircle,
 } from "lucide-vue-next";
 import type {
   User as UserType,
-  Journal,
   MyCourse,
   Character,
   MapPin as MapPinType,
@@ -30,99 +24,93 @@ import type {
 } from "@/types/user";
 import type { Place } from "@/types/place";
 import PlaceCard from "@/components/common/PlaceCard.vue";
+import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
 import {
   fetchUser,
-  fetchJournals,
   fetchUserActivity,
   fetchCharacters,
   fetchPostcardData,
 } from "@/api/user";
+import { getMyPosts, CODE_TO_CATEGORY } from "@/api/community";
+import type { MyPost } from "@/types/community";
 import { useStampStore } from "@/stores/stamp";
+import { useAuthStore } from "@/stores/auth";
+import { httpPut } from "@/api/http";
 
 const stampStore = useStampStore();
-
+const auth = useAuthStore();
 const router = useRouter();
+
 type Tab = "activity" | "info" | "postcard";
 const activeTab = ref<Tab>("activity");
 
 const user = ref<UserType>({
-  nickname: "",
+  username: "",
+  realName: "",
   email: "",
-  statusMessage: "",
+  birthDate: "",
+  phone: "",
   profileImage: null,
-  level: 0,
-  xp: 0,
-  xpForNext: 1,
   stampCount: 0,
+  role: "",
+  kakao: false,
 });
 
-const xpPercent = computed(() =>
-  Math.round((user.value.xp / user.value.xpForNext) * 100),
-);
-
-// 프로필 로직
+// ─── 프로필 이미지 ───
 function handleImageUpload(e: any) {
   const file = e.target.files[0];
   if (file) user.value.profileImage = URL.createObjectURL(file);
 }
-
 function removeProfileImage() {
   user.value.profileImage = null;
 }
 
-const isEditing = ref(false);
-const tempMessage = ref("");
-const startEditing = () => {
-  tempMessage.value = user.value.statusMessage;
-  isEditing.value = true;
-};
-const saveStatus = () => {
-  user.value.statusMessage = tempMessage.value;
-  isEditing.value = false;
-};
-
+// ─── 데이터 로드 ───
 onMounted(async () => {
-  const [
-    fetchedUser,
-    fetchedJournals,
-    activity,
-    fetchedCharacters,
-    postcardData,
-  ] = await Promise.all([
-    fetchUser(),
-    fetchJournals(),
-    fetchUserActivity(),
-    fetchCharacters(),
-    fetchPostcardData(),
-  ]);
+  const [fetchedUser, activity, fetchedCharacters, postcardData, fetchedPosts] =
+    await Promise.all([
+      fetchUser(),
+      fetchUserActivity(),
+      fetchCharacters(),
+      fetchPostcardData(),
+      getMyPosts(),
+    ]);
   user.value = fetchedUser;
-  editName.value = fetchedUser.nickname;
-  journals.value = fetchedJournals;
+  editName.value = fetchedUser.username;
+  editPhone.value = fetchedUser.phone ?? "";
   myCourses.value = activity.myCourses;
   likedPlaces.value = activity.likedPlaces;
-  likedSpotIds.value = activity.likedPlaces.map((p) => p.id); // 초기 하트 활성화
+  likedSpotIds.value = activity.likedPlaces.map((p) => p.id);
   characters.value = fetchedCharacters;
   mapPins.value = postcardData.mapPins;
   userPhotos.value = postcardData.userPhotos;
+  myPosts.value = fetchedPosts;
 });
 
-// 내 정보 탭 로직
+// ─── 내 정보 탭 ───
 const editName = ref("");
+const nicknameError = ref("");
 const currentPw = ref("");
 const newPw = ref("");
 const newPwConfirm = ref("");
 const showCurrentPw = ref(false);
 const showNewPw = ref(false);
 const showNewPwC = ref(false);
+const savingInfo = ref(false);
+const savingPw = ref(false);
+const showDeleteDialog = ref(false);
+const isPwEditing = ref(false);
 
-// 비밀번호 유효성 검사 (영어, 숫자, 특수문자 포함 8자 이상)
+const isNicknameChanged = computed(
+  () => editName.value !== user.value.username,
+);
+
 const pwRegex =
-  /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z]\d@$!%*#?&]{8,}$/;
+  /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
 const isNewPwValid = computed(() => {
-  if (!newPw.value) return true; // 입력 안 했을 때는 빨간 테두리 안 뜨게
+  if (!newPw.value) return true;
   return pwRegex.test(newPw.value);
 });
-
 const pwMatch = computed(
   () => newPw.value && newPwConfirm.value && newPw.value === newPwConfirm.value,
 );
@@ -130,99 +118,144 @@ const pwMismatch = computed(
   () => newPwConfirm.value && newPw.value !== newPwConfirm.value,
 );
 
-const savingInfo = ref(false);
-const savingPw = ref(false);
-const showDeleteDialog = ref(false);
+async function saveInfo() {
+  nicknameError.value = "";
+  savingInfo.value = true;
+  try {
+    await httpPut("/api/user/me/nickname", { username: editName.value });
+    user.value.username = editName.value;
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? "닉네임 변경에 실패했습니다.";
+    if (msg.includes("이미 사용 중인")) {
+      nicknameError.value = "이미 사용중인 닉네임입니다.";
+    } else {
+      nicknameError.value = msg;
+    }
+  } finally {
+    savingInfo.value = false;
+  }
+}
 
-const isPwEditing = ref(false);
-const loginType = ref("이메일 로그인");
+const editPhone = ref("");
+const savingPhone = ref(false);
 
-// 엽서 - 스탬프 지도용 핀 데이터
+async function savePhone() {
+  savingPhone.value = true;
+  try {
+    await httpPut("/api/user/me/phone", { phone: editPhone.value });
+    user.value.phone = editPhone.value;
+    alert("전화번호가 변경되었습니다.");
+  } catch (e: any) {
+    const msg = e?.response?.data?.message ?? "전화번호 변경에 실패했습니다.";
+    alert(msg);
+  } finally {
+    savingPhone.value = false;
+  }
+}
+
+async function changePw() {
+  if (!pwMatch.value || !pwRegex.test(newPw.value)) return;
+  savingPw.value = true;
+  try {
+    await httpPut("/api/user/me/password", {
+      currentPassword: currentPw.value,
+      newPassword: newPw.value,
+    });
+    currentPw.value = "";
+    newPw.value = "";
+    newPwConfirm.value = "";
+    isPwEditing.value = false;
+    alert("비밀번호가 변경되었습니다.");
+    window.location.reload();
+  } catch (e: any) {
+    const msg =
+      e?.response?.data?.message ?? "현재 비밀번호가 올바르지 않습니다.";
+    alert(msg);
+  } finally {
+    savingPw.value = false;
+  }
+}
+
+// ─── 엽서 탭 (카카오 지도) ───
 const mapPins = ref<MapPinType[]>([]);
-
-// 엽서 - 사진
 const userPhotos = ref<UserPhoto[]>([]);
-
-// 엽서 - 스탬프 사진 지도
-let postcardMap: any = null
-let postcardOverlays: any[] = []
+let postcardMap: any = null;
+let postcardOverlays: any[] = [];
 
 function initPostcardMap() {
-  const container = document.getElementById('postcard-stamp-map')
-  if (!container) return
-  const kakao = (window as any).kakao
-  if (!kakao?.maps) return
-
-  const center = new kakao.maps.LatLng(36.3619, 127.4100)
-  postcardMap = new kakao.maps.Map(container, { center, level: 8 })
-  renderPostcardPins()
+  const container = document.getElementById("postcard-stamp-map");
+  if (!container) return;
+  const kakao = (window as any).kakao;
+  if (!kakao?.maps) return;
+  const center = new kakao.maps.LatLng(36.3619, 127.41);
+  postcardMap = new kakao.maps.Map(container, { center, level: 8 });
+  renderPostcardPins();
 }
 
 function renderPostcardPins() {
-  if (!postcardMap) return
-  const kakao = (window as any).kakao
-
-  postcardOverlays.forEach((o) => o.setMap(null))
-  postcardOverlays = []
-
-  if (stampStore.photos.length === 0) return
-
-  const bounds = new kakao.maps.LatLngBounds()
-
+  if (!postcardMap) return;
+  const kakao = (window as any).kakao;
+  postcardOverlays.forEach((o) => o.setMap(null));
+  postcardOverlays = [];
+  if (stampStore.photos.length === 0) return;
+  const bounds = new kakao.maps.LatLngBounds();
   stampStore.photos.forEach((photo) => {
-    const pos = new kakao.maps.LatLng(photo.lat, photo.lng)
-    bounds.extend(pos)
-
-    const content = `
-      <div style="
-        width:52px;height:52px;border-radius:12px;
-        border:3px solid #3db89e;
-        box-shadow:0 3px 12px rgba(61,184,158,0.4);
-        overflow:hidden;cursor:pointer;
-      ">
-        <img src="${photo.url}" style="width:100%;height:100%;object-fit:cover;" />
-      </div>`
-
+    const pos = new kakao.maps.LatLng(photo.lat, photo.lng);
+    bounds.extend(pos);
+    const content = `<div style="width:52px;height:52px;border-radius:12px;border:3px solid #3db89e;box-shadow:0 3px 12px rgba(61,184,158,0.4);overflow:hidden;cursor:pointer;"><img src="${photo.url}" style="width:100%;height:100%;object-fit:cover;" /></div>`;
     const overlay = new kakao.maps.CustomOverlay({
       position: pos,
       content,
       yAnchor: 1,
-    })
-    overlay.setMap(postcardMap)
-    postcardOverlays.push(overlay)
-  })
-
-  postcardMap.setBounds(bounds)
+    });
+    overlay.setMap(postcardMap);
+    postcardOverlays.push(overlay);
+  });
+  postcardMap.setBounds(bounds);
 }
 
 watch(
   () => activeTab.value,
   async (tab) => {
-    if (tab === 'postcard') {
-      await nextTick()
+    if (tab === "postcard") {
+      await nextTick();
       if (!postcardMap) {
         if (!(window as any).kakao?.maps) {
-          if (!document.getElementById('kakao-map-script')) {
-            const script = document.createElement('script')
-            script.id = 'kakao-map-script'
-            script.src = '//dapi.kakao.com/v2/maps/sdk.js?appkey=YOUR_KAKAO_APP_KEY&autoload=false'
-            document.head.appendChild(script)
-            script.onload = () => (window as any).kakao.maps.load(() => initPostcardMap())
+          if (!document.getElementById("kakao-map-script")) {
+            const script = document.createElement("script");
+            script.id = "kakao-map-script";
+            script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
+            document.head.appendChild(script);
+            script.onload = () =>
+              (window as any).kakao.maps.load(() => initPostcardMap());
           }
         } else {
-          initPostcardMap()
+          initPostcardMap();
         }
       } else {
-        renderPostcardPins()
+        renderPostcardPins();
       }
     }
-  }
-)
+  },
+);
 
+// ─── 활동 탭 데이터 ───
+const myCourses = ref<MyCourse[]>([]);
+const myPosts = ref<MyPost[]>([]);
+const selectedCourse = ref<MyCourse | null>(null);
+const selectedPlaceId = ref<string | null>(null);
+const likedPlaces = ref<Place[]>([]);
+const likedSpotIds = ref<string[]>([]);
+const likedScrollRef = ref<HTMLDivElement | null>(null);
+const characters = ref<Character[]>([]);
+
+// ─── 모달 상태 ───
+const showLogout = ref(false);
 const activePhotoModal = ref<string | null>(null);
 const activeMapPopup = ref<(typeof mapPins.value)[0] | null>(null);
 const activeCharacterDetail = ref<{
   name: string;
+  emoji: string;
   description: string;
   poses: string[];
   emoji: string;
@@ -265,13 +298,29 @@ const sidebarTabs = [
   { key: "postcard", label: "엽서", icon: Award },
 ];
 
-// 모서리가 살짝만 둥근 스타일 기조 반영 및 인풋 기본 정의
+// ─── 스타일 상수 ───
 const infoBoxBase =
-  "width:100%; height:44px; display:flex; align-items:center; padding:0 14px; border-radius:4px; border:1px solid #e2e8f0; bg: #ffffff; color:#1a2e2b; font-size:0.9rem;";
+  "width:100%; height:44px; display:flex; align-items:center; padding:0 14px; border-radius:4px; border:1px solid #e2e8f0; color:#1a2e2b; font-size:0.9rem;";
 const inputBase =
   "width:100%;padding:11px 14px;border-radius:4px;border:1.5px solid rgba(178,228,220,0.5);background:#f0faf8;color:#1a2e2b;font-size:0.9rem;outline:none";
 const labelBase =
   "font-size:0.78rem;font-weight:700;color:#6b8c87;letter-spacing:0.03em";
+
+// ─── 헬퍼 ───
+function travelModeLabel(mode: string): string {
+  return (
+    ({ WALK: "도보", TAXI: "택시", BUS: "버스" } as Record<string, string>)[
+      mode
+    ] ?? mode
+  );
+}
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
 </script>
 
 <template>
@@ -288,43 +337,13 @@ const labelBase =
   >
     <div class="max-w-5xl mx-auto px-4 py-8">
       <div class="flex gap-6 items-start">
+        <!-- ─── 사이드바 ─── -->
         <aside class="w-64 flex-shrink-0 flex flex-col gap-8 sticky top-6">
+          <!-- 프로필 카드 -->
           <div
             class="p-6 bg-white flex flex-col items-center justify-center gap-3 shadow-sm"
             style="aspect-ratio: 4/5; width: 100%"
           >
-            <div class="relative w-full px-2 mt-2">
-              <div
-                class="relative p-3 rounded-2xl bg-white text-center border-2 border-dashed border-teal-300 shadow-sm cursor-pointer"
-                @click="!isEditing && startEditing()"
-              >
-                <p
-                  v-if="!isEditing"
-                  class="text-[0.8rem] text-gray-700 min-h-[1.2rem]"
-                >
-                  {{ user.statusMessage || "상태 메시지를 입력하세요" }}
-                </p>
-                <div
-                  v-else
-                  class="flex flex-col gap-1 items-center"
-                  @click.stop
-                >
-                  <input
-                    v-model="tempMessage"
-                    maxlength="40"
-                    autofocus
-                    class="w-full text-center text-[0.8rem] outline-none border-b border-teal-500"
-                  />
-                  <button
-                    @click="saveStatus"
-                    class="mt-1 px-2 py-0.5 text-[0.7rem] bg-teal-500 text-white rounded-full font-bold"
-                  >
-                    저장
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <div class="relative group">
               <div
                 class="w-20 h-20 rounded-full flex items-center justify-center font-bold text-2xl text-white overflow-hidden border"
@@ -335,7 +354,7 @@ const labelBase =
                   :src="user.profileImage"
                   class="w-full h-full object-cover"
                 />
-                <span v-else>{{ user.nickname[0] }}</span>
+                <span v-else>{{ user.username[0] }}</span>
               </div>
               <label
                 class="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer bg-white shadow-md"
@@ -359,12 +378,17 @@ const labelBase =
 
             <div class="text-center">
               <p style="font-weight: 800; font-size: 1.1rem; color: #1a2e2b">
-                {{ user.nickname }}
+                {{ user.username }}
               </p>
-              <p style="font-size: 0.88rem; color: #9ca3af">{{ user.email }}</p>
+              <div class="flex items-center justify-center gap-2">
+                <p style="font-size: 0.88rem; color: #9ca3af">
+                  {{ user.email }}
+                </p>
+              </div>
             </div>
           </div>
 
+          <!-- 탭 메뉴 -->
           <div class="flex flex-col gap-4 text-right">
             <button
               v-for="tab in sidebarTabs"
@@ -380,17 +404,9 @@ const labelBase =
               {{ tab.label }}
             </button>
           </div>
-
-          <div class="text-right">
-            <button
-              @click="showLogout = true"
-              style="color: #cbd5e1; font-size: 0.72rem; font-weight: 600"
-            >
-              로그아웃
-            </button>
-          </div>
         </aside>
 
+        <!-- ─── 메인 콘텐츠 ─── -->
         <main
           class="flex-1 min-w-0 bg-white rounded-2xl p-6"
           style="
@@ -398,7 +414,9 @@ const labelBase =
             box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
           "
         >
+          <!-- 활동 탭 -->
           <template v-if="activeTab === 'activity'">
+            <!-- 내 여행 일지 -->
             <div class="pb-6">
               <div class="flex items-center justify-between mb-4">
                 <h2
@@ -406,87 +424,75 @@ const labelBase =
                 >
                   내 여행 일지
                 </h2>
-                <button
-                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                <span
+                  style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
                 >
-                  자세히보기
-                </button>
+                  총 {{ myCourses.length }}개
+                </span>
               </div>
-              <div class="grid grid-cols-3 gap-3">
-                <div
-                  v-for="j in journals"
-                  :key="j.title"
-                  class="rounded-2xl p-4 flex flex-col gap-2"
-                  :style="`background:${j.bg};border:1.5px solid rgba(0,0,0,0.04)`"
-                >
-                  <p
-                    style="font-size: 0.72rem; font-weight: 600; color: #6b7280"
-                  >
-                    {{ j.date }}
-                  </p>
-                  <component :is="j.icon" :size="22" :color="j.iconColor" />
-                  <p
-                    style="font-weight: 700; font-size: 0.88rem; color: #1a2e2b"
-                  >
-                    {{ j.title }}
-                  </p>
-                  <p style="font-size: 0.75rem; color: #6b7280">
-                    {{ j.count }}코스 방문
-                  </p>
-                </div>
+              <div
+                v-if="myCourses.length === 0"
+                class="flex flex-col items-center justify-center py-12 rounded-2xl"
+                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
+              >
+                <span class="text-4xl mb-3">🗺️</span>
+                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
+                  아직 저장한 코스가 없어요
+                </p>
+                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
+                  코스를 만들고 여행을 기록해보세요!
+                </p>
               </div>
-            </div>
-
-            <div class="py-6 border-t border-gray-100">
-              <div class="flex items-center justify-between mb-4">
-                <h2
-                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
-                >
-                  내 코스
-                </h2>
-                <button
-                  @click="router.push('/courses/result')"
-                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
-                >
-                  더보기
-                </button>
-              </div>
-              <div class="flex flex-col gap-2.5">
+              <div v-else class="flex flex-col gap-2.5">
                 <button
                   v-for="course in myCourses"
                   :key="course.id"
-                  class="flex items-center gap-3 p-4 rounded-xl text-left border border-gray-100 transition-colors hover:bg-gray-50"
+                  @click="selectedCourse = course"
+                  class="flex items-start gap-3 p-4 rounded-xl text-left border border-gray-100 transition-colors hover:bg-teal-50/30 hover:border-teal-100"
                 >
                   <div
-                    class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50"
+                    class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50 shrink-0 mt-0.5"
                   >
                     <MapPin :size="16" color="#3db89e" />
                   </div>
-                  <div class="flex-1">
+                  <div class="flex-1 min-w-0">
                     <p
                       style="
                         font-weight: 700;
                         font-size: 0.9rem;
                         color: #1a2e2b;
                       "
+                      class="truncate"
                     >
-                      {{ course.title }}
+                      {{ course.subTitle }}
                     </p>
-                    <div class="flex items-center gap-2 mt-1">
+                    <div class="flex items-center gap-2 mt-1 flex-wrap">
                       <span
                         class="text-xs px-2 py-0.5 rounded-full font-semibold"
-                        :style="course.badgeStyle"
-                        >{{ course.badge }}</span
+                        style="background: #e6f7f4; color: #3db89e"
+                        >{{ travelModeLabel(course.travelMode) }}</span
                       >
-                      <span style="font-size: 0.75rem; color: #9ca3af">{{
-                        course.duration
-                      }}</span>
+                      <span style="font-size: 0.75rem; color: #9ca3af"
+                        >{{ course.durationMinutes }}분</span
+                      >
+                      <span style="font-size: 0.75rem; color: #9ca3af"
+                        >· {{ course.places.length }}곳</span
+                      >
+                      <span style="font-size: 0.75rem; color: #9ca3af"
+                        >· {{ formatDate(course.createdAt) }}</span
+                      >
                     </div>
                   </div>
+                  <ChevronRight
+                    :size="16"
+                    color="#d1d5db"
+                    class="shrink-0 mt-1"
+                  />
                 </button>
               </div>
             </div>
 
+            <!-- 찜한 장소 -->
             <div class="pt-6 border-t border-gray-100">
               <div class="flex items-center justify-between mb-4">
                 <h2
@@ -501,27 +507,24 @@ const labelBase =
                   더보기
                 </button>
               </div>
-              <!-- 가로 스크롤 (최대 5개 미리보기) -->
               <div class="relative px-10">
                 <button
-                  @click="likedScrollRef?.scrollBy({ left: -256, behavior: 'smooth' })"
+                  @click="
+                    likedScrollRef?.scrollBy({ left: -256, behavior: 'smooth' })
+                  "
                   type="button"
                   class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center text-[#3db89e] hover:scale-125 transition-all duration-200"
                 >
                   <ChevronLeft :size="28" :stroke-width="3" />
                 </button>
-
-                <div
-                  ref="likedScrollRef"
-                  class="liked-scroll-container"
-                >
+                <div ref="likedScrollRef" class="liked-scroll-container">
                   <div class="liked-scroll-inner">
                     <PlaceCard
                       v-for="place in likedPlaces.slice(0, 5)"
                       :key="place.id"
                       :spot="place"
                       :liked="likedSpotIds.includes(place.id)"
-                      @click="() => {}"
+                      @click="selectedPlaceId = place.id"
                       @toggleLike="
                         (id) => {
                           const idx = likedSpotIds.indexOf(id);
@@ -532,9 +535,10 @@ const labelBase =
                     />
                   </div>
                 </div>
-
                 <button
-                  @click="likedScrollRef?.scrollBy({ left: 256, behavior: 'smooth' })"
+                  @click="
+                    likedScrollRef?.scrollBy({ left: 256, behavior: 'smooth' })
+                  "
                   type="button"
                   class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center text-[#3db89e] hover:scale-125 transition-all duration-200"
                 >
@@ -542,8 +546,105 @@ const labelBase =
                 </button>
               </div>
             </div>
+
+            <!-- 내가 쓴 글 -->
+            <div class="pt-6 border-t border-gray-100">
+              <div class="flex items-center justify-between mb-4">
+                <h2
+                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
+                >
+                  내가 쓴 글
+                </h2>
+                <div class="flex items-center gap-3">
+                  <span
+                    style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
+                  >
+                    총 {{ myPosts.length }}개
+                  </span>
+                  <button
+                    @click="router.push('/community?my=true')"
+                    style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
+                  >
+                    더보기
+                  </button>
+                </div>
+              </div>
+              <div
+                v-if="myPosts.length === 0"
+                class="flex flex-col items-center justify-center py-12 rounded-2xl"
+                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
+              >
+                <span class="text-4xl mb-3">✍️</span>
+                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
+                  아직 작성한 글이 없어요
+                </p>
+                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
+                  커뮤니티에서 첫 글을 남겨보세요!
+                </p>
+                <button
+                  @click="router.push('/community/write')"
+                  class="mt-4 px-4 py-2 rounded-xl text-white text-xs font-bold"
+                  style="background: #3db89e"
+                >
+                  글쓰기
+                </button>
+              </div>
+              <div v-else>
+                <div
+                  v-for="post in myPosts.slice(0, 5)"
+                  :key="post.id"
+                  @click="router.push('/community/' + post.id)"
+                  class="flex items-center gap-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors px-1"
+                >
+                  <span
+                    class="shrink-0 text-xs px-2 py-0.5 rounded-full font-bold"
+                    :style="
+                      post.category === 'SHARE'
+                        ? 'background:#d1fae5;color:#059669'
+                        : post.category === 'QUESTION'
+                          ? 'background:#dbeafe;color:#2563eb'
+                          : post.category === 'TOGETHER'
+                            ? 'background:#ede9fe;color:#7c3aed'
+                            : 'background:#f3f4f6;color:#6b7280'
+                    "
+                  >
+                    {{ CODE_TO_CATEGORY[post.category] }}
+                  </span>
+                  <p
+                    class="flex-1 truncate"
+                    style="font-size: 0.88rem; color: #1a2e2b; font-weight: 500"
+                  >
+                    {{ post.title }}
+                  </p>
+                  <div class="flex items-center gap-2.5 shrink-0">
+                    <span
+                      class="flex items-center gap-0.5"
+                      style="font-size: 0.72rem; color: #9ca3af"
+                    >
+                      <Eye :size="11" />&nbsp;{{ post.viewCount }}
+                    </span>
+                    <span
+                      class="flex items-center gap-0.5"
+                      style="font-size: 0.72rem; color: #9ca3af"
+                    >
+                      <Heart :size="11" />&nbsp;{{ post.likeCount }}
+                    </span>
+                    <span
+                      class="flex items-center gap-0.5"
+                      style="font-size: 0.72rem; color: #9ca3af"
+                    >
+                      <MessageCircle :size="11" />&nbsp;{{ post.commentCount }}
+                    </span>
+                    <span style="font-size: 0.72rem; color: #d1d5db">{{
+                      formatDate(post.createdAt)
+                    }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </template>
 
+          <!-- 기본정보 탭 -->
           <template v-else-if="activeTab === 'info'">
             <div class="pb-6">
               <h2
@@ -552,71 +653,145 @@ const labelBase =
               >
                 내 정보
               </h2>
-
               <div class="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
+                <!-- 이름 (수정 불가) -->
                 <div class="flex flex-col gap-1.5">
                   <span :style="labelBase">이름</span>
-                  <div :style="infoBoxBase">
-                    <span>{{ user.nickname }}</span>
+                  <div
+                    :style="infoBoxBase"
+                    style="
+                      background: #f3f4f6;
+                      color: #9ca3af;
+                      cursor: not-allowed;
+                    "
+                  >
+                    <span>{{ user.realName }}</span>
                   </div>
                 </div>
 
+                <!-- 닉네임 -->
                 <div class="flex flex-col gap-1.5">
                   <span :style="labelBase">닉네임</span>
                   <div class="flex justify-between items-center gap-2">
                     <input
                       v-model="editName"
-                      :style="inputBase"
-                      style="background: #ffffff; border-radius: 4px"
+                      :style="[
+                        inputBase,
+                        {
+                          borderColor: nicknameError
+                            ? '#ef4444'
+                            : 'rgba(178,228,220,0.5)',
+                          background: '#ffffff',
+                          borderRadius: '4px',
+                        },
+                      ]"
+                      @input="nicknameError = ''"
                     />
                     <button
                       @click="saveInfo"
-                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
-                      :disabled="savingInfo"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      :disabled="savingInfo || !isNicknameChanged"
                     >
                       {{ savingInfo ? "저장중" : "변경" }}
                     </button>
                   </div>
+                  <p
+                    v-if="nicknameError"
+                    class="text-xs text-red-500 font-semibold pl-1"
+                  >
+                    {{ nicknameError }}
+                  </p>
                 </div>
 
+                <!-- 이메일 (수정 불가 + 가입방식 뱃지) -->
                 <div class="flex flex-col gap-1.5">
-                  <span :style="labelBase">이메일</span>
+                  <div class="flex items-center gap-2">
+                    <span :style="labelBase">이메일</span>
+                    <span
+                      v-if="user.kakao"
+                      style="
+                        font-size: 0.65rem;
+                        font-weight: 700;
+                        background: #fee500;
+                        color: #3c1e1e;
+                        padding: 2px 8px;
+                        border-radius: 999px;
+                      "
+                    >
+                      카카오 로그인
+                    </span>
+                    <span
+                      v-else
+                      style="
+                        font-size: 0.65rem;
+                        font-weight: 700;
+                        background: #e8f8f5;
+                        color: #3db89e;
+                        padding: 2px 8px;
+                        border-radius: 999px;
+                      "
+                    >
+                      이메일 가입
+                    </span>
+                  </div>
                   <div
                     :style="infoBoxBase"
                     style="
-                      background: #f5f5f5;
+                      background: #f3f4f6;
                       color: #9ca3af;
                       cursor: not-allowed;
                     "
                   >
-                    {{ user.email }}
+                    <span>{{ user.email }}</span>
                   </div>
                 </div>
 
+                <!-- 전화번호 -->
                 <div class="flex flex-col gap-1.5">
-                  <span :style="labelBase">가입 방식</span>
+                  <span :style="labelBase">전화번호</span>
+                  <!-- 전화번호 없을 때: 입력 가능 -->
                   <div
+                    v-if="!user.phone"
+                    class="flex justify-between items-center gap-2"
+                  >
+                    <input
+                      v-model="editPhone"
+                      :style="inputBase"
+                      style="background: #ffffff; border-radius: 4px"
+                      placeholder="전화번호를 입력하세요"
+                    />
+                    <button
+                      @click="savePhone"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
+                      :disabled="savingPhone"
+                    >
+                      {{ savingPhone ? "저장중" : "변경" }}
+                    </button>
+                  </div>
+                  <!-- 전화번호 있을 때: 수정 불가 -->
+                  <div
+                    v-else
                     :style="infoBoxBase"
                     style="
-                      background: #f5f5f5;
+                      background: #f3f4f6;
                       color: #9ca3af;
                       cursor: not-allowed;
                     "
                   >
-                    {{ loginType }}
+                    <span>{{ user.phone }}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="py-6 border-t border-gray-100">
+            <!-- 비밀번호 변경 (카카오 유저 숨김) -->
+            <div v-if="!user.kakao" class="py-6 border-t border-gray-100">
               <h2
                 class="mb-4"
                 style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
               >
                 비밀번호 변경
               </h2>
-
               <div v-if="!isPwEditing" class="flex">
                 <button
                   @click="isPwEditing = true"
@@ -625,8 +800,8 @@ const labelBase =
                   비밀번호 변경
                 </button>
               </div>
-
               <div v-else class="flex flex-col gap-3 max-w-md">
+                <!-- 현재 비밀번호 -->
                 <div class="relative">
                   <input
                     :type="showCurrentPw ? 'text' : 'password'"
@@ -645,8 +820,7 @@ const labelBase =
                     />
                   </button>
                 </div>
-
-                <!-- 새 비밀번호 인풋 -->
+                <!-- 새 비밀번호 -->
                 <div class="relative">
                   <input
                     :type="showNewPw ? 'text' : 'password'"
@@ -672,15 +846,13 @@ const labelBase =
                     />
                   </button>
                 </div>
-                <!-- 유효성 조건문 실패 시 노출되는 가이드 텍스트 -->
                 <p
                   v-if="!isNewPwValid"
                   class="text-xs text-red-500 pl-1 font-semibold"
                 >
                   영어, 숫자, 특수문자 포함해서 8자 이상 작성해주세요.
                 </p>
-
-                <!-- 새 비밀번호 확인 인풋 -->
+                <!-- 새 비밀번호 확인 -->
                 <div class="relative">
                   <input
                     :type="showNewPwC ? 'text' : 'password'"
@@ -706,7 +878,6 @@ const labelBase =
                     />
                   </button>
                 </div>
-
                 <div
                   v-if="pwMismatch"
                   class="text-xs text-red-500 font-semibold pl-1"
@@ -719,7 +890,6 @@ const labelBase =
                 >
                   새 비밀번호가 일치하며 사용 가능합니다.
                 </div>
-
                 <div class="flex gap-2 justify-end mt-2">
                   <button
                     @click="isPwEditing = false"
@@ -738,34 +908,45 @@ const labelBase =
               </div>
             </div>
 
+            <!-- FAQ / 1:1문의 버튼 -->
             <div class="py-6 border-t border-gray-100 flex gap-4">
               <button
-                @click="router.push('/community/notice/inquiry/faq')"
+                @click="
+                  router.push('/community?tab=notices&sub=자주 묻는 질문')
+                "
                 class="flex-1 py-3.5 rounded-[4px] border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-all text-center font-bold text-sm text-gray-700"
               >
                 자주 묻는 질문
               </button>
               <button
-                @click="router.push('/community/notice/inquiry/personal')"
+                @click="router.push('/community?tab=notices&sub=1:1 문의하기')"
                 class="flex-1 py-3.5 rounded-[4px] border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-all text-center font-bold text-sm text-gray-700"
               >
                 1:1 문의하기
               </button>
             </div>
 
-            <div class="pt-6 border-t border-gray-100 flex justify-center">
+            <!-- 로그아웃 | 회원탈퇴 -->
+            <div class="pt-2 pb-4 flex items-center justify-center gap-3">
+              <button
+                @click="showLogout = true"
+                style="color: #9ca3af; font-size: 0.72rem; font-weight: 600"
+              >
+                로그아웃
+              </button>
+              <span style="color: #e5e7eb; font-size: 0.72rem">|</span>
               <button
                 @click="showDeleteDialog = true"
-                class="text-[0.72rem] text-gray-400 font-medium underline hover:text-red-400 transition-colors"
+                style="color: #9ca3af; font-size: 0.72rem; font-weight: 600"
               >
-                회원 탈퇴하기
+                회원 탈퇴
               </button>
             </div>
           </template>
 
-          <!-- 2. 게이미피케이션 카테고리 개편 영역 (엽서 탭) -->
+          <!-- 엽서 탭 -->
           <template v-else-if="activeTab === 'postcard'">
-            <!-- 스탬프 지도 섹션 -->
+            <!-- 스탬프 지도 -->
             <div class="pb-6">
               <h2
                 class="mb-4"
@@ -773,29 +954,32 @@ const labelBase =
               >
                 스탬프 지도
               </h2>
-
-              <!-- 사진 없을 때 -->
               <div
                 v-if="stampStore.photos.length === 0"
                 class="flex flex-col items-center justify-center h-[200px] rounded-2xl"
-                style="background:#f9fafb;border:1.5px dashed #e5e7eb"
+                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
               >
                 <span class="text-4xl mb-3">🗺️</span>
-                <p style="font-size:0.85rem;font-weight:600;color:#9ca3af">인증한 장소가 지도에 표시돼요</p>
-                <p style="font-size:0.75rem;color:#d1d5db;margin-top:4px">스탬프 투어에서 장소를 방문해보세요!</p>
+                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
+                  인증한 장소가 지도에 표시돼요
+                </p>
+                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
+                  스탬프 투어에서 장소를 방문해보세요!
+                </p>
               </div>
-
-              <!-- 카카오 지도 + 사진 핀 -->
               <div
                 v-else
                 class="relative w-full h-[340px] rounded-2xl overflow-hidden"
-                style="border:1px solid rgba(178,228,220,0.4)"
+                style="border: 1px solid rgba(178, 228, 220, 0.4)"
               >
-                <div id="postcard-stamp-map" style="width:100%;height:100%" />
+                <div
+                  id="postcard-stamp-map"
+                  style="width: 100%; height: 100%"
+                />
               </div>
             </div>
 
-            <!-- 사진 섹션 (스탬프 투어 인증 사진) -->
+            <!-- 스탬프 인증 사진 -->
             <div class="py-6 border-t border-gray-100">
               <div class="flex items-center justify-between mb-4">
                 <h2
@@ -807,18 +991,19 @@ const labelBase =
                   >총 {{ stampStore.photos.length }}장</span
                 >
               </div>
-
-              <!-- 사진 없을 때 -->
               <div
                 v-if="stampStore.photos.length === 0"
                 class="flex flex-col items-center justify-center py-12 rounded-2xl"
-                style="background:#f9fafb;border:1.5px dashed #e5e7eb"
+                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
               >
                 <span class="text-4xl mb-3">📮</span>
-                <p style="font-size:0.85rem;font-weight:600;color:#9ca3af">아직 인증한 사진이 없어요</p>
-                <p style="font-size:0.75rem;color:#d1d5db;margin-top:4px">스탬프 투어에서 장소를 인증해보세요!</p>
+                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
+                  아직 인증한 사진이 없어요
+                </p>
+                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
+                  스탬프 투어에서 장소를 인증해보세요!
+                </p>
               </div>
-
               <div
                 v-else
                 class="grid grid-cols-3 gap-2 overflow-y-auto pr-1 max-h-[420px] custom-scrollbar"
@@ -836,15 +1021,15 @@ const labelBase =
                   <div
                     class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2"
                   >
-                    <span class="text-[0.7rem] text-white font-medium truncate">
-                      {{ photo.placeEmoji }} {{ photo.placeName }}
-                    </span>
+                    <span class="text-[0.7rem] text-white font-medium truncate"
+                      >{{ photo.placeEmoji }} {{ photo.placeName }}</span
+                    >
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- 캐릭터 섹션 -->
+            <!-- 캐릭터 -->
             <div class="pt-6 border-t border-gray-100">
               <div class="flex items-center justify-between mb-4">
                 <h2
@@ -892,7 +1077,39 @@ const labelBase =
       </div>
     </div>
 
+    <!-- ─── 모달들 ─── -->
     <Teleport to="body">
+      <!-- 장소 상세 모달 -->
+      <div
+        v-if="selectedPlaceId"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
+        @click="selectedPlaceId = null"
+      >
+        <div
+          class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative p-6 flex flex-col"
+          style="max-height: 85vh"
+          @click.stop
+        >
+          <div
+            class="flex items-center justify-between pb-3 mb-4 border-b border-gray-100"
+          >
+            <h3 class="text-base font-bold text-gray-800">장소 상세 정보</h3>
+            <button
+              @click="selectedPlaceId = null"
+              class="text-gray-400 hover:text-gray-600 text-lg font-bold cursor-pointer transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          <div
+            class="overflow-y-auto pr-1"
+            style="max-height: calc(85vh - 80px)"
+          >
+            <PlaceDetailContent :id="selectedPlaceId" />
+          </div>
+        </div>
+      </div>
+      <!-- 로그아웃 모달 -->
       <div
         v-if="showLogout"
         class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
@@ -908,7 +1125,10 @@ const labelBase =
               취소
             </button>
             <button
-              @click="router.push('/login')"
+              @click="
+                auth.logout();
+                router.push('/login');
+              "
               class="flex-1 py-2 rounded-xl bg-red-500 text-white"
             >
               확인
@@ -917,6 +1137,7 @@ const labelBase =
         </div>
       </div>
 
+      <!-- 회원탈퇴 모달 -->
       <div
         v-if="showDeleteDialog"
         class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
@@ -944,6 +1165,7 @@ const labelBase =
         </div>
       </div>
 
+      <!-- 사진 모달 -->
       <div
         v-if="activePhotoModal"
         class="fixed inset-0 flex items-center justify-center z-50 bg-black/70 backdrop-blur-sm"
@@ -968,6 +1190,7 @@ const labelBase =
         </div>
       </div>
 
+      <!-- 캐릭터 상세 모달 -->
       <div
         v-if="activeCharacterDetail"
         class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
@@ -1010,6 +1233,156 @@ const labelBase =
           </button>
         </div>
       </div>
+
+      <!-- 회고 모달 -->
+      <div
+        v-if="selectedCourse"
+        class="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
+        @click.self="selectedCourse = null"
+      >
+        <div
+          class="bg-white rounded-2xl w-[480px] max-h-[80vh] overflow-y-auto shadow-2xl"
+          style="border: 1.5px solid rgba(178, 228, 220, 0.4)"
+        >
+          <div
+            class="p-5 border-b border-gray-100 flex items-start justify-between gap-3"
+          >
+            <div>
+              <p
+                style="font-weight: 800; font-size: 1.05rem; color: #1a2e2b"
+                class="leading-snug"
+              >
+                {{ selectedCourse.subTitle }}
+              </p>
+              <p style="font-size: 0.8rem; color: #9ca3af; margin-top: 4px">
+                {{ formatDate(selectedCourse.createdAt) }}
+              </p>
+            </div>
+            <button
+              @click="selectedCourse = null"
+              class="shrink-0 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 transition-colors text-lg leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          <div class="p-5 flex flex-col gap-5">
+            <!-- 여행 정보 칩 -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span
+                class="px-3 py-1 rounded-full text-xs font-bold"
+                style="background: #e6f7f4; color: #3db89e"
+              >
+                {{ travelModeLabel(selectedCourse.travelMode) }}
+              </span>
+              <span
+                class="px-3 py-1 rounded-full text-xs font-semibold"
+                style="background: #f0faf8; color: #6b8c87"
+              >
+                {{ selectedCourse.durationMinutes }}분
+              </span>
+              <span
+                class="px-3 py-1 rounded-full text-xs font-semibold"
+                style="background: #f0faf8; color: #6b8c87"
+              >
+                {{ selectedCourse.places.length }}곳
+              </span>
+            </div>
+
+            <!-- 장소 목록 -->
+            <div>
+              <p
+                style="
+                  font-size: 0.78rem;
+                  font-weight: 700;
+                  color: #6b8c87;
+                  margin-bottom: 10px;
+                "
+              >
+                방문 장소
+              </p>
+              <div class="flex flex-col gap-1.5">
+                <template
+                  v-for="(place, idx) in selectedCourse.places"
+                  :key="place.id"
+                >
+                  <div
+                    class="flex items-center gap-2.5 p-2.5 rounded-xl"
+                    style="background: #f9fafb"
+                  >
+                    <div
+                      class="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                      style="background: #e6f7f4"
+                    >
+                      <MapPin :size="12" color="#3db89e" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        style="
+                          font-size: 0.85rem;
+                          font-weight: 600;
+                          color: #1a2e2b;
+                        "
+                        class="truncate"
+                      >
+                        {{ place.name }}
+                      </p>
+                      <p style="font-size: 0.7rem; color: #9ca3af">
+                        {{ place.category }}
+                      </p>
+                    </div>
+                  </div>
+                  <div
+                    v-if="idx < selectedCourse!.places.length - 1"
+                    class="text-center"
+                    style="font-size: 0.75rem; color: #d1d5db"
+                  >
+                    ↓
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- 확장 포인트 -->
+            <div>
+              <p
+                style="
+                  font-size: 0.78rem;
+                  font-weight: 700;
+                  color: #6b8c87;
+                  margin-bottom: 10px;
+                "
+              >
+                여행 기록
+              </p>
+              <div class="grid grid-cols-3 gap-2">
+                <div
+                  v-for="item in [
+                    { icon: '📸', label: '인증 사진' },
+                    { icon: '🎖️', label: '획득 엽서' },
+                    { icon: '⭐', label: '별점·한줄평' },
+                  ]"
+                  :key="item.label"
+                  class="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border"
+                  style="
+                    border-color: #e5e7eb;
+                    background: #fafafa;
+                    opacity: 0.6;
+                  "
+                >
+                  <span class="text-xl">{{ item.icon }}</span>
+                  <p
+                    style="font-size: 0.72rem; font-weight: 600; color: #9ca3af"
+                  >
+                    {{ item.label }}
+                  </p>
+                  <p style="font-size: 0.65rem; color: #d1d5db">준비 중</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </Teleport>
   </div>
 </template>
@@ -1028,8 +1401,6 @@ const labelBase =
     transform: translateY(0);
   }
 }
-
-/* 사진 스크롤바 커스텀 */
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
@@ -1040,7 +1411,6 @@ const labelBase =
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-/* 찜한 장소 가로 스크롤 */
 .liked-scroll-container {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

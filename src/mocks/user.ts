@@ -87,50 +87,50 @@ export const mockCharacters: Character[] = [
     name: '꿈돌이 베이직',
     emoji: '🌟',
     unlocked: true,
-    description: '가장 기본적이고 귀여운 대전의 마스코트 꿈돌이입니다.',
-    poses: ['🌟', '✨', '🎵'],
+    description: "가장 기본적이고 귀여운 대전의 마스코트 꿈돌이입니다.",
+    poses: ["🌟", "✨", "🎵"],
   },
   {
     id: '2',
     name: '꿈돌이 탐험가',
     emoji: '🗺️',
     unlocked: true,
-    description: '대전 방방곳곳을 탐험하며 기록을 남기는 탐험가 꿈돌이입니다.',
-    poses: ['🗺️', '🧭', '🎒'],
+    description: "대전 방방곳곳을 탐험하며 기록을 남기는 탐험가 꿈돌이입니다.",
+    poses: ["🗺️", "🧭", "🎒"],
   },
   {
     id: '3',
     name: '꿈돌이 미식가',
     emoji: '🍞',
     unlocked: true,
-    description: '빵과 맛있는 음식을 사랑하는 대전 최고의 미식가 꿈돌이입니다.',
-    poses: ['🍞', '🍕', '🍰'],
+    description: "빵과 맛있는 음식을 사랑하는 대전 최고의 미식가 꿈돌이입니다.",
+    poses: ["🍞", "🍕", "🍰"],
   },
   {
     id: '4',
     name: '꿈돌이 문화인',
     emoji: '🎭',
     unlocked: false,
-    description: '미술관과 전시회를 즐겨 찾는 감성 가득한 문화인 꿈돌이입니다.',
-    poses: ['🎭'],
+    description: "미술관과 전시회를 즐겨 찾는 감성 가득한 문화인 꿈돌이입니다.",
+    poses: ["🎭"],
   },
   {
     id: '5',
     name: '꿈돌이 자연인',
     emoji: '🌿',
     unlocked: false,
-    description: '수목원과 대청호의 맑은 공기를 좋아하는 자연인 꿈돌이입니다.',
-    poses: ['🌿'],
+    description: "수목원과 대청호의 맑은 공기를 좋아하는 자연인 꿈돌이입니다.",
+    poses: ["🌿"],
   },
   {
     id: '6',
     name: '꿈돌이 대전왕',
     emoji: '👑',
     unlocked: false,
-    description: '모든 코스를 섭렵한 진정한 대전의 끝판왕 꿈돌이입니다.',
-    poses: ['👑'],
+    description: "모든 코스를 섭렵한 진정한 대전의 끝판왕 꿈돌이입니다.",
+    poses: ["👑"],
   },
-]
+];
 
 export const mockMapPins: MapPin[] = [
   {
@@ -147,7 +147,7 @@ export const mockMapPins: MapPin[] = [
     visitDate: '2026년 01월 21일',
     url: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
   },
-]
+];
 
 export const mockUserPhotos: UserPhoto[] = [
   { id: '1', url: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93', location: '성심당 본점' },

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 import { ArrowLeft, Search } from "lucide-vue-next";
 import PlaceDetailContent from "./PlaceDetailContents.vue";
 import PlaceCard from "@/components/common/PlaceCard.vue";
@@ -10,6 +10,7 @@ import type { Place } from "@/types/place";
 import { useBookmarkStore } from "@/stores/bookmark";
 
 const router = useRouter();
+const route = useRoute();
 const bookmarkStore = useBookmarkStore();
 
 const recommendedPlaces = ref([
@@ -118,6 +119,10 @@ function openDetail(place: Place) {
 onMounted(() => {
   startSlideShow();
   fetchPlaces();
+  const idFromQuery = route.query.id as string | undefined;
+  if (idFromQuery) {
+    selectedPlaceId.value = idFromQuery;
+  }
 });
 
 onUnmounted(() => {
@@ -223,8 +228,11 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <span class="text-xs text-gray-400 font-semibold self-end md:self-auto">
-            총 <span class="text-teal-600">{{ places.totalElements }}</span>개의 장소
+          <span
+            class="text-xs text-gray-400 font-semibold self-end md:self-auto"
+          >
+            총 <span class="text-teal-600">{{ places.totalElements }}</span
+            >개의 장소
           </span>
         </div>
 

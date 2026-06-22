@@ -20,7 +20,7 @@ import {
   Unlock,
 } from "lucide-vue-next";
 import type { Course, DiPlace } from "@/types/course";
-import { fetchDiPlaces } from "@/api/courses";
+import { fetchDiPlaces, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
 
 // 카카오 지도 객체 타입 정의
@@ -218,6 +218,32 @@ async function finishEdit() {
   await new Promise((r) => setTimeout(r, 400));
   isSaving.value = false;
   isEditing.value = false;
+}
+
+async function confirmCourse() {
+  if (!courseStore.lastRequest) {
+    alert("코스 정보가 없습니다. 다시 생성해주세요.");
+    return;
+  }
+  isSaving.value = true;
+  try {
+    const places = currentPlaces.value
+      .filter((p) => p.lat && p.lng)
+      .map((p, idx) => ({
+        placeId: p.id,
+        orderIndex: idx,
+        travelTimeMin: p.nextTransport
+          ? parseInt(p.nextTransport.taxiTime) || undefined
+          : undefined,
+      }));
+    await saveCourse(courseStore.lastRequest, places);
+    courseStore.setConfirmed();
+    alert("코스가 저장되었습니다!");
+  } catch {
+    alert("저장에 실패했습니다. 로그인 상태를 확인해주세요.");
+  } finally {
+    isSaving.value = false;
+  }
 }
 </script>
 
@@ -504,8 +530,10 @@ async function finishEdit() {
           <button
             class="flex-1 py-3.5 rounded-xl flex items-center justify-center gap-1 font-black text-xs text-white shadow-md"
             style="background: linear-gradient(135deg, #b2e4dc, #2fa38a)"
+          @click="confirmCourse"
+          :disabled="isSaving"
           >
-            코스 최종 확정하기 <ChevronRight :size="14" />
+            {{ isSaving ? "저장 중..." : "코스 최종 확정하기" }} <ChevronRight :size="14" />
           </button>
         </div>
       </template>
