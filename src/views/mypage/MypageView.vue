@@ -10,6 +10,7 @@ import {
   fetchUserActivity,
 } from "@/api/user";
 import PlaceCard from "@/components/common/PlaceCard.vue";
+import { deleteCourse } from "@/api/courses";
 import { useAuthStore } from "@/stores/auth";
 import { useBookmarkStore } from "@/stores/bookmark";
 import { useStampStore, type StampPhoto } from "@/stores/stamp";
@@ -69,26 +70,32 @@ function removeProfileImage() {
 
 // ─── 데이터 로드 ───
 onMounted(async () => {
-  try {
-    const [fetchedUser, activity, fetchedCharacters, postcardData, fetchedPosts] =
-      await Promise.all([
-        fetchUser(),
-        fetchUserActivity(),
-        fetchCharacters(),
-        fetchPostcardData(),
-        getMyPosts(),
-      ]);
+  const results = await Promise.allSettled([
+    fetchUser(),
+    fetchUserActivity(),
+    fetchCharacters(),
+    fetchPostcardData(),
+    getMyPosts(),
+  ]);
+
+  if (results[0].status === "fulfilled") {
+    const fetchedUser = results[0].value;
     user.value = fetchedUser;
     editName.value = fetchedUser.username;
     editPhone.value = fetchedUser.phone ?? "";
-    myCourses.value = activity.myCourses;
-    characters.value = fetchedCharacters;
-    mapPins.value = postcardData.mapPins;
-    userPhotos.value = postcardData.userPhotos;
-    myPosts.value = fetchedPosts;
-  } catch (e) {
-    console.error("마이페이지 데이터 로딩 실패:", e);
   }
+  if (results[1].status === "fulfilled") {
+    myCourses.value = results[1].value.myCourses;
+  } else {
+    console.error("코스 로딩 실패:", results[1].reason);
+  }
+  if (results[2].status === "fulfilled") characters.value = results[2].value;
+  if (results[3].status === "fulfilled") {
+    mapPins.value = results[3].value.mapPins;
+    userPhotos.value = results[3].value.userPhotos;
+  }
+  if (results[4].status === "fulfilled") myPosts.value = results[4].value;
+
   await bookmarkStore.fetchBookmarks();
 });
 
@@ -260,6 +267,20 @@ watch(
 const myCourses = ref<MyCourse[]>([]);
 const myPosts = ref<MyPost[]>([]);
 const selectedCourse = ref<MyCourse | null>(null);
+const deletingCourseId = ref<string | null>(null);
+
+async function handleDeleteCourse(courseId: string) {
+  if (!confirm("이 코스를 삭제하시겠어요?")) return;
+  deletingCourseId.value = courseId;
+  try {
+    await deleteCourse(courseId);
+    myCourses.value = myCourses.value.filter((c) => c.id !== courseId);
+  } catch {
+    alert("삭제에 실패했습니다.");
+  } finally {
+    deletingCourseId.value = null;
+  }
+}
 const selectedPlaceId = ref<string | null>(null);
 const likedScrollRef = ref<HTMLDivElement | null>(null);
 const characters = ref<Character[]>([]);
@@ -470,52 +491,48 @@ function formatDate(dateStr: string): string {
                   코스를 만들고 여행을 기록해보세요!
                 </p>
               </div>
-              <div v-else class="flex flex-col gap-2.5">
-                <button
+              <div v-else class="flex flex-col gap-2.5 overflow-y-auto pr-1 custom-scrollbar" style="max-height: 320px">
+                <div
                   v-for="course in myCourses"
                   :key="course.id"
-                  @click="selectedCourse = course"
-                  class="flex items-start gap-3 p-4 rounded-xl text-left border border-gray-100 transition-colors hover:bg-teal-50/30 hover:border-teal-100"
+                  class="flex items-start gap-3 p-4 rounded-xl border border-gray-100 transition-colors hover:bg-teal-50/30 hover:border-teal-100"
                 >
-                  <div
-                    class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50 shrink-0 mt-0.5"
+                  <button
+                    @click="selectedCourse = course"
+                    class="flex items-start gap-3 flex-1 min-w-0 text-left cursor-pointer"
                   >
-                    <MapPin :size="16" color="#3db89e" />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p
-                      style="
-                        font-weight: 700;
-                        font-size: 0.9rem;
-                        color: #1a2e2b;
-                      "
-                      class="truncate"
+                    <div
+                      class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50 shrink-0 mt-0.5"
                     >
-                      {{ course.subTitle }}
-                    </p>
-                    <div class="flex items-center gap-2 mt-1 flex-wrap">
-                      <span
-                        class="text-xs px-2 py-0.5 rounded-full font-semibold"
-                        style="background: #e6f7f4; color: #3db89e"
-                        >{{ travelModeLabel(course.travelMode) }}</span
-                      >
-                      <span style="font-size: 0.75rem; color: #9ca3af"
-                        >{{ course.durationMinutes }}분</span
-                      >
-                      <span style="font-size: 0.75rem; color: #9ca3af"
-                        >· {{ course.places.length }}곳</span
-                      >
-                      <span style="font-size: 0.75rem; color: #9ca3af"
-                        >· {{ formatDate(course.createdAt) }}</span
-                      >
+                      <MapPin :size="16" color="#3db89e" />
                     </div>
-                  </div>
-                  <ChevronRight
-                    :size="16"
-                    color="#d1d5db"
-                    class="shrink-0 mt-1"
-                  />
-                </button>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        style="font-weight: 700; font-size: 0.9rem; color: #1a2e2b"
+                        class="truncate"
+                      >
+                        {{ course.subTitle }}
+                      </p>
+                      <div class="flex items-center gap-2 mt-1 flex-wrap">
+                        <span
+                          class="text-xs px-2 py-0.5 rounded-full font-semibold"
+                          style="background: #e6f7f4; color: #3db89e"
+                          >{{ travelModeLabel(course.travelMode) }}</span
+                        >
+                        <span style="font-size: 0.75rem; color: #9ca3af">{{ course.durationMinutes }}분</span>
+                        <span style="font-size: 0.75rem; color: #9ca3af">· {{ course.places.length }}곳</span>
+                        <span style="font-size: 0.75rem; color: #9ca3af">· {{ formatDate(course.createdAt) }}</span>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    @click="handleDeleteCourse(course.id)"
+                    :disabled="deletingCourseId === course.id"
+                    class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-red-50 disabled:opacity-40"
+                  >
+                    <Trash2 :size="14" color="#e07070" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -983,27 +1000,19 @@ function formatDate(dateStr: string): string {
                 스탬프 지도
               </h2>
               <div
-                v-if="stampStore.photos.length === 0"
-                class="flex flex-col items-center justify-center h-[200px] rounded-2xl"
-                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
-              >
-                <span class="text-4xl mb-3">🗺️</span>
-                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
-                  인증한 장소가 지도에 표시돼요
-                </p>
-                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
-                  스탬프 투어에서 장소를 방문해보세요!
-                </p>
-              </div>
-              <div
-                v-else
                 class="relative w-full h-[340px] rounded-2xl overflow-hidden"
                 style="border: 1px solid rgba(178, 228, 220, 0.4)"
               >
+                <div id="postcard-stamp-map" style="width: 100%; height: 100%" />
                 <div
-                  id="postcard-stamp-map"
-                  style="width: 100%; height: 100%"
-                />
+                  v-if="stampStore.photos.length === 0"
+                  class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+                >
+                  <span class="text-3xl mb-2">📍</span>
+                  <p style="font-size: 0.82rem; font-weight: 600; color: #6b8c87; background: rgba(255,255,255,0.85); padding: 6px 14px; border-radius: 20px">
+                    스탬프를 찍으면 지도에 표시돼요
+                  </p>
+                </div>
               </div>
             </div>
 

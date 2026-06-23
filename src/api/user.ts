@@ -5,8 +5,6 @@ import type {
   MapPin,
   UserPhoto,
 } from "@/types/user";
-import type { Place } from "@/types/place";
-import type { BookmarkPlace } from "@/api/bookmarks";
 import { httpGet, httpPut } from "./http";
 import { mockCharacters, mockMapPins, mockUserPhotos } from "@/mocks/user";
 
@@ -17,21 +15,9 @@ export async function fetchUser(): Promise<User> {
 
 export async function fetchUserActivity(): Promise<{
   myCourses: MyCourse[];
-  likedPlaces: Place[];
 }> {
-  const [coursesRes, bookmarksRes] = await Promise.all([
-    httpGet<MyCourse[]>("/api/courses/my"),
-    httpGet<BookmarkPlace[]>("/api/bookmarks"),
-  ]);
-  const likedPlaces: Place[] = bookmarksRes.data.map((b) => ({
-    id: b.placeId,
-    name: b.name,
-    category: b.category,
-    address: b.address,
-    image: b.imageUrl,
-    isOpen: false,
-  }));
-  return { myCourses: coursesRes.data, likedPlaces };
+  const res = await httpGet<MyCourse[]>("/api/courses/my");
+  return { myCourses: res.data ?? [] };
 }
 
 export async function fetchCharacters(): Promise<Character[]> {
