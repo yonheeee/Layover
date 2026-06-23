@@ -1,6 +1,6 @@
 import type { DiPlace, CourseStop } from '@/types/course'
 import type { CourseGenerateRequest, CourseResponse } from '@/types/course'
-import { http, httpGet } from './http'
+import { http, httpGet, httpPost } from './http'
 
 export async function fetchDiPlaces(): Promise<DiPlace[]> {
   const res = await http.get<DiPlace[]>('/api/places/map-search')

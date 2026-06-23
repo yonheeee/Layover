@@ -6,6 +6,7 @@ import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
 import { fetchDiPlaces } from '@/api/courses'
 import { saveStamp } from '@/api/stamps'
+import { dreamCharacters, type DreamCharacter } from '@/data/dreamCharacters'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -38,11 +39,11 @@ function emojiFor(category: string) {
 }
 function guideTextFor(category: string) {
   switch (category) {
-    case 'FOOD':    return '식당 간판 앞에서 정면으로 찍어보세요!'
-    case 'CAFE':    return '카페 입구 앞에서 찍어보세요!'
-    case 'NATURE':  return '자연 경관을 배경으로 찍어보세요!'
-    case 'CULTURE': return '문화시설 앞에서 찍어보세요!'
-    default:        return '장소 앞에서 찍어보세요!'
+    case 'FOOD':    return '식당 간판이 잘 보이도록 앞에서 찍어주세요!'
+    case 'CAFE':    return '카페 입구나 간판이 보이도록 찍어주세요!'
+    case 'NATURE':  return '자연 명소를 배경으로 함께 찍어주세요!'
+    case 'CULTURE': return '관광지 입구나 대표 조형물이 보이도록 찍어주세요!'
+    default:        return '방문 장소가 잘 보이도록 앞에서 찍어주세요!'
   }
 }
 
@@ -52,8 +53,25 @@ const errorMsg = ref('')
 const guideCountdown = ref(2)
 const resultImageUrl = ref('')
 const stampAnimIdx = ref<number | null>(null)
-const newCharacterPopup = ref<{ name: string; imageUrl: string; requiredStamps: number } | null>(null)
+type StampRewardCharacter = DreamCharacter & { requiredStamps: number }
+const newCharacterPopup = ref<StampRewardCharacter | null>(null)
 const isSavingStamp = ref(false)
+const allowDevStampVerification = import.meta.env.DEV
+const collectibleDreamCharacters = dreamCharacters.filter((character) => character.id !== 'dream-family')
+
+function rewardCharacterForStampIndex(index: number): StampRewardCharacter {
+  const character = collectibleDreamCharacters[index % collectibleDreamCharacters.length]
+  return {
+    ...character,
+    requiredStamps: index + 1,
+  }
+}
+
+const currentRewardCharacter = computed(() =>
+  currentPlaceIdx.value !== null
+    ? rewardCharacterForStampIndex(currentPlaceIdx.value)
+    : rewardCharacterForStampIndex(Math.max(completedCount.value, 0)),
+)
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -64,6 +82,25 @@ let guideTimer: ReturnType<typeof setInterval> | null = null
 let mapObject: any = null
 let overlays: any[] = []
 let polylineObject: any = null
+let mapResizeObserver: ResizeObserver | null = null
+
+function relayoutKakaoMap() {
+  mapObject?.relayout()
+}
+
+function relayoutKakaoMapSoon() {
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      relayoutKakaoMap()
+      renderStampMap()
+    })
+  })
+}
+
+function returnToTimeline() {
+  currentStep.value = 'timeline'
+  relayoutKakaoMapSoon()
+}
 
 function initKakaoMap() {
   const container = document.getElementById('stamp-tour-map')
@@ -74,6 +111,50 @@ function initKakaoMap() {
   const center = new kakao.maps.LatLng(36.3619, 127.4100)
   mapObject = new kakao.maps.Map(container, { center, level: 8 })
   renderStampMap()
+
+  mapResizeObserver?.disconnect()
+  mapResizeObserver = new ResizeObserver(relayoutKakaoMap)
+  mapResizeObserver.observe(container)
+  requestAnimationFrame(relayoutKakaoMap)
+  window.addEventListener('resize', relayoutKakaoMap)
+}
+
+function makeWavyPath(kakao: any, points: any[]) {
+  if (points.length < 2) return points
+
+  const path: any[] = []
+  const waveCount = 2
+  const samplesPerWave = 18
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const start = points[i]
+    const end = points[i + 1]
+    const startLat = start.getLat()
+    const startLng = start.getLng()
+    const endLat = end.getLat()
+    const endLng = end.getLng()
+    const dLat = endLat - startLat
+    const dLng = endLng - startLng
+    const distance = Math.sqrt(dLat * dLat + dLng * dLng)
+    const amplitude = Math.min(distance * 0.045, 0.0018)
+    const normalLat = distance ? -dLng / distance : 0
+    const normalLng = distance ? dLat / distance : 0
+    const totalSamples = waveCount * samplesPerWave
+
+    for (let step = 0; step <= totalSamples; step++) {
+      if (i > 0 && step === 0) continue
+      const t = step / totalSamples
+      const offset = Math.sin(t * Math.PI * 2 * waveCount) * amplitude
+      path.push(
+        new kakao.maps.LatLng(
+          startLat + dLat * t + normalLat * offset,
+          startLng + dLng * t + normalLng * offset,
+        ),
+      )
+    }
+  }
+
+  return path
 }
 
 function renderStampMap() {
@@ -129,22 +210,41 @@ function renderStampMap() {
             opacity:0.75;
           ">${num}</div>`
 
+    const markerButton = document.createElement('button')
+    markerButton.type = 'button'
+    markerButton.innerHTML = content
+    markerButton.style.cssText = 'display:block;padding:0;border:0;background:transparent;'
+
+    if (!place.visited) {
+      markerButton.style.cursor = 'pointer'
+      markerButton.title = `${place.name} 인증하기`
+      markerButton.setAttribute('aria-label', `${place.name} 인증하기`)
+      markerButton.addEventListener('click', (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        startVerify(idx)
+      })
+    } else {
+      markerButton.disabled = true
+      markerButton.title = `${place.name} 인증 완료`
+    }
+
     const overlay = new kakao.maps.CustomOverlay({
       position: pos,
-      content,
+      content: markerButton,
       yAnchor: isNext ? 1 : 0.5,
     })
     overlay.setMap(mapObject)
     overlays.push(overlay)
   })
 
-  // 루트 폴리라인
+  // 구불구불 점선 루트
   polylineObject = new kakao.maps.Polyline({
-    path: linePath,
-    strokeWeight: 3,
+    path: makeWavyPath(kakao, linePath),
+    strokeWeight: 5,
     strokeColor: '#3db89e',
-    strokeOpacity: 0.8,
-    strokeStyle: 'dot',
+    strokeOpacity: 1,
+    strokeStyle: 'shortdot',
   })
   polylineObject.setMap(mapObject)
 
@@ -190,7 +290,7 @@ onMounted(async () => {
       ;(window as any).kakao.maps.load(() => initKakaoMap())
     }
   } else {
-    initKakaoMap()
+    ;(window as any).kakao.maps.load(() => initKakaoMap())
   }
 })
 
@@ -198,6 +298,13 @@ watch(
   () => places.value.map((p) => p.visited),
   () => nextTick(() => renderStampMap()),
   { deep: true },
+)
+
+watch(
+  () => currentStep.value,
+  (step) => {
+    if (step === 'timeline') relayoutKakaoMapSoon()
+  },
 )
 
 // ── Haversine ─────────────────────────────────────────────
@@ -221,16 +328,20 @@ function startVerify(idx: number) {
     ({ coords }) => {
       const place = places.value[idx]
       const dist = haversine(coords.latitude, coords.longitude, place.lat, place.lng)
-      if (dist <= 100) {
+      if (dist <= 100 || allowDevStampVerification) {
         showGuide()
       } else {
         errorMsg.value = `거리가 너무 멉니다. (현재 약 ${Math.round(dist)}m 떨어져 있어요)`
-        currentStep.value = 'timeline'
+        returnToTimeline()
       }
     },
     () => {
+      if (allowDevStampVerification) {
+        showGuide()
+        return
+      }
       errorMsg.value = '위치를 가져올 수 없어요. 위치 권한을 확인해주세요.'
-      currentStep.value = 'timeline'
+      returnToTimeline()
     },
     { enableHighAccuracy: true, timeout: 10000 },
   )
@@ -270,36 +381,39 @@ async function openCamera() {
     }
   } catch {
     errorMsg.value = '카메라를 열 수 없어요. 카메라 권한을 확인해주세요.'
-    currentStep.value = 'timeline'
+    returnToTimeline()
   }
 }
 
 // ── Step 4: Canvas 합성 ───────────────────────────────────
-function capturePhoto() {
+async function capturePhoto() {
   if (!videoRef.value || !canvasRef.value || currentPlaceIdx.value === null) return
   const video = videoRef.value
   const canvas = canvasRef.value
   const ctx = canvas.getContext('2d')!
   const place = places.value[currentPlaceIdx.value]
+  const character = currentRewardCharacter.value
 
   canvas.width = video.videoWidth || 640
   canvas.height = video.videoHeight || 480
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
-  const size = Math.round(canvas.width * 0.14)
-  const px = canvas.width - size * 0.3
-  const py = canvas.height - size * 0.3
+  const size = Math.round(canvas.width * 0.18)
+  const padding = Math.round(size * 0.18)
+  const badgeX = canvas.width - size - padding
+  const badgeY = canvas.height - size - padding
   ctx.save()
-  ctx.globalAlpha = 0.75
-  ctx.beginPath()
-  ctx.arc(px - size * 0.5, py - size * 0.5, size * 0.65, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(255,255,255,0.6)'
-  ctx.fill()
+  try {
+    const characterImage = await loadCanvasImage(character.imageUrl)
+    ctx.drawImage(characterImage, badgeX, badgeY, size, size)
+  } catch {
+    ctx.font = `${Math.round(size * 0.42)}px serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle = '#3db89e'
+    ctx.fillText('꿈', badgeX + size / 2, badgeY + size / 2)
+  }
   ctx.restore()
-  ctx.font = `${size}px serif`
-  ctx.textAlign = 'right'
-  ctx.textBaseline = 'bottom'
-  ctx.fillText('🌟', px, py)
 
   const bandH = Math.round(canvas.height * 0.07)
   ctx.save()
@@ -311,7 +425,7 @@ function capturePhoto() {
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(`✓ ${place.name} 꿈돌이 인증`, canvas.width / 2, bandH / 2)
+  ctx.fillText(`✓ ${place.name} ${character.name} 인증`, canvas.width / 2, bandH / 2)
 
   resultImageUrl.value = canvas.toDataURL('image/jpeg', 0.92)
   stopCamera()
@@ -323,11 +437,21 @@ function stopCamera() {
   stream = null
 }
 
+function loadCanvasImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = reject
+    image.src = src
+  })
+}
+
 // ── Step 5: 완료 → 타임라인 ──────────────────────────────
 async function confirmResult() {
   if (currentPlaceIdx.value === null) return
   const idx = currentPlaceIdx.value
   const place = places.value[idx]
+  const rewardCharacter = rewardCharacterForStampIndex(idx)
 
   // 로컬 저장
   stampStore.addPhoto({
@@ -335,6 +459,12 @@ async function confirmResult() {
     url: resultImageUrl.value,
     placeName: place.name,
     placeEmoji: place.guideEmoji,
+    characterId: rewardCharacter.id,
+    characterName: rewardCharacter.name,
+    characterRole: rewardCharacter.role,
+    characterDescription: rewardCharacter.description,
+    characterImageUrl: rewardCharacter.imageUrl,
+    characterImageAlt: rewardCharacter.imageAlt,
     takenAt: new Date().toISOString(),
     lat: place.lat,
     lng: place.lng,
@@ -342,8 +472,9 @@ async function confirmResult() {
 
   // UI 전환 먼저 (API 응답 기다리지 않음)
   stampAnimIdx.value = idx
-  currentStep.value = 'timeline'
+  returnToTimeline()
   currentPlaceIdx.value = null
+  newCharacterPopup.value = rewardCharacter
   setTimeout(() => {
     places.value[idx].visited = true
     setTimeout(() => (stampAnimIdx.value = null), 800)
@@ -354,7 +485,7 @@ async function confirmResult() {
   try {
     const res = await saveStamp(place.id)
     if (res.newCharacter) {
-      newCharacterPopup.value = res.newCharacter
+      newCharacterPopup.value = rewardCharacter
     }
   } catch (err: any) {
     const status = err?.response?.status
@@ -373,7 +504,7 @@ function goBack() {
   stopCamera()
   if (guideTimer) clearInterval(guideTimer)
   if (currentStep.value === 'timeline') router.back()
-  else currentStep.value = 'timeline'
+  else returnToTimeline()
 }
 
 const nextPlaceIdx = computed(() => places.value.findIndex((p) => !p.visited))
@@ -388,17 +519,15 @@ const levels = [
   { level: 2, name: '대전 나그네', emoji: '👟', minStamps: 1 },
   { level: 3, name: '대전 탐험가', emoji: '🗺️', minStamps: 2 },
   { level: 4, name: '대전 마스터', emoji: '🏆', minStamps: 3 },
-  { level: 5, name: '꿈돌이 왕',   emoji: '👑', minStamps: 4 },
+  { level: 5, name: '꿈씨 컬렉터', emoji: '👑', minStamps: 4 },
 ]
 
-const nextCharacters = [
-  { requiredStamps: 1,  name: '꿈돌이 베이직', emoji: '🌟' },
-  { requiredStamps: 3,  name: '꿈돌이 탐험가', emoji: '🗺️' },
-  { requiredStamps: 5,  name: '꿈돌이 미식가', emoji: '🍞' },
-  { requiredStamps: 8,  name: '꿈돌이 문화인', emoji: '🎭' },
-  { requiredStamps: 10, name: '꿈돌이 자연인', emoji: '🌿' },
-  { requiredStamps: 20, name: '꿈돌이 대전왕', emoji: '👑' },
-]
+const nextCharacters = computed(() =>
+  collectibleDreamCharacters.map((character, index) => ({
+    ...character,
+    requiredStamps: index + 1,
+  })),
+)
 
 const currentLevel = computed(() => {
   for (let i = levels.length - 1; i >= 0; i--) {
@@ -419,12 +548,14 @@ const xpProgress = computed(() => {
 })
 
 const nextCharacter = computed(() =>
-  nextCharacters.find((c) => c.requiredStamps > completedCount.value) ?? null,
+  nextCharacters.value.find((c) => c.requiredStamps > completedCount.value) ?? null,
 )
 
 onUnmounted(() => {
   stopCamera()
   if (guideTimer) clearInterval(guideTimer)
+  mapResizeObserver?.disconnect()
+  window.removeEventListener('resize', relayoutKakaoMap)
   overlays.forEach((o) => o.setMap(null))
   if (polylineObject) polylineObject.setMap(null)
 })
@@ -462,110 +593,56 @@ onUnmounted(() => {
     <template v-else>
 
     <!-- ── 타임라인 뷰 ─────────────────────────────────────── -->
-    <div v-if="currentStep === 'timeline'" class="flex flex-col" style="min-height:calc(100vh - 64px)">
+    <div v-show="currentStep === 'timeline' || currentStep === 'verifying'" class="flex flex-col overflow-hidden"
+      style="height:calc(100dvh - 64px);min-height:560px">
 
-      <!-- ░░ 게이미피케이션 히어로 ░░ -->
-      <div class="relative overflow-hidden px-5 pt-5 pb-6"
+      <!-- ░░ 게이미피케이션 히어로 (컴팩트) ░░ -->
+      <div class="relative overflow-hidden px-4 pt-2.5 pb-2.5 flex-shrink-0"
         style="background:linear-gradient(145deg,#1a2e2b 0%,#163028 60%,#0e2320 100%)">
-        <div class="absolute pointer-events-none rounded-full"
-          style="right:-40px;top:-40px;width:200px;height:200px;background:rgba(61,184,158,0.12)" />
-        <div class="absolute pointer-events-none rounded-full"
-          style="left:-20px;bottom:-30px;width:140px;height:140px;background:rgba(178,228,220,0.07)" />
 
-        <button @click="goBack" class="flex items-center gap-1.5 mb-5 transition-opacity hover:opacity-70"
-          style="color:rgba(178,228,220,0.7);font-size:0.82rem;font-weight:600">
-          <ArrowLeft :size="15" /> 뒤로
-        </button>
-
-        <div class="flex items-center justify-between relative z-10">
-          <div>
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-2"
-              style="background:rgba(61,184,158,0.2);border:1px solid rgba(61,184,158,0.35)">
-              <span style="font-size:0.68rem;font-weight:800;color:#3db89e">LV.{{ currentLevel.level }}</span>
-              <span style="font-size:0.68rem;color:rgba(178,228,220,0.5)">•</span>
-              <span style="font-size:0.7rem;font-weight:700;color:#B2E4DC">{{ currentLevel.name }}</span>
-            </div>
-            <h1 style="font-weight:800;font-size:1.35rem;color:#fff;line-height:1.25;margin-bottom:4px">
-              꿈돌이<br />스탬프 투어
-            </h1>
-            <p style="font-size:0.78rem;color:rgba(178,228,220,0.65)">장소 인증으로 꿈돌이를 모아보세요</p>
+        <!-- 1행: 뒤로 + 레벨 + 타이틀 + 스탯 칩 + 이모지 -->
+        <div class="flex items-center gap-2 relative z-10">
+          <button @click="goBack" class="flex items-center transition-opacity hover:opacity-70 flex-shrink-0"
+            style="color:rgba(178,228,220,0.7)">
+            <ArrowLeft :size="14" />
+          </button>
+          <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full flex-shrink-0"
+            style="background:rgba(61,184,158,0.2);border:1px solid rgba(61,184,158,0.35)">
+            <span style="font-size:0.6rem;font-weight:800;color:#3db89e">LV.{{ currentLevel.level }}</span>
+            <span style="font-size:0.6rem;color:rgba(178,228,220,0.5)">•</span>
+            <span style="font-size:0.6rem;font-weight:700;color:#B2E4DC">{{ currentLevel.name }}</span>
           </div>
-          <div class="relative flex-shrink-0">
-            <div class="w-20 h-20 rounded-3xl flex items-center justify-center text-5xl"
-              style="background:rgba(255,255,255,0.07);border:1.5px solid rgba(178,228,220,0.2);box-shadow:0 8px 24px rgba(0,0,0,0.3)">
+          <span style="font-weight:800;font-size:0.92rem;color:#fff">꿈돌이 스탬프 투어</span>
+          <div class="ml-auto flex items-center gap-1.5 flex-shrink-0">
+            <span class="px-2 py-0.5 rounded-full font-bold"
+              style="font-size:0.65rem;background:rgba(61,184,158,0.2);color:#3db89e">🌟 {{ completedCount }}</span>
+            <span class="px-2 py-0.5 rounded-full font-bold"
+              style="font-size:0.65rem;background:rgba(255,255,255,0.08);color:#B2E4DC">📍 {{ completedCount }}/{{ places.length }}</span>
+            <span v-if="nextCharacter" class="px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1"
+              style="font-size:0.65rem;background:rgba(255,255,255,0.08);color:#B2E4DC">
+              <img :src="nextCharacter.imageUrl" :alt="nextCharacter.imageAlt"
+                class="w-4 h-4 object-contain" />
+              {{ nextCharacter.requiredStamps - completedCount }}개
+            </span>
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+              style="background:rgba(255,255,255,0.07);border:1px solid rgba(178,228,220,0.2)">
               {{ currentLevel.emoji }}
-            </div>
-            <div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-              style="background:linear-gradient(135deg,#B2E4DC,#3db89e);border:2px solid #1a2e2b">
-              {{ completedCount }}
             </div>
           </div>
         </div>
 
-        <!-- XP 바 -->
-        <div class="mt-5 relative z-10">
-          <div class="flex justify-between mb-1.5">
-            <span style="font-size:0.72rem;font-weight:600;color:rgba(178,228,220,0.7)">
-              {{ nextLevel ? `다음 레벨까지 (${nextLevel.name})` : '최고 레벨 달성! 🎉' }}
-            </span>
-            <span style="font-size:0.72rem;font-weight:700;color:#3db89e">{{ xpProgress }}%</span>
-          </div>
-          <div class="w-full h-2 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.1)">
+        <!-- 2행: XP 바 -->
+        <div class="mt-1.5 relative z-10">
+          <div class="w-full h-1.5 rounded-full overflow-hidden" style="background:rgba(255,255,255,0.1)">
             <div class="h-full rounded-full transition-all duration-700"
               :style="`width:${xpProgress}%;background:linear-gradient(90deg,#3db89e,#B2E4DC)`" />
           </div>
         </div>
-
-        <!-- 스탯 카드 -->
-        <div class="grid grid-cols-3 gap-2 mt-4 relative z-10">
-          <div class="rounded-2xl p-3 text-center"
-            style="background:rgba(255,255,255,0.06);border:1px solid rgba(178,228,220,0.12)">
-            <div class="text-xl mb-0.5">🌟</div>
-            <div style="font-weight:800;font-size:1.1rem;color:#fff">{{ completedCount }}</div>
-            <div style="font-size:0.65rem;color:rgba(178,228,220,0.6)">획득 스탬프</div>
-          </div>
-          <div class="rounded-2xl p-3 text-center"
-            style="background:rgba(255,255,255,0.06);border:1px solid rgba(178,228,220,0.12)">
-            <div class="text-xl mb-0.5">📍</div>
-            <div style="font-weight:800;font-size:1.1rem;color:#fff">{{ completedCount }}/{{ places.length }}</div>
-            <div style="font-size:0.65rem;color:rgba(178,228,220,0.6)">방문 장소</div>
-          </div>
-          <div class="rounded-2xl p-3 text-center"
-            style="background:rgba(255,255,255,0.06);border:1px solid rgba(178,228,220,0.12)">
-            <div class="text-xl mb-0.5">{{ nextCharacter?.emoji ?? '🎉' }}</div>
-            <div style="font-weight:800;font-size:1.1rem;color:#fff">
-              {{ nextCharacter ? nextCharacter.requiredStamps - completedCount : 0 }}
-            </div>
-            <div style="font-size:0.65rem;color:rgba(178,228,220,0.6)">다음 캐릭터</div>
-          </div>
-        </div>
-
-        <!-- 다음 캐릭터 프리뷰 -->
-        <div v-if="nextCharacter" class="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-2xl relative z-10"
-          style="background:rgba(61,184,158,0.12);border:1px solid rgba(61,184,158,0.25)">
-          <div class="w-8 h-8 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-            style="background:rgba(255,255,255,0.08)">{{ nextCharacter.emoji }}</div>
-          <div class="flex-1 min-w-0">
-            <p style="font-size:0.72rem;color:rgba(178,228,220,0.65);margin-bottom:1px">다음 획득 캐릭터</p>
-            <p style="font-size:0.82rem;font-weight:700;color:#fff">{{ nextCharacter.name }}</p>
-          </div>
-          <div class="text-right flex-shrink-0">
-            <p style="font-size:0.68rem;color:rgba(178,228,220,0.55)">스탬프</p>
-            <p style="font-size:0.88rem;font-weight:800;color:#3db89e">
-              {{ nextCharacter.requiredStamps - completedCount }}개 남음
-            </p>
-          </div>
-        </div>
-        <div v-else class="mt-3 flex items-center gap-2 px-3 py-2.5 rounded-2xl relative z-10"
-          style="background:rgba(61,184,158,0.15);border:1px solid rgba(61,184,158,0.3)">
-          <span class="text-lg">🎊</span>
-          <p style="font-size:0.82rem;font-weight:700;color:#B2E4DC">모든 꿈돌이를 획득했어요!</p>
-        </div>
       </div>
 
       <!-- ░░ 지도 + 스탬프 오버레이 ░░ -->
-      <div class="relative flex-1" style="min-height:320px;background:#e5e9f0">
-        <div id="stamp-tour-map" style="width:100%;height:100%" />
+      <div class="relative flex-1 min-h-0" style="background:#e5e9f0">
+        <div id="stamp-tour-map" style="position:absolute;inset:0;width:100%;height:100%" />
 
         <!-- ── 스탬프 목록 패널 (지도 위 왼쪽) ── -->
         <div class="absolute top-3 left-3 z-10 flex flex-col overflow-y-auto"
@@ -746,7 +823,6 @@ onUnmounted(() => {
             <div class="absolute inset-0 flex items-center justify-center">
               <div class="w-0.5 h-6 bg-white opacity-40" />
             </div>
-            <div class="absolute bottom-28 right-5 text-3xl opacity-50">🌟</div>
           </div>
 
           <div class="absolute top-4 left-0 right-0 text-center pointer-events-none">
@@ -776,14 +852,15 @@ onUnmounted(() => {
           <div class="absolute top-6 left-0 right-0 flex justify-center">
             <div class="flex items-center gap-2 px-5 py-2.5 rounded-full"
               style="background:rgba(61,184,158,0.92);backdrop-filter:blur(8px)">
-              <span class="text-lg">🌟</span>
+              <img :src="currentRewardCharacter.imageUrl" :alt="currentRewardCharacter.imageAlt"
+                class="w-7 h-7 object-contain" />
               <span class="font-bold text-sm text-white">인증 완료!</span>
             </div>
           </div>
         </div>
         <div class="px-6 py-8" style="background:#1a2e2b">
           <p class="text-center text-sm mb-4" style="color:#B2E4DC">
-            꿈돌이와 함께한 <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 인증 사진이에요!
+            {{ currentRewardCharacter.name }}와 함께한 <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 인증 사진이에요!
           </p>
           <button @click="confirmResult"
             class="w-full py-4 rounded-2xl font-bold text-white text-base transition-all active:scale-95"
@@ -804,11 +881,18 @@ onUnmounted(() => {
         @click.self="newCharacterPopup = null">
         <div class="rounded-3xl p-8 text-center shadow-2xl mx-6"
           style="background:#fff;max-width:320px;width:100%">
-          <div class="text-5xl mb-3">🎉</div>
+          <img :src="newCharacterPopup.imageUrl" :alt="newCharacterPopup.imageAlt"
+            class="w-28 h-28 mx-auto mb-3 object-contain" />
           <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">새 캐릭터 획득!</p>
           <h3 style="font-size:1.2rem;font-weight:800;color:#1a2e2b;margin-bottom:8px">
             {{ newCharacterPopup.name }}
           </h3>
+          <p style="font-size:0.76rem;color:#6b8c87;font-weight:700;margin-bottom:8px">
+            {{ newCharacterPopup.role }}
+          </p>
+          <p style="font-size:0.82rem;color:#9ca3af;line-height:1.55;margin-bottom:16px">
+            {{ newCharacterPopup.description }}
+          </p>
           <p style="font-size:0.82rem;color:#9ca3af;margin-bottom:24px">
             스탬프 {{ newCharacterPopup.requiredStamps }}개 달성으로 획득했어요!
           </p>

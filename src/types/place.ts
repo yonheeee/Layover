@@ -21,6 +21,8 @@ export interface Place {
   duration?: string
   hours?: string
   address?: string
+  lat?: number
+  lng?: number
   phone?: string
   liked?: boolean
   nearbyPlaces?: NearbyPlace[]
