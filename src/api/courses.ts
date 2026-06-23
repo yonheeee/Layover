@@ -21,3 +21,7 @@ export async function saveCourse(req: CourseGenerateRequest, places: { placeId: 
   const res = await httpPost<string>('/api/courses/save', { ...req, places })
   return res.data
 }
+
+export async function deleteCourse(courseId: string): Promise<void> {
+  await http.delete(`/api/courses/${courseId}`)
+}
