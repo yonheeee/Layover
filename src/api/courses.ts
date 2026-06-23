@@ -8,7 +8,7 @@ export async function fetchDiPlaces(): Promise<DiPlace[]> {
 }
 
 export async function searchPlaces(keyword: string): Promise<Omit<CourseStop, 'stayTime' | 'isLocked'>[]> {
-  const res = await httpGet<Omit<CourseStop, 'stayTime' | 'isLocked'>[]>(`/api/places/search?keyword=${encodeURIComponent(keyword)}`)
+  const res = await http.get<Omit<CourseStop, 'stayTime' | 'isLocked'>[]>(`/api/places/search?keyword=${encodeURIComponent(keyword)}`)
   return res.data
 }
 

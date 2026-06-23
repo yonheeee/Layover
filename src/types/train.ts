@@ -1,9 +1,10 @@
 export interface Train {
-  id: string
-  name: string
-  depart: string
-  arrive: string
-  seats: number
+  trainNo: string
+  departTime: string
+  arriveTime: string
+  destination: string
+  stationName: string
+  stationCode: string
 }
 
 export interface StationOption {

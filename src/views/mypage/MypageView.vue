@@ -1,19 +1,38 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from "vue";
-import { useRouter } from "vue-router";
+import { CODE_TO_CATEGORY, getMyPosts } from "@/api/community";
+import { httpDelete, httpPut } from "@/api/http";
 import {
-  Camera,
-  User,
+  fetchCharacters,
+  fetchPostcardData,
+  fetchUser,
+  fetchUserActivity,
+} from "@/api/user";
+import PlaceCard from "@/components/common/PlaceCard.vue";
+import { useAuthStore } from "@/stores/auth";
+import { useStampStore } from "@/stores/stamp";
+import type { MyPost } from "@/types/community";
+import type { Place } from "@/types/place";
+import type {
+  Character,
+  MapPin as MapPinType,
+  MyCourse,
+  UserPhoto,
+  User as UserType,
+} from "@/types/user";
+import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
+import {
   Activity,
   Award,
+  Camera,
   ChevronLeft,
   ChevronRight,
-  MapPin,
   Eye,
   EyeOff,
-  Trash2,
   Heart,
+  MapPin,
   MessageCircle,
+  Trash2,
+  User,
 } from "lucide-vue-next";
 import type {
   User as UserType,

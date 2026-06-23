@@ -1,3 +1,4 @@
+import { useCourseStore } from "@/stores/course";
 import { createRouter, createWebHistory } from "vue-router";
 
 const router = createRouter({
@@ -18,6 +19,12 @@ const router = createRouter({
       path: "/map",
       component: () => import("@/views/map/MapView.vue"),
       meta: { requiresAuth: true },
+      beforeEnter: () => {
+        const courseStore = useCourseStore()
+        if (courseStore.generatedCourses.length === 0) {
+          return { path: '/' }
+        }
+      }
     },
     {
       path: "/courses/result",

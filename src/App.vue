@@ -1,18 +1,21 @@
 <script setup lang="ts">
+import { useBookmarkStore } from '@/stores/bookmark'
+import { useCourseStore } from '@/stores/course'
 import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
-import { useBookmarkStore } from '@/stores/bookmark'
+import AppHeader from './components/AppHeader.vue'
 
 const route = useRoute()
 const showFooter = computed(() => route.path === '/')
 
 const bookmarkStore = useBookmarkStore()
+const courseStore = useCourseStore()
 
 onMounted(() => {
   if (localStorage.getItem('accessToken')) {
     bookmarkStore.fetchBookmarks()
+    courseStore.checkConfirmedCourse()
   }
 })
 </script>
