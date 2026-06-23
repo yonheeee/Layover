@@ -6,6 +6,12 @@ export interface StampPhoto {
   url: string
   placeName: string
   placeEmoji: string
+  characterId?: string
+  characterName?: string
+  characterRole?: string
+  characterDescription?: string
+  characterImageUrl?: string
+  characterImageAlt?: string
   takenAt: string
   lat: number
   lng: number

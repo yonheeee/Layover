@@ -34,8 +34,27 @@ import {
   Trash2,
   User,
 } from "lucide-vue-next";
-import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import type {
+  User as UserType,
+  MyCourse,
+  Character,
+  MapPin as MapPinType,
+  UserPhoto,
+} from "@/types/user";
+import type { Place } from "@/types/place";
+import PlaceCard from "@/components/common/PlaceCard.vue";
+import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
+import {
+  fetchUser,
+  fetchUserActivity,
+  fetchCharacters,
+  fetchPostcardData,
+} from "@/api/user";
+import { getMyPosts, CODE_TO_CATEGORY } from "@/api/community";
+import type { MyPost } from "@/types/community";
+import { useStampStore, type StampPhoto } from "@/stores/stamp";
+import { useAuthStore } from "@/stores/auth";
+import { httpPut, httpDelete } from "@/api/http";
 
 const stampStore = useStampStore();
 const auth = useAuthStore();
@@ -267,10 +286,54 @@ const activePhotoModal = ref<string | null>(null);
 const activeMapPopup = ref<(typeof mapPins.value)[0] | null>(null);
 const activeCharacterDetail = ref<{
   name: string;
-  emoji: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  role?: string;
+  placeName?: string;
+  photoUrl?: string;
   description: string;
-  poses: string[];
 } | null>(null);
+
+type PostcardCharacter = {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  imageUrl: string;
+  imageAlt: string;
+  placeName: string;
+  photoUrl: string;
+  takenAt: string;
+};
+
+function isCharacterPhoto(photo: StampPhoto): photo is StampPhoto & {
+  characterId: string;
+  characterName: string;
+  characterImageUrl: string;
+} {
+  return Boolean(photo.characterId && photo.characterName && photo.characterImageUrl);
+}
+
+const postcardCharacters = computed<PostcardCharacter[]>(() => {
+  const byCharacter = new Map<string, PostcardCharacter>();
+
+  stampStore.photos.filter(isCharacterPhoto).forEach((photo) => {
+    if (byCharacter.has(photo.characterId)) return;
+    byCharacter.set(photo.characterId, {
+      id: photo.characterId,
+      name: photo.characterName,
+      role: photo.characterRole ?? "꿈씨패밀리",
+      description: photo.characterDescription ?? "스탬프 투어에서 함께 인증한 꿈씨패밀리 캐릭터입니다.",
+      imageUrl: photo.characterImageUrl,
+      imageAlt: photo.characterImageAlt ?? photo.characterName,
+      placeName: photo.placeName,
+      photoUrl: photo.url,
+      takenAt: photo.takenAt,
+    });
+  });
+
+  return [...byCharacter.values()];
+});
 
 const sidebarTabs = [
   { key: "activity", label: "활동", icon: Activity },
@@ -1019,35 +1082,42 @@ function formatDate(dateStr: string): string {
                 </h2>
                 <span
                   style="font-size: 0.82rem; font-weight: 700; color: #3db89e"
-                  >획득 7 / 전체 20</span
+                  >획득 {{ postcardCharacters.length }}명</span
                 >
               </div>
-              <div class="grid grid-cols-3 gap-3">
+              <div
+                v-if="postcardCharacters.length === 0"
+                class="flex flex-col items-center justify-center py-12 rounded-2xl"
+                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
+              >
+                <span class="text-4xl mb-3">🌟</span>
+                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
+                  아직 함께 찍은 꿈씨패밀리가 없어요
+                </p>
+                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
+                  스탬프 투어에서 사진을 인증하면 여기에 모여요!
+                </p>
+              </div>
+              <div v-else class="grid grid-cols-3 gap-3">
                 <div
-                  v-for="char in characters"
+                  v-for="char in postcardCharacters"
                   :key="char.id"
-                  @click="char.unlocked && (activeCharacterDetail = char)"
-                  class="p-3 rounded-xl border text-center transition-all"
-                  :class="
-                    char.unlocked
-                      ? 'bg-white border-teal-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5'
-                      : 'bg-gray-50 border-gray-200'
-                  "
+                  @click="activeCharacterDetail = char"
+                  class="p-3 rounded-xl border text-center transition-all bg-white border-teal-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5"
                 >
-                  <span
-                    class="text-2xl inline-block mb-1"
-                    :style="
-                      !char.unlocked
-                        ? 'filter: grayscale(1); opacity: 0.35;'
-                        : ''
-                    "
-                    >{{ char.emoji }}</span
-                  >
+                  <img
+                    :src="char.imageUrl"
+                    :alt="char.imageAlt"
+                    class="w-16 h-16 object-contain mx-auto mb-2"
+                  />
                   <p
-                    style="font-size: 0.7rem; font-weight: 600"
-                    :class="char.unlocked ? 'text-[#1a2e2b]' : 'text-gray-400'"
+                    class="text-[#1a2e2b] truncate"
+                    style="font-size: 0.7rem; font-weight: 700"
                   >
                     {{ char.name }}
+                  </p>
+                  <p class="truncate" style="font-size:0.62rem;color:#9ca3af;margin-top:2px">
+                    {{ char.placeName }}
                   </p>
                 </div>
               </div>
@@ -1182,13 +1252,22 @@ function formatDate(dateStr: string): string {
         <div
           class="bg-white p-6 rounded-2xl w-[340px] shadow-xl border border-teal-50 flex flex-col items-center gap-4"
         >
-          <span class="text-5xl animate-bounce mt-2">{{
-            activeCharacterDetail.emoji
-          }}</span>
+          <img
+            v-if="activeCharacterDetail.imageUrl"
+            :src="activeCharacterDetail.imageUrl"
+            :alt="activeCharacterDetail.imageAlt || activeCharacterDetail.name"
+            class="w-28 h-28 object-contain mt-2"
+          />
           <div class="text-center w-full">
             <h3 class="font-bold text-base text-[#1a2e2b] mb-1">
               {{ activeCharacterDetail.name }}
             </h3>
+            <p
+              v-if="activeCharacterDetail.role"
+              class="text-[0.72rem] text-teal-600 font-bold mb-2"
+            >
+              {{ activeCharacterDetail.role }}
+            </p>
             <p class="text-xs text-gray-500 leading-relaxed px-2 break-all">
               {{ activeCharacterDetail.description }}
             </p>
@@ -1197,15 +1276,23 @@ function formatDate(dateStr: string): string {
             class="w-full bg-teal-50/50 p-3 rounded-xl border border-teal-100/50"
           >
             <p class="text-[0.68rem] text-teal-700 font-bold mb-2 text-center">
-              획득 포즈 컬렉션
+              함께 찍은 인증 장소
             </p>
-            <div class="flex justify-center gap-4">
-              <span
-                v-for="(pose, idx) in activeCharacterDetail.poses"
-                :key="idx"
-                class="text-xl bg-white p-2 rounded-lg shadow-sm border border-gray-100"
-                >{{ pose }}</span
-              >
+            <div class="flex items-center gap-3">
+              <img
+                v-if="activeCharacterDetail.photoUrl"
+                :src="activeCharacterDetail.photoUrl"
+                alt="함께 찍은 인증 사진"
+                class="w-14 h-14 rounded-xl object-cover border border-white shadow-sm"
+              />
+              <div class="min-w-0 text-left">
+                <p class="text-xs font-bold text-[#1a2e2b] truncate">
+                  {{ activeCharacterDetail.placeName }}
+                </p>
+                <p class="text-[0.68rem] text-gray-400 mt-1">
+                  이 장소에서 함께 인증했어요.
+                </p>
+              </div>
             </div>
           </div>
           <button

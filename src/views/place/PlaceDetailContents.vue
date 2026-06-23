@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { nextTick, onUnmounted, ref, watch } from "vue";
 import {
   MapPin,
   Clock,
@@ -27,6 +27,8 @@ const EMPTY_PLACE = {
   hours: "정보 없음",
   address: "정보 없음",
   phone: "정보 없음",
+  lat: undefined as number | undefined,
+  lng: undefined as number | undefined,
   distance: "",
   image: "",
   description: "",
@@ -35,6 +37,84 @@ const EMPTY_PLACE = {
 
 const place = ref<any>({ ...EMPTY_PLACE });
 const loading = ref(false);
+const placeMapRef = ref<HTMLElement | null>(null);
+let placeMap: any = null;
+let placeMarker: any = null;
+let mapResizeObserver: ResizeObserver | null = null;
+
+function hasPlaceCoords() {
+  return Number.isFinite(place.value.lat) && Number.isFinite(place.value.lng);
+}
+
+function ensureKakaoMaps() {
+  return new Promise<any>((resolve, reject) => {
+    const win = window as any;
+    const loadMaps = () => {
+      if (!win.kakao?.maps) {
+        reject(new Error("Kakao Maps SDK is not available."));
+        return;
+      }
+      win.kakao.maps.load(() => resolve(win.kakao));
+    };
+
+    if (win.kakao?.maps) {
+      loadMaps();
+      return;
+    }
+
+    const existingScript = document.getElementById("kakao-map-script") as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener("load", loadMaps, { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Kakao Maps SDK failed to load.")), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "kakao-map-script";
+    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
+    script.onload = loadMaps;
+    script.onerror = () => reject(new Error("Kakao Maps SDK failed to load."));
+    document.head.appendChild(script);
+  });
+}
+
+async function renderPlaceMap() {
+  await nextTick();
+  if (!placeMapRef.value || !hasPlaceCoords()) return;
+
+  try {
+    const kakao = await ensureKakaoMaps();
+    const center = new kakao.maps.LatLng(place.value.lat, place.value.lng);
+
+    placeMap = new kakao.maps.Map(placeMapRef.value, {
+      center,
+      level: 4,
+    });
+
+    placeMarker?.setMap(null);
+    placeMarker = new kakao.maps.Marker({
+      position: center,
+      map: placeMap,
+      title: place.value.name,
+    });
+
+    mapResizeObserver?.disconnect();
+    mapResizeObserver = new ResizeObserver(() => {
+      placeMap?.relayout();
+      placeMap?.setCenter(center);
+    });
+    mapResizeObserver.observe(placeMapRef.value);
+
+    requestAnimationFrame(() => {
+      placeMap?.relayout();
+      placeMap?.setCenter(center);
+    });
+  } catch (e) {
+    console.error("카카오맵 로딩 실패:", e);
+  }
+}
 
 function applyPlace(data: any) {
   const normalized = {
@@ -54,6 +134,7 @@ watch(
     try {
       const data = await getPlaceById(id);
       applyPlace(data);
+      await renderPlaceMap();
     } catch (e) {
       console.error("장소 상세 로딩 실패:", e);
     } finally {
@@ -62,6 +143,11 @@ watch(
   },
   { immediate: true },
 );
+
+onUnmounted(() => {
+  mapResizeObserver?.disconnect();
+  placeMarker?.setMap(null);
+});
 
 const bookmarkStore = useBookmarkStore();
 
@@ -258,14 +344,26 @@ const categoryColor: Record<string, string> = {
             위치
           </h2>
         </div>
-        <div
-          class="flex items-center justify-center"
-          style="height: 200px; background: #f0faf8"
-        >
-          <div class="text-center">
+        <div style="height: 220px; background: #f0faf8; position: relative">
+          <div
+            v-if="hasPlaceCoords()"
+            ref="placeMapRef"
+            style="width: 100%; height: 100%"
+          />
+          <div
+            v-if="hasPlaceCoords()"
+            class="absolute left-3 right-3 bottom-3 rounded-xl px-3 py-2 flex items-center gap-2"
+            style="background: rgba(255,255,255,0.92); backdrop-filter: blur(6px); box-shadow: 0 2px 10px rgba(26,46,43,0.08)"
+          >
+            <MapPin :size="16" color="#3db89e" />
+            <p class="truncate" style="font-size: 0.78rem; color: #1a2e2b; font-weight: 600">
+              {{ place.address }}
+            </p>
+          </div>
+          <div v-else class="h-full flex flex-col items-center justify-center text-center">
             <MapPin :size="36" color="#3db89e" />
             <p style="font-size: 0.85rem; color: #6b8c87; margin-top: 8px">
-              카카오맵 연동 예정
+              위치 정보가 없습니다.
             </p>
           </div>
         </div>
