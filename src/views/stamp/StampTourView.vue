@@ -8,9 +8,16 @@ import { saveStamp } from '@/api/stamps'
 import { dreamCharacters, type DreamCharacter } from '@/data/dreamCharacters'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
+import { useBookmarkStore } from '@/stores/bookmark'
+import { useXp } from '@/composables/useXp'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
+const bookmarkStore = useBookmarkStore()
+
+const savedCoursesCount = ref(0)
+const savedPostsCount = ref(0)
+const { totalXp, currentLevel, nextLevel, xpProgress, levelUpModal } = useXp(savedCoursesCount, savedPostsCount)
 
 type Step = 'timeline' | 'verifying' | 'guide' | 'camera' | 'result'
 
@@ -257,9 +264,12 @@ onMounted(async () => {
     await courseStore.checkConfirmedCourse()
   }
 
+  bookmarkStore.fetchBookmarks().catch(() => {})
+
   if (courseStore.hasConfirmedCourse) {
     try {
       const res = await httpGet<any[]>('/api/courses/my')
+      savedCoursesCount.value = res.data?.length ?? 0
       const latestCourse = res.data[0]  // 가장 최근 코스
       if (latestCourse?.places?.length > 0) {
         places.value = latestCourse.places
@@ -525,14 +535,6 @@ const currentGuidePlace = computed(() =>
 )
 
 // ── 게이미피케이션 데이터 ─────────────────────────────────
-const levels = [
-  { level: 1, name: '대전 입문자', emoji: '🌱', minStamps: 0 },
-  { level: 2, name: '대전 나그네', emoji: '👟', minStamps: 1 },
-  { level: 3, name: '대전 탐험가', emoji: '🗺️', minStamps: 2 },
-  { level: 4, name: '대전 마스터', emoji: '🏆', minStamps: 3 },
-  { level: 5, name: '꿈씨 컬렉터', emoji: '👑', minStamps: 4 },
-]
-
 const nextCharacters = computed(() =>
   collectibleDreamCharacters.map((character, index) => ({
     ...character,
@@ -540,23 +542,6 @@ const nextCharacters = computed(() =>
   })),
 )
 
-const currentLevel = computed(() => {
-  for (let i = levels.length - 1; i >= 0; i--) {
-    if (completedCount.value >= levels[i].minStamps) return levels[i]
-  }
-  return levels[0]
-})
-
-const nextLevel = computed(() =>
-  levels.find((l) => l.minStamps > completedCount.value) ?? null,
-)
-
-const xpProgress = computed(() => {
-  if (!nextLevel.value) return 100
-  const cur = currentLevel.value.minStamps
-  const nxt = nextLevel.value.minStamps
-  return Math.round(((completedCount.value - cur) / (nxt - cur)) * 100)
-})
 
 const nextCharacter = computed(() =>
   nextCharacters.value.find((c) => c.requiredStamps > completedCount.value) ?? null,
@@ -884,6 +869,27 @@ onUnmounted(() => {
 
     </template>
 
+    <!-- ── 레벨업 축하 팝업 ────────────────────────────────── -->
+    <Teleport to="body">
+      <Transition name="levelup">
+        <div v-if="levelUpModal"
+          class="fixed inset-0 flex items-center justify-center z-[60]"
+          style="background:rgba(0,0,0,0.55)"
+          @click.self="levelUpModal = null">
+          <div class="rounded-3xl p-8 text-center shadow-2xl mx-6" style="background:#fff;max-width:300px;width:100%">
+            <div style="font-size:3.5rem;margin-bottom:10px">{{ levelUpModal.emoji }}</div>
+            <p style="font-size:0.72rem;font-weight:800;color:#3db89e;letter-spacing:0.12em">LEVEL UP!</p>
+            <h2 style="font-size:1.5rem;font-weight:900;color:#1a2e2b;margin:6px 0 2px">LV.{{ levelUpModal.level }}</h2>
+            <p style="font-size:1.05rem;font-weight:700;color:#3db89e">{{ levelUpModal.name }}</p>
+            <p style="font-size:0.8rem;color:#9ca3af;margin-top:8px">축하해요! 새 레벨을 달성했어요 🎉</p>
+            <button @click="levelUpModal = null"
+              class="mt-5 w-full py-3 rounded-2xl font-bold text-white"
+              style="background:linear-gradient(90deg,#3db89e,#2a9d8f)">확인</button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- ── 캐릭터 획득 팝업 ────────────────────────────────── -->
     <Teleport to="body">
       <div v-if="newCharacterPopup"
@@ -931,5 +937,15 @@ onUnmounted(() => {
 }
 .stamp-pop-enter-active {
   animation: stamp-pop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.levelup-enter-active { animation: levelupIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+.levelup-leave-active { animation: levelupOut 0.2s ease-in; }
+@keyframes levelupIn {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes levelupOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.85); }
 }
 </style>
