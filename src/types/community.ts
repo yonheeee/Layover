@@ -8,6 +8,7 @@ export interface Post {
   likeCount: number;
   commentCount: number;
   createdAt: string;
+  thumbnailUrl?: string;
 }
 
 export interface PostComment {

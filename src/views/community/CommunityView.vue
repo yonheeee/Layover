@@ -799,10 +799,11 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
           <div
             v-for="post in filteredPosts"
             :key="post.id"
-            class="group cursor-pointer pt-4 pb-5 transition-colors border-b flex gap-5 items-start"
+            class="group cursor-pointer pt-4 pb-5 transition-colors border-b flex gap-4 items-start"
             style="border-color: rgba(178, 228, 220, 0.25)"
             @click="router.push(`/community/${post.id}`)"
           >
+            <!-- 텍스트 영역 -->
             <div class="flex-1 min-w-0">
               <!-- 카테고리 + 통계 -->
               <div class="flex items-center gap-2 pb-2">
@@ -815,22 +816,14 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
                 <div
                   class="flex items-center gap-3 ml-auto text-[11px] text-gray-400 font-medium"
                 >
-                  <span class="flex items-center gap-1"
-                    ><Eye :size="11" /> {{ post.viewCount }}</span
-                  >
-                  <span class="flex items-center gap-1"
-                    ><Heart :size="11" /> {{ post.likeCount }}</span
-                  >
-                  <span class="flex items-center gap-1"
-                    ><MessageCircle :size="11" /> {{ post.commentCount }}</span
-                  >
+                  <span class="flex items-center gap-1"><Eye :size="11" /> {{ post.viewCount }}</span>
+                  <span class="flex items-center gap-1"><Heart :size="11" /> {{ post.likeCount }}</span>
+                  <span class="flex items-center gap-1"><MessageCircle :size="11" /> {{ post.commentCount }}</span>
                 </div>
               </div>
 
               <!-- 제목 -->
-              <p
-                class="pb-2.5 text-sm font-semibold text-gray-800 group-hover:text-teal-600 transition-colors line-clamp-2"
-              >
+              <p class="pb-2.5 text-sm font-semibold text-gray-800 group-hover:text-teal-600 transition-colors line-clamp-2">
                 {{ post.title }}
               </p>
 
@@ -838,23 +831,26 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
               <div class="flex items-center gap-2">
                 <div
                   class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 font-bold text-[9px]"
-                  style="
-                    background: linear-gradient(135deg, #b2e4dc, #3db89e);
-                    color: #fff;
-                  "
+                  style="background: linear-gradient(135deg, #b2e4dc, #3db89e); color: #fff;"
                 >
                   {{ post.username.charAt(0) }}
                 </div>
-                <span
-                  style="font-size: 0.8rem; font-weight: 600; color: #1a2e2b"
-                  >{{ post.username }}</span
-                >
-                <span
-                  class="ml-auto"
-                  style="font-size: 0.75rem; color: #9ca3af"
-                  >{{ formatDate(post.createdAt) }}</span
-                >
+                <span style="font-size: 0.8rem; font-weight: 600; color: #1a2e2b">{{ post.username }}</span>
+                <span class="ml-auto" style="font-size: 0.75rem; color: #9ca3af">{{ formatDate(post.createdAt) }}</span>
               </div>
+            </div>
+
+            <!-- 썸네일 -->
+            <div
+              v-if="post.thumbnailUrl"
+              class="flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden"
+              style="border: 1px solid rgba(178,228,220,0.3)"
+            >
+              <img
+                :src="post.thumbnailUrl"
+                class="w-full h-full object-cover"
+                alt="썸네일"
+              />
             </div>
           </div>
         </div>

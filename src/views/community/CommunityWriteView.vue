@@ -5,8 +5,10 @@ import {
   createPost,
   getPost,
   updatePost,
+  uploadPostImage,
   CATEGORY_TO_CODE,
   CODE_TO_CATEGORY,
+  getCommunityErrorMessage,
 } from "@/api/community";
 import {
   ArrowLeft,
@@ -189,15 +191,6 @@ onMounted(async () => {
 });
 
 async function handleRegister() {
-  const textContent = blocks.value
-    .filter((b) => b.type === "text" && b.value.trim())
-    .map((b) => b.value.trim())
-    .join("\n\n");
-
-  const hasAnyContent = blocks.value.some((b) =>
-    b.type === "text" ? b.value.trim() !== "" : b.value !== "",
-  );
-
   if (!selectedCategory.value) {
     alert("카테고리를 선택해주세요.");
     return;
@@ -206,41 +199,57 @@ async function handleRegister() {
     alert("제목을 입력해주세요.");
     return;
   }
-  if (!hasAnyContent) {
+  const hasContent = blocks.value.some((b) =>
+    b.type === "text" ? b.value.trim() !== "" : true,
+  );
+  if (!hasContent) {
     alert("내용을 입력해주세요.");
-    return;
-  }
-  if (!textContent) {
-    alert("텍스트 내용을 입력해주세요.");
     return;
   }
 
   isSubmitting.value = true;
   try {
+    // 이미지 블록을 서버에 먼저 업로드하고 URL로 교체
+    for (const block of blocks.value) {
+      if (block.type === "image" && (block as ImageBlock).file) {
+        const url = await uploadPostImage((block as ImageBlock).file!);
+        block.value = url;
+        (block as ImageBlock).file = null;
+      }
+    }
+
+    // 블록들을 HTML content로 조합
+    const content = blocks.value
+      .map((b) => {
+        if (b.type === "text") {
+          return b.value.trim()
+            ? `<p>${b.value.trim().replace(/\n/g, "<br>")}</p>`
+            : "";
+        } else {
+          return `<img src="${b.value}" style="max-width:100%;border-radius:8px;margin:8px 0;" />`;
+        }
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
+    if (!apiCategory) {
+      alert("카테고리를 다시 선택해주세요.");
+      return;
+    }
+
     if (isEditMode && editPostId) {
-      const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
-      await updatePost(
-        editPostId,
-        title.value.trim(),
-        textContent,
-        apiCategory,
-      );
+      await updatePost(editPostId, title.value.trim(), content, apiCategory);
       router.replace(`/community/${editPostId}`);
     } else {
-      const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
-      const newPost = await createPost(
-        apiCategory,
-        title.value.trim(),
-        textContent,
-      );
+      const newPost = await createPost(apiCategory, title.value.trim(), content);
       router.replace(newPost?.id ? `/community/${newPost.id}` : "/community");
     }
-  } catch {
-    alert(
-      isEditMode
-        ? "게시글 수정에 실패했습니다. 다시 시도해주세요."
-        : "게시글 등록에 실패했습니다. 다시 시도해주세요.",
-    );
+  } catch (error) {
+    const fallbackMessage = isEditMode
+      ? "게시글 수정에 실패했습니다. 다시 시도해주세요."
+      : "게시글 등록에 실패했습니다. 다시 시도해주세요.";
+    alert(getCommunityErrorMessage(error, fallbackMessage));
   } finally {
     isSubmitting.value = false;
   }
