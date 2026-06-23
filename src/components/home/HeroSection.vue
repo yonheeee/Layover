@@ -26,6 +26,7 @@ async function handleRecommendCourse(filters: {
   selectedFilters: string[];
   travelDate: string;
   useWeather: boolean;
+  remainingMinutes: number;
 }) {
   if (!auth.isLoggedIn) {
     alert("로그인이 필요한 서비스입니다. 로그인 페이지로 이동합니다.");
@@ -34,9 +35,9 @@ async function handleRecommendCourse(filters: {
   }
 
   const durationMinutes =
-    filters.searchMode === "stay" && filters.stayDuration
-      ? Number(filters.stayDuration) * 60
-      : 120;
+    filters.searchMode === "train"
+      ? filters.remainingMinutes
+      : Number(filters.stayDuration) * 60;
 
   isLoading.value = true;
   try {

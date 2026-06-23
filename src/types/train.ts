@@ -5,6 +5,7 @@ export interface Train {
   destination: string
   stationName: string
   stationCode: string
+  mrntNm: string
 }
 
 export interface StationOption {

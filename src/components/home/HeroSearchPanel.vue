@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { Train, ChevronRight, CloudSun, Navigation } from "lucide-vue-next";
 import type { Train as TrainType } from "@/types/train";
 import { fetchTrains } from "@/api/trains";
@@ -16,6 +16,7 @@ const emit = defineEmits<{
       travelDate: string;
       selectedFilters: string[];
       useWeather: boolean;
+      remainingMinutes: number;
     },
   ];
 }>();
@@ -42,7 +43,7 @@ const isTrainModalOpen = ref(false);
 const useWeather = ref(false);
 const searchMode = ref<"train" | "stay">("train");
 const stayDuration = ref<number | string>("");
-const travelDate = ref<string>("");
+const travelDate = ref<string>(new Date().toISOString().slice(0, 10));
 
 function selectStation(value: string) {
   selectedStation.value = value;
@@ -51,6 +52,10 @@ function selectStation(value: string) {
 }
 
 watch(travelDate, () => {
+  loadTrains();
+});
+
+onMounted(() => {
   loadTrains();
 });
 
@@ -105,7 +110,7 @@ function getSelectedTrainDetails() {
 
   return {
     station: stationLabel,
-    name: `열차 ${train.trainNo}`,
+    name: `${train.mrntNm} ${parseInt(train.trainNo)}`,
     depart: train.departTime,
     remaining,
   };
@@ -129,7 +134,22 @@ function calcRemaining(date: string, departHhmm: string): string {
   return `${h}시간 ${m}분`;
 }
 
+function calcRemainingMinutes(date: string, departHhmm: string): number {
+  if (!date || !departHhmm) return 0
+  const now = new Date()
+  const [hh, mm] = departHhmm.split(":").map(Number)
+  const depart = new Date(date)
+  depart.setHours(hh, mm, 0, 0)
+  const diffMs = depart.getTime() - now.getTime()
+  return diffMs <= 0 ? 0 : Math.floor(diffMs / 60000)
+}
+
 function handleRecommendCourse() {
+  const train = trains.value.find((t) => t.trainNo === selectedTrain.value)
+  const remaining = train
+    ? calcRemainingMinutes(travelDate.value, train.departTime)
+    : 0
+
   emit("recommend", {
     station: selectedStation.value,
     trainId: selectedTrain.value,
@@ -138,6 +158,7 @@ function handleRecommendCourse() {
     travelDate: travelDate.value,
     selectedFilters: selectedFilters.value,
     useWeather: useWeather.value,
+    remainingMinutes: remaining,
   });
 }
 </script>
@@ -460,7 +481,7 @@ function handleRecommendCourse() {
                             ? '#3db89e'
                             : '#1a2e2b',
                       }"
-                      >열차 {{ train.trainNo }}</span
+                      >{{ train.mrntNm }} {{ parseInt(train.trainNo) }}</span
                     >
                     <span>{{ train.departTime }}</span>
                     <span style="color: #6b8c87">{{ train.arriveTime }}</span>
