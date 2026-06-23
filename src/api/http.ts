@@ -30,22 +30,39 @@ function processQueue(error: unknown, token: string | null) {
   failedQueue = [];
 }
 
+function isPublicReadRequest(config?: InternalAxiosRequestConfig) {
+  const method = (config?.method ?? "get").toLowerCase();
+  const url = config?.url ?? "";
+
+  if (method !== "get") return false;
+
+  return (
+    /^\/api\/posts(?:$|\?|\/(?!my(?:$|[/?])))/.test(url) ||
+    url.startsWith("/api/notices") ||
+    url.startsWith("/api/faq") ||
+    url.startsWith("/api/places")
+  );
+}
+
 // ─── Request Interceptor: accessToken 자동 첨부 ──────────────────────────────
 http.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const accessToken = localStorage.getItem("accessToken");
-  if (accessToken && config.headers) {
+  if (accessToken && config.headers && !isPublicReadRequest(config)) {
     config.headers["Authorization"] = `Bearer ${accessToken}`;
   }
   return config;
 });
 
-// ─── Response Interceptor: 401 감지 → refresh 재시도 ─────────────────────────
+// ─── Response Interceptor: 401/403 감지 → refresh 재시도 ─────────────────────
 http.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error) => {
     const originalRequest = error.config;
+    const status = error.response?.status;
+    const shouldRefresh =
+      status === 401 || (status === 403 && !isPublicReadRequest(originalRequest));
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (shouldRefresh && !originalRequest._retry) {
       originalRequest._retry = true;
 
       const refreshToken = localStorage.getItem("refreshToken");
@@ -85,7 +102,7 @@ http.interceptors.response.use(
       }
     }
 
-    // 401 외 4xx/5xx는 그대로 throw
+    // refresh로 복구되지 않은 4xx/5xx는 그대로 throw
     return Promise.reject(error);
   },
 );

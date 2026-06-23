@@ -21,7 +21,7 @@ import {
   RefreshCw,
 } from "lucide-vue-next";
 import type { Course, CourseStop } from "@/types/course";
-import { searchPlaces, saveCourse } from "@/api/courses";
+import { regenerateCourse, searchPlaces, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
 
 const courseStore = useCourseStore();
@@ -60,30 +60,31 @@ function toggleLock(idx: number) {
   currentPlaces.value[idx].isLocked = !currentPlaces.value[idx].isLocked;
 }
 
-// 고정된 장소 유지하고 AI 재추천 시뮬레이션
+// 고정된 장소 유지하고 서버 AI 재추천
 async function handleAiRegenerate() {
+  if (!courseStore.lastRequest) {
+    alert("이전 추천 조건을 찾을 수 없습니다. 홈에서 다시 코스를 추천받아 주세요.");
+    return;
+  }
+
   isRegenerating.value = true;
 
-  // 프론트엔드 모킹: 1.2초 대기 후 자물쇠가 풀려있는(isLocked === false) 장소만 새로운 장소로 교체함
-  await new Promise((r) => setTimeout(r, 1200));
-
-  currentCourse.value.places = currentPlaces.value.map((place) => {
-    if (place.isLocked) return place; // 잠긴 장소는 그대로 유지
-
-    // 풀려있는 장소는 모킹 데이터에서 무작위로 하나 매핑 (실제로는 백엔드 AI 결과가 올 자리)
-    const randomSeed =
-      allMockSearch.value[Math.floor(Math.random() * allMockSearch.value.length)];
-    return {
-      ...randomSeed,
-      stayTime: "45분",
-      isLocked: false,
-      transport: "taxi",
-      transportTime: "8분",
-      taxiFare: "4,000원",
-    } as CourseStop;
-  });
-
-  isRegenerating.value = false;
+  try {
+    const regenerated = await regenerateCourse({
+      ...courseStore.lastRequest,
+      currentPlaces: currentPlaces.value.map((place) => ({
+        id: place.id,
+        locked: place.isLocked,
+      })),
+    });
+    courses.value[activeTab.value] = regenerated;
+    courseStore.setCourses(courses.value, courseStore.lastRequest);
+  } catch (error) {
+    console.error("AI 재추천 실패:", error);
+    alert("AI 재추천에 실패했습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    isRegenerating.value = false;
+  }
 }
 
 // 장소 편집 기능들

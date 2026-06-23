@@ -8,6 +8,13 @@ export interface CourseGenerateRequest {
 
 export type CourseResponse = Course
 
+export interface CourseRegenerateRequest extends CourseGenerateRequest {
+  currentPlaces: {
+    id: string
+    locked: boolean
+  }[]
+}
+
 export interface TransportInfo {
   walkTime: string
   busTime: string

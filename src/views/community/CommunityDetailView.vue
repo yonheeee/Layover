@@ -254,11 +254,9 @@ onMounted(async () => {
                 font-size: 0.95rem;
                 color: #374151;
                 line-height: 1.9;
-                white-space: pre-line;
               "
-            >
-              {{ post.content }}
-            </p>
+              v-html="post.content"
+            ></p>
           </div>
 
           <!-- 좋아요 -->

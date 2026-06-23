@@ -9,7 +9,58 @@ import type {
   InquiryDetail,
   MyPost,
 } from "@/types/community";
-import { httpGet, httpPost, httpPut, httpDelete } from "./http";
+import axios from "axios";
+import { http, httpGet, httpPost, httpPut, httpDelete } from "./http";
+import type { ApiResponse } from "./http";
+
+function unwrapCommunityResponse<T>(
+  res: ApiResponse<T>,
+  fallbackMessage: string,
+): T {
+  if (!res.success) {
+    throw new Error(res.message || fallbackMessage);
+  }
+  return res.data;
+}
+
+export function getCommunityErrorMessage(
+  error: unknown,
+  fallbackMessage: string,
+) {
+  if (axios.isAxiosError<ApiResponse<unknown>>(error)) {
+    const status = error.response?.status;
+    const serverMessage = error.response?.data?.message;
+    if (serverMessage) return serverMessage;
+    if (status === 401 || status === 403) {
+      return "로그인이 만료되었거나 권한이 없습니다. 다시 로그인해주세요.";
+    }
+    if (status === 413) {
+      return "이미지 용량이 너무 큽니다. 더 작은 사진으로 다시 시도해주세요.";
+    }
+    if (status && status >= 500) {
+      return "서버 처리 중 오류가 발생했습니다. 백엔드 로그를 확인해주세요.";
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallbackMessage;
+}
+
+export async function uploadPostImage(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const token = localStorage.getItem("accessToken");
+  const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
+  // http 인스턴스의 Content-Type: application/json 기본값을 피하기 위해 axios 직접 사용
+  const res = await axios.post<ApiResponse<string>>(
+    `${baseURL}/api/upload/image`,
+    formData,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  );
+  return unwrapCommunityResponse(res.data, "이미지 업로드에 실패했습니다.");
+}
 
 export const CATEGORY_TO_CODE: Record<string, string> = {
   공유해요: "SHARE",
@@ -33,12 +84,12 @@ export async function getPosts(category?: string, page = 0, size = 20) {
   });
   if (category) params.set("category", category);
   const res = await httpGet<PagedResponse<Post>>(`/api/posts?${params}`);
-  return res.data;
+  return unwrapCommunityResponse(res, "게시글 목록을 불러올 수 없습니다.");
 }
 
 export async function getPost(id: string) {
   const res = await httpGet<PostDetail>(`/api/posts/${id}`);
-  return res.data;
+  return unwrapCommunityResponse(res, "게시글을 불러올 수 없습니다.");
 }
 
 export async function createPost(
@@ -51,7 +102,7 @@ export async function createPost(
     title,
     content,
   });
-  return res.data;
+  return unwrapCommunityResponse(res, "게시글 등록에 실패했습니다.");
 }
 
 export async function updatePost(
@@ -65,11 +116,12 @@ export async function updatePost(
     content,
     category,
   });
-  return res.data;
+  return unwrapCommunityResponse(res, "게시글 수정에 실패했습니다.");
 }
 
 export async function deletePost(id: string) {
-  await httpDelete(`/api/posts/${id}`);
+  const res = await httpDelete(`/api/posts/${id}`);
+  unwrapCommunityResponse(res, "게시글 삭제에 실패했습니다.");
 }
 
 // ─── 댓글 ───
@@ -77,16 +129,18 @@ export async function createComment(postId: string, content: string) {
   const res = await httpPost<PostComment>(`/api/posts/${postId}/comments`, {
     content,
   });
-  return res.data;
+  return unwrapCommunityResponse(res, "댓글 등록에 실패했습니다.");
 }
 
 export async function deleteComment(postId: string, commentId: string) {
-  await httpDelete(`/api/posts/${postId}/comments/${commentId}`);
+  const res = await httpDelete(`/api/posts/${postId}/comments/${commentId}`);
+  unwrapCommunityResponse(res, "댓글 삭제에 실패했습니다.");
 }
 
 // ─── 좋아요 ───
 export async function toggleLike(postId: string) {
-  await httpPost(`/api/posts/${postId}/likes`);
+  const res = await httpPost(`/api/posts/${postId}/likes`);
+  return unwrapCommunityResponse(res, "좋아요 처리에 실패했습니다.");
 }
 
 export async function getLikeStatus(postId: string) {
