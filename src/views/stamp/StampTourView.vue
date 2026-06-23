@@ -1,8 +1,13 @@
 <script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { ArrowLeft, Camera, Loader2, MapPin, X } from 'lucide-vue-next'
 import { fetchDiPlaces } from '@/api/courses'
 import { httpGet } from '@/api/http'
 import { saveStamp } from '@/api/stamps'
 import { dreamCharacters, type DreamCharacter } from '@/data/dreamCharacters'
+import { useCourseStore } from '@/stores/course'
+import { useStampStore } from '@/stores/stamp'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -248,7 +253,9 @@ function renderStampMap() {
 }
 
 onMounted(async () => {
-  await courseStore.checkConfirmedCourse()
+  if (!courseStore.hasConfirmedCourse) {
+    await courseStore.checkConfirmedCourse()
+  }
 
   if (courseStore.hasConfirmedCourse) {
     try {

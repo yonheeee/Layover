@@ -46,6 +46,11 @@ function hasPlaceCoords() {
   return Number.isFinite(place.value.lat) && Number.isFinite(place.value.lng);
 }
 
+function formatHours(hours: string): string {
+  if (!hours || hours === "정보 없음") return hours;
+  return hours.replace(/(\d{4})(\d{2})(\d{2})/g, "$1.$2.$3");
+}
+
 function ensureKakaoMaps() {
   return new Promise<any>((resolve, reject) => {
     const win = window as any;
@@ -134,12 +139,12 @@ watch(
     try {
       const data = await getPlaceById(id);
       applyPlace(data);
-      await renderPlaceMap();
     } catch (e) {
       console.error("장소 상세 로딩 실패:", e);
     } finally {
       loading.value = false;
     }
+    await renderPlaceMap();
   },
   { immediate: true },
 );
@@ -179,31 +184,18 @@ const categoryColor: Record<string, string> = {
 
     <template v-else>
       <!-- 이미지 갤러리 -->
-      <div class="grid grid-cols-4 gap-2 mb-4" style="height: 200px">
-        <div
-          class="col-span-2 row-span-2 rounded-2xl overflow-hidden flex items-center justify-center"
-          style="
-            background: #f0faf8;
-            border: 1.5px solid rgba(178, 228, 220, 0.35);
-          "
-        >
-          <img
-            v-if="place.image"
-            :src="place.image"
-            class="w-full h-full object-cover"
-          />
-          <ImageIcon v-else :size="40" color="#B2E4DC" />
-        </div>
-        <div
-          v-for="i in 3"
-          :key="i"
-          class="rounded-xl overflow-hidden flex items-center justify-center"
-          style="
-            background: #f0faf8;
-            border: 1.5px solid rgba(178, 228, 220, 0.35);
-          "
-        >
-          <ImageIcon :size="20" color="#B2E4DC" />
+      <div
+        class="rounded-2xl overflow-hidden flex items-center justify-center mb-4"
+        style="height: 220px; background: #f0faf8; border: 1.5px solid rgba(178, 228, 220, 0.35);"
+      >
+        <img
+          v-if="place.image"
+          :src="place.image"
+          class="w-full h-full object-cover"
+        />
+        <div v-else class="flex flex-col items-center gap-2">
+          <ImageIcon :size="40" color="#B2E4DC" />
+          <p style="font-size: 0.82rem; color: #9ca3af; font-weight: 500">사진 준비 중입니다</p>
         </div>
       </div>
 
@@ -275,9 +267,7 @@ const categoryColor: Record<string, string> = {
         <div class="flex flex-col gap-2.5">
           <div class="flex items-center gap-3">
             <Clock :size="15" color="#B2E4DC" class="flex-shrink-0" />
-            <span style="font-size: 0.88rem; color: #374151">{{
-              place.hours
-            }}</span>
+            <span style="font-size: 0.88rem; color: #374151" v-html="formatHours(place.hours)" />
           </div>
           <div class="flex items-center gap-3">
             <MapPin :size="15" color="#B2E4DC" class="flex-shrink-0" />
