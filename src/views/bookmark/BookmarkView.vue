@@ -1,33 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Heart } from 'lucide-vue-next'
-import type { Place } from '@/types/place'
 import PlaceCard from '@/components/common/PlaceCard.vue'
-import { fetchUserActivity } from '@/api/user'
+import { useBookmarkStore } from '@/stores/bookmark'
 
 const router = useRouter()
+const bookmarkStore = useBookmarkStore()
 
-const bookmarks = ref<Place[]>([])
-const likedSpotIds = ref<string[]>([])
-
-async function loadBookmarks() {
-  const { likedPlaces } = await fetchUserActivity()
-  bookmarks.value = likedPlaces
-  likedSpotIds.value = likedPlaces.map((p) => p.id)
-}
-
-loadBookmarks()
-
-function toggleLike(id: string) {
-  const idx = likedSpotIds.value.indexOf(id)
-  if (idx >= 0) {
-    likedSpotIds.value.splice(idx, 1)
-    bookmarks.value = bookmarks.value.filter((p) => p.id !== id)
-  } else {
-    likedSpotIds.value.push(id)
-  }
-}
+onMounted(() => {
+  bookmarkStore.fetchBookmarks()
+})
 </script>
 
 <template>
@@ -51,14 +34,14 @@ function toggleLike(id: string) {
             찜 목록
           </h1>
           <p style="font-size: 0.8rem; color: #6b8c87">
-            저장한 장소 {{ bookmarks.length }}개
+            저장한 장소 {{ bookmarkStore.bookmarkedPlaces.length }}개
           </p>
         </div>
       </div>
 
       <!-- 비어있을 때 -->
       <div
-        v-if="bookmarks.length === 0"
+        v-if="bookmarkStore.bookmarkedPlaces.length === 0"
         class="flex flex-col items-center justify-center py-20 gap-4"
       >
         <div
@@ -76,7 +59,7 @@ function toggleLike(id: string) {
           </p>
         </div>
         <button
-          @click="router.push('/map')"
+          @click="router.push('/place')"
           class="px-6 py-2.5 rounded-xl font-semibold text-sm"
           style="
             background: linear-gradient(135deg, #b2e4dc, #3db89e);
@@ -84,19 +67,19 @@ function toggleLike(id: string) {
             box-shadow: 0 4px 14px rgba(61, 184, 158, 0.3);
           "
         >
-          지도에서 탐색하기
+          관광지 찾아보기
         </button>
       </div>
 
       <!-- 3열 카드 그리드 -->
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
         <PlaceCard
-          v-for="place in bookmarks"
+          v-for="place in bookmarkStore.bookmarkedPlaces"
           :key="place.id"
           :spot="place"
-          :liked="likedSpotIds.includes(place.id)"
+          :liked="bookmarkStore.isBookmarked(place.id)"
           @click="router.push(`/place/${place.id}`)"
-          @toggleLike="toggleLike"
+          @toggleLike="(id) => bookmarkStore.toggleBookmark(id)"
         />
       </div>
     </div>

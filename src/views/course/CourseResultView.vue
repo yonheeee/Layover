@@ -21,7 +21,7 @@ import {
   RefreshCw,
 } from "lucide-vue-next";
 import type { Course, CourseStop } from "@/types/course";
-import { searchPlaces } from "@/api/courses";
+import { searchPlaces, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
 
 const courseStore = useCourseStore();
@@ -124,8 +124,23 @@ async function finishEdit() {
 // 코스 확정 모달 및 토스트
 const showConfirmModal = ref(false);
 const showShareToast = ref(false);
+const isConfirming = ref(false);
 
-function confirmCourse() {
+async function confirmCourse() {
+  isConfirming.value = true;
+  try {
+    if (courseStore.lastRequest) {
+      const places = currentCourse.value.places.map((p, idx) => ({
+        placeId: p.id,
+        orderIndex: idx,
+      }));
+      await saveCourse(courseStore.lastRequest, places);
+    }
+  } catch (e) {
+    console.error("코스 저장 실패:", e);
+  } finally {
+    isConfirming.value = false;
+  }
   courseStore.setConfirmed();
   showConfirmModal.value = false;
   router.push("/stamp-tour");
@@ -524,10 +539,11 @@ function confirmCourse() {
             </a>
             <button
               @click="confirmCourse"
-              class="w-full py-3 text-white text-center font-extrabold text-xs rounded-xl shadow-md transition-all hover:opacity-95"
+              :disabled="isConfirming"
+              class="w-full py-3 text-white text-center font-extrabold text-xs rounded-xl shadow-md transition-all hover:opacity-95 disabled:opacity-60"
               style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
             >
-              시간 변경 없이 이 코스 그대로 최종 확정하기
+              {{ isConfirming ? "저장 중..." : "시간 변경 없이 이 코스 그대로 최종 확정하기" }}
             </button>
           </div>
         </div>

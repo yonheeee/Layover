@@ -244,7 +244,7 @@ async function confirmCourse() {
       }));
     await saveCourse(courseStore.lastRequest, places);
     courseStore.setConfirmed();
-    router.push('/mypage')
+    router.push('/stamp-tour')
   } catch {
     alert("저장에 실패했습니다. 로그인 상태를 확인해주세요.");
   } finally {

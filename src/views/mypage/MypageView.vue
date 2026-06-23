@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref, computed, watch, onMounted, nextTick } from "vue";
+import { useRouter } from "vue-router";
 import { CODE_TO_CATEGORY, getMyPosts } from "@/api/community";
 import { httpDelete, httpPut } from "@/api/http";
 import {
@@ -9,7 +11,8 @@ import {
 } from "@/api/user";
 import PlaceCard from "@/components/common/PlaceCard.vue";
 import { useAuthStore } from "@/stores/auth";
-import { useStampStore } from "@/stores/stamp";
+import { useBookmarkStore } from "@/stores/bookmark";
+import { useStampStore, type StampPhoto } from "@/stores/stamp";
 import type { MyPost } from "@/types/community";
 import type { Place } from "@/types/place";
 import type {
@@ -34,30 +37,10 @@ import {
   Trash2,
   User,
 } from "lucide-vue-next";
-import type {
-  User as UserType,
-  MyCourse,
-  Character,
-  MapPin as MapPinType,
-  UserPhoto,
-} from "@/types/user";
-import type { Place } from "@/types/place";
-import PlaceCard from "@/components/common/PlaceCard.vue";
-import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
-import {
-  fetchUser,
-  fetchUserActivity,
-  fetchCharacters,
-  fetchPostcardData,
-} from "@/api/user";
-import { getMyPosts, CODE_TO_CATEGORY } from "@/api/community";
-import type { MyPost } from "@/types/community";
-import { useStampStore, type StampPhoto } from "@/stores/stamp";
-import { useAuthStore } from "@/stores/auth";
-import { httpPut, httpDelete } from "@/api/http";
 
 const stampStore = useStampStore();
 const auth = useAuthStore();
+const bookmarkStore = useBookmarkStore();
 const router = useRouter();
 
 type Tab = "activity" | "info" | "postcard";
@@ -86,24 +69,27 @@ function removeProfileImage() {
 
 // ─── 데이터 로드 ───
 onMounted(async () => {
-  const [fetchedUser, activity, fetchedCharacters, postcardData, fetchedPosts] =
-    await Promise.all([
-      fetchUser(),
-      fetchUserActivity(),
-      fetchCharacters(),
-      fetchPostcardData(),
-      getMyPosts(),
-    ]);
-  user.value = fetchedUser;
-  editName.value = fetchedUser.username;
-  editPhone.value = fetchedUser.phone ?? "";
-  myCourses.value = activity.myCourses;
-  likedPlaces.value = activity.likedPlaces;
-  likedSpotIds.value = activity.likedPlaces.map((p) => p.id);
-  characters.value = fetchedCharacters;
-  mapPins.value = postcardData.mapPins;
-  userPhotos.value = postcardData.userPhotos;
-  myPosts.value = fetchedPosts;
+  try {
+    const [fetchedUser, activity, fetchedCharacters, postcardData, fetchedPosts] =
+      await Promise.all([
+        fetchUser(),
+        fetchUserActivity(),
+        fetchCharacters(),
+        fetchPostcardData(),
+        getMyPosts(),
+      ]);
+    user.value = fetchedUser;
+    editName.value = fetchedUser.username;
+    editPhone.value = fetchedUser.phone ?? "";
+    myCourses.value = activity.myCourses;
+    characters.value = fetchedCharacters;
+    mapPins.value = postcardData.mapPins;
+    userPhotos.value = postcardData.userPhotos;
+    myPosts.value = fetchedPosts;
+  } catch (e) {
+    console.error("마이페이지 데이터 로딩 실패:", e);
+  }
+  await bookmarkStore.fetchBookmarks();
 });
 
 // ─── 내 정보 탭 ───
@@ -275,8 +261,6 @@ const myCourses = ref<MyCourse[]>([]);
 const myPosts = ref<MyPost[]>([]);
 const selectedCourse = ref<MyCourse | null>(null);
 const selectedPlaceId = ref<string | null>(null);
-const likedPlaces = ref<Place[]>([]);
-const likedSpotIds = ref<string[]>([]);
 const likedScrollRef = ref<HTMLDivElement | null>(null);
 const characters = ref<Character[]>([]);
 
@@ -562,19 +546,20 @@ function formatDate(dateStr: string): string {
                 </button>
                 <div ref="likedScrollRef" class="liked-scroll-container">
                   <div class="liked-scroll-inner">
+                    <div
+                      v-if="bookmarkStore.bookmarkedPlaces.length === 0"
+                      class="flex flex-col items-center justify-center px-8 py-6 rounded-2xl"
+                      style="background: #f9fafb; border: 1.5px dashed #e5e7eb; min-width: 200px"
+                    >
+                      <p style="font-size: 0.82rem; font-weight: 600; color: #9ca3af">찜한 장소가 없어요</p>
+                    </div>
                     <PlaceCard
-                      v-for="place in likedPlaces.slice(0, 5)"
+                      v-for="place in bookmarkStore.bookmarkedPlaces.slice(0, 5)"
                       :key="place.id"
                       :spot="place"
-                      :liked="likedSpotIds.includes(place.id)"
+                      :liked="bookmarkStore.isBookmarked(place.id)"
                       @click="selectedPlaceId = place.id"
-                      @toggleLike="
-                        (id) => {
-                          const idx = likedSpotIds.indexOf(id);
-                          if (idx >= 0) likedSpotIds.splice(idx, 1);
-                          else likedSpotIds.push(id);
-                        }
-                      "
+                      @toggleLike="(id) => bookmarkStore.toggleBookmark(id)"
                     />
                   </div>
                 </div>
