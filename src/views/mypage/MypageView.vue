@@ -14,6 +14,7 @@ import { deleteCourse } from "@/api/courses";
 import { useAuthStore } from "@/stores/auth";
 import { useBookmarkStore } from "@/stores/bookmark";
 import { useStampStore, type StampPhoto } from "@/stores/stamp";
+import { useXp, XP_LEVELS } from "@/composables/useXp";
 import type { MyPost } from "@/types/community";
 import type { Place } from "@/types/place";
 import type {
@@ -37,6 +38,7 @@ import {
   MessageCircle,
   Trash2,
   User,
+  Zap,
 } from "lucide-vue-next";
 
 const stampStore = useStampStore();
@@ -44,7 +46,7 @@ const auth = useAuthStore();
 const bookmarkStore = useBookmarkStore();
 const router = useRouter();
 
-type Tab = "activity" | "info" | "postcard";
+type Tab = "activity" | "postcard" | "xp" | "info";
 const activeTab = ref<Tab>("activity");
 
 const user = ref<UserType>({
@@ -342,9 +344,19 @@ const postcardCharacters = computed<PostcardCharacter[]>(() => {
 
 const sidebarTabs = [
   { key: "activity", label: "활동", icon: Activity },
+  { key: "postcard", label: "스탬프", icon: Award },
+  { key: "xp", label: "경험치", icon: Zap },
   { key: "info", label: "기본정보", icon: User },
-  { key: "postcard", label: "엽서", icon: Award },
 ];
+
+const xpCourseCount = computed(() => myCourses.value.length);
+const xpPostCount = computed(() => myPosts.value.length);
+const { totalXp, currentLevel: currentXpLevel, nextLevel: nextXpLevel, xpProgress, levelUpModal } = useXp(xpCourseCount, xpPostCount);
+const xpLevels = XP_LEVELS;
+const XP_PER_STAMP = 100;
+const XP_PER_COURSE = 200;
+const XP_PER_POST = 50;
+const XP_PER_BOOKMARK = 10;
 
 // ─── 스타일 상수 ───
 const infoBoxBase =
@@ -689,6 +701,95 @@ function formatDate(dateStr: string): string {
             </div>
           </template>
 
+          <!-- 경험치 탭 -->
+          <template v-else-if="activeTab === 'xp'">
+            <div class="pb-6">
+              <h2 class="mb-6" style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b">경험치</h2>
+
+              <!-- 레벨 카드 -->
+              <div class="rounded-2xl p-6 mb-5 text-center"
+                style="background: linear-gradient(135deg, #1a2e2b, #2a4a45); color: #fff">
+                <div class="text-4xl mb-2">{{ currentXpLevel.emoji }}</div>
+                <p style="font-size: 0.75rem; font-weight: 700; color: #3db89e; letter-spacing: 0.08em">
+                  LV.{{ currentXpLevel.level }}
+                </p>
+                <h3 style="font-size: 1.3rem; font-weight: 800; margin: 4px 0 2px">
+                  {{ currentXpLevel.name }}
+                </h3>
+                <p style="font-size: 1.6rem; font-weight: 900; color: #B2E4DC">
+                  {{ totalXp.toLocaleString() }} XP
+                </p>
+
+                <!-- 진행 바 -->
+                <div class="mt-4">
+                  <div class="flex justify-between mb-1.5" style="font-size: 0.7rem; color: rgba(178,228,220,0.7)">
+                    <span>{{ currentXpLevel.minXp.toLocaleString() }} XP</span>
+                    <span v-if="nextXpLevel">{{ nextXpLevel.minXp.toLocaleString() }} XP</span>
+                    <span v-else>MAX</span>
+                  </div>
+                  <div class="w-full h-2.5 rounded-full" style="background: rgba(255,255,255,0.15)">
+                    <div class="h-full rounded-full transition-all duration-700"
+                      :style="`width:${xpProgress}%; background: linear-gradient(90deg, #3db89e, #B2E4DC)`" />
+                  </div>
+                  <p v-if="nextXpLevel" class="mt-1.5" style="font-size: 0.7rem; color: rgba(178,228,220,0.6)">
+                    다음 레벨까지 {{ (nextXpLevel.minXp - totalXp).toLocaleString() }} XP
+                  </p>
+                  <p v-else class="mt-1.5" style="font-size: 0.7rem; color: #3db89e; font-weight: 700">
+                    최고 레벨 달성! 🎉
+                  </p>
+                </div>
+              </div>
+
+              <!-- XP 획득 내역 -->
+              <h3 class="mb-3" style="font-size: 0.85rem; font-weight: 700; color: #6b8c87">XP 획득 내역</h3>
+              <div class="flex flex-col gap-2.5">
+                <div v-for="item in [
+                  { label: '스탬프 인증', count: stampStore.photos.length, xpEach: XP_PER_STAMP, emoji: '📍' },
+                  { label: '코스 저장', count: myCourses.length, xpEach: XP_PER_COURSE, emoji: '🗺️' },
+                  { label: '커뮤니티 글', count: myPosts.length, xpEach: XP_PER_POST, emoji: '✍️' },
+                  { label: '찜한 장소', count: bookmarkStore.bookmarkedPlaces.length, xpEach: XP_PER_BOOKMARK, emoji: '❤️' },
+                ]" :key="item.label"
+                  class="flex items-center justify-between p-3.5 rounded-xl"
+                  style="background: #f9fafb; border: 1px solid #f0f0f0"
+                >
+                  <div class="flex items-center gap-3">
+                    <span class="text-xl">{{ item.emoji }}</span>
+                    <div>
+                      <p style="font-size: 0.88rem; font-weight: 600; color: #1a2e2b">{{ item.label }}</p>
+                      <p style="font-size: 0.72rem; color: #9ca3af">{{ item.count }}개 × {{ item.xpEach }} XP</p>
+                    </div>
+                  </div>
+                  <span style="font-size: 0.95rem; font-weight: 800; color: #3db89e">
+                    +{{ (item.count * item.xpEach).toLocaleString() }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- 레벨 로드맵 -->
+              <h3 class="mt-6 mb-3" style="font-size: 0.85rem; font-weight: 700; color: #6b8c87">레벨 로드맵</h3>
+              <div class="flex flex-col gap-2">
+                <div v-for="lv in xpLevels" :key="lv.level"
+                  class="flex items-center gap-3 p-3 rounded-xl transition-all"
+                  :style="lv.level === currentXpLevel.level
+                    ? 'background: #e8f8f5; border: 1.5px solid rgba(61,184,158,0.4)'
+                    : 'background: #f9fafb; border: 1.5px solid transparent; opacity: 0.7'"
+                >
+                  <span class="text-xl">{{ lv.emoji }}</span>
+                  <div class="flex-1">
+                    <p style="font-size: 0.85rem; font-weight: 700; color: #1a2e2b">
+                      Lv.{{ lv.level }} {{ lv.name }}
+                    </p>
+                    <p style="font-size: 0.72rem; color: #9ca3af">{{ lv.minXp.toLocaleString() }} XP 이상</p>
+                  </div>
+                  <span v-if="totalXp >= lv.minXp"
+                    style="font-size: 0.7rem; font-weight: 700; color: #3db89e; background: #e8f8f5; padding: 2px 8px; border-radius: 999px">
+                    달성 ✓
+                  </span>
+                </div>
+              </div>
+            </div>
+          </template>
+
           <!-- 기본정보 탭 -->
           <template v-else-if="activeTab === 'info'">
             <div class="pb-6">
@@ -794,36 +895,19 @@ function formatDate(dateStr: string): string {
                 <!-- 전화번호 -->
                 <div class="flex flex-col gap-1.5">
                   <span :style="labelBase">전화번호</span>
-                  <!-- 전화번호 없을 때: 입력 가능 -->
-                  <div
-                    v-if="!user.phone"
-                    class="flex justify-between items-center gap-2"
-                  >
+                  <div class="flex justify-between items-center gap-2">
                     <input
                       v-model="editPhone"
-                      :style="inputBase"
-                      style="background: #ffffff; border-radius: 4px"
+                      :style="[inputBase, { background: '#ffffff', borderRadius: '4px' }]"
                       placeholder="전화번호를 입력하세요"
                     />
                     <button
                       @click="savePhone"
-                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors"
-                      :disabled="savingPhone"
+                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      :disabled="savingPhone || editPhone === (user.phone ?? '')"
                     >
                       {{ savingPhone ? "저장중" : "변경" }}
                     </button>
-                  </div>
-                  <!-- 전화번호 있을 때: 수정 불가 -->
-                  <div
-                    v-else
-                    :style="infoBoxBase"
-                    style="
-                      background: #f3f4f6;
-                      color: #9ca3af;
-                      cursor: not-allowed;
-                    "
-                  >
-                    <span>{{ user.phone }}</span>
                   </div>
                 </div>
               </div>
@@ -1153,6 +1237,28 @@ function formatDate(dateStr: string): string {
           </div>
         </div>
       </div>
+      <!-- 레벨업 축하 모달 -->
+      <Transition name="levelup">
+        <div
+          v-if="levelUpModal"
+          class="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
+          @click.self="levelUpModal = null"
+        >
+          <div class="bg-white rounded-3xl p-8 w-[300px] text-center shadow-2xl">
+            <div class="text-6xl mb-3">{{ levelUpModal.emoji }}</div>
+            <p style="font-size: 0.75rem; font-weight: 700; color: #3db89e; letter-spacing: 0.1em">LEVEL UP!</p>
+            <h2 style="font-size: 1.5rem; font-weight: 900; color: #1a2e2b; margin: 8px 0 4px">LV.{{ levelUpModal.level }}</h2>
+            <p style="font-size: 1.1rem; font-weight: 700; color: #3db89e">{{ levelUpModal.name }}</p>
+            <p style="font-size: 0.82rem; color: #9ca3af; margin-top: 8px">축하해요! 새로운 레벨을 달성했어요 🎉</p>
+            <button
+              @click="levelUpModal = null"
+              class="mt-6 w-full py-3 rounded-2xl font-bold text-white"
+              style="background: linear-gradient(90deg, #3db89e, #2a9d8f)"
+            >확인</button>
+          </div>
+        </div>
+      </Transition>
+
       <!-- 로그아웃 모달 -->
       <div
         v-if="showLogout"
@@ -1489,5 +1595,15 @@ function formatDate(dateStr: string): string {
   display: flex;
   gap: 12px;
   width: max-content;
+}
+.levelup-enter-active { animation: levelupIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+.levelup-leave-active { animation: levelupOut 0.2s ease-in; }
+@keyframes levelupIn {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes levelupOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.85); }
 }
 </style>
