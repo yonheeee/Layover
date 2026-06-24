@@ -8,7 +8,9 @@ export const useCourseStore = defineStore('course', () => {
   const generatedCourses = ref<Course[]>(
     JSON.parse(localStorage.getItem('generated_courses') ?? '[]')
   )
-  const lastRequest = ref<CourseGenerateRequest | null>(null)
+  const lastRequest = ref<CourseGenerateRequest | null>(
+    JSON.parse(localStorage.getItem('last_request') ?? 'null')
+  )
 
   // 서버에서 코스 확정 여부 확인
   async function checkConfirmedCourse() {
@@ -23,7 +25,10 @@ export const useCourseStore = defineStore('course', () => {
   function setCourses(courses: Course[], req?: CourseGenerateRequest) {
     generatedCourses.value = courses
     localStorage.setItem('generated_courses', JSON.stringify(courses))
-    if (req) lastRequest.value = req
+    if (req) {
+      lastRequest.value = req
+      localStorage.setItem('last_request', JSON.stringify(req))
+    }
   }
 
   function setConfirmed() {
@@ -34,6 +39,8 @@ export const useCourseStore = defineStore('course', () => {
     hasConfirmedCourse.value = false
     generatedCourses.value = []
     localStorage.removeItem('generated_courses')
+    lastRequest.value = null
+    localStorage.removeItem('last_request')
   }
 
   return { hasConfirmedCourse, generatedCourses, lastRequest, checkConfirmedCourse, setCourses, setConfirmed, reset }
