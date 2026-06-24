@@ -7,7 +7,9 @@ import {
   Bus,
   Car,
   Check,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Clock,
   Edit2,
   Footprints,
@@ -116,20 +118,44 @@ function renderCourseElementsOnMap() {
 
   const linePath: any[] = [];
   const bounds = new (window as any).kakao.maps.LatLngBounds();
+  let placeIndex = 1;
 
   currentPlaces.value.forEach((place) => {
-    const position = new (window as any).kakao.maps.LatLng(
-      place.lat,
-      place.lng,
-    );
+    if (!place.lat || !place.lng || place.lat === 0 || place.lng === 0) return;
+
+    const position = new (window as any).kakao.maps.LatLng(place.lat, place.lng);
     linePath.push(position);
 
-    const marker = new (window as any).kakao.maps.Marker({
-      position: position,
-      clickable: true,
+    const isStation = place.category === "STATION";
+    const label = isStation ? "🚉" : String(placeIndex);
+    if (!isStation) placeIndex++;
+
+    const markerContent = `
+      <div style="
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: ${isStation ? "#1a2e2b" : "linear-gradient(135deg, #3db89e, #2fa38a)"};
+        border: 2.5px solid #fff;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: ${isStation ? "14px" : "13px"};
+        font-weight: 900;
+        color: #fff;
+        font-family: sans-serif;
+      ">${label}</div>
+    `;
+
+    const customOverlay = new (window as any).kakao.maps.CustomOverlay({
+      position,
+      content: markerContent,
+      yAnchor: 0.5,
+      xAnchor: 0.5,
     });
-    marker.setMap(mapObject);
-    markers.push(marker);
+    customOverlay.setMap(mapObject);
+    markers.push(customOverlay);
     bounds.extend(position);
   });
 
@@ -142,7 +168,7 @@ function renderCourseElementsOnMap() {
   });
   polylineObject.setMap(mapObject);
 
-  if (currentPlaces.value.length > 0) {
+  if (linePath.length > 0) {
     mapObject.setBounds(bounds);
   }
 }
@@ -184,6 +210,20 @@ onMounted(async () => {
 function toggleLock(idx: number) {
   if (idx === 0 || idx === currentPlaces.value.length - 1) return;
   currentPlaces.value[idx].isLocked = !currentPlaces.value[idx].isLocked;
+}
+
+function movePlace(idx: number, direction: "up" | "down") {
+  const places = currentPlaces.value;
+  const first = 1;
+  const last = places.length - 2;
+  if (idx < first || idx > last) return;
+  if (direction === "up" && idx === first) return;
+  if (direction === "down" && idx === last) return;
+
+  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+  const temp = places[idx];
+  places[idx] = places[swapIdx];
+  places[swapIdx] = temp;
 }
 
 function openSearchMode() {
@@ -452,18 +492,34 @@ async function confirmCourse() {
                     isEditing && idx !== 0 && idx !== currentPlaces.length - 1
                   "
                 >
-                  <button
-                    class="p-2 rounded-xl border transition-all shadow-3xs"
-                    :class="
-                      place.isLocked
-                        ? 'bg-teal-600 text-white border-teal-600'
-                        : 'bg-gray-50 text-gray-400 border-gray-200'
-                    "
-                    @click="toggleLock(idx)"
-                  >
-                    <Lock v-if="place.isLocked" :size="13" />
-                    <Unlock v-else :size="13" />
-                  </button>
+                  <div class="flex flex-col gap-1 shrink-0">
+                    <button
+                      class="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
+                      :style="{
+                        background: idx === 1 ? '#f5f5f5' : '#f0faf8',
+                        borderColor: idx === 1 ? '#e0e0e0' : '#d1ebe6',
+                        cursor: idx === 1 ? 'not-allowed' : 'pointer',
+                        opacity: idx === 1 ? 0.4 : 1,
+                      }"
+                      :disabled="idx === 1"
+                      @click="movePlace(idx, 'up')"
+                    >
+                      <ChevronUp :size="13" class="text-teal-600" />
+                    </button>
+                    <button
+                      class="w-7 h-7 rounded-lg flex items-center justify-center transition-all border"
+                      :style="{
+                        background: idx === currentPlaces.length - 2 ? '#f5f5f5' : '#f0faf8',
+                        borderColor: idx === currentPlaces.length - 2 ? '#e0e0e0' : '#d1ebe6',
+                        cursor: idx === currentPlaces.length - 2 ? 'not-allowed' : 'pointer',
+                        opacity: idx === currentPlaces.length - 2 ? 0.4 : 1,
+                      }"
+                      :disabled="idx === currentPlaces.length - 2"
+                      @click="movePlace(idx, 'down')"
+                    >
+                      <ChevronDown :size="13" class="text-teal-600" />
+                    </button>
+                  </div>
                   <button
                     class="w-7 h-7 rounded-full flex items-center justify-center bg-red-50 text-red-500 border border-red-100"
                     @click="removePlace(idx)"
