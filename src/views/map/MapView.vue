@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { fetchDiPlaces, saveCourse } from "@/api/courses";
+import { fetchDiPlaces, recalculateCourse, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
-import type { Course, DiPlace } from "@/types/course";
+import type { Course, CourseStop, DiPlace } from "@/types/course";
 import {
   ArrowLeft,
   Bus,
@@ -36,11 +36,92 @@ const courseStore = useCourseStore();
 const router = useRouter();
 const courses = ref<Course[]>([]);
 
+const STATION_STOPS: Record<string, CourseStop> = {
+  DAEJEON: {
+    id: "STATION_DAEJEON",
+    name: "대전역",
+    category: "STATION",
+    isOpen: true,
+    stayTime: "0분",
+    isLocked: true,
+    lat: 36.3325,
+    lng: 127.4348,
+  },
+  SEODDAEJEON: {
+    id: "STATION_SEODAEJEON",
+    name: "서대전역",
+    category: "STATION",
+    isOpen: true,
+    stayTime: "0분",
+    isLocked: true,
+    lat: 36.3226,
+    lng: 127.4039,
+  },
+  SINTANJIN: {
+    id: "STATION_SINTANJIN",
+    name: "신탄진역",
+    category: "STATION",
+    isOpen: true,
+    stayTime: "0분",
+    isLocked: true,
+    lat: 36.4518,
+    lng: 127.4297,
+  },
+};
+
+function selectedStationStop(): CourseStop {
+  const station = courseStore.lastRequest?.departureStation ?? "DAEJEON";
+  return { ...(STATION_STOPS[station] ?? STATION_STOPS.DAEJEON) };
+}
+
+function withFixedStationStops(course: Course): Course {
+  if (course.places.some((p) => p.category === "STATION")) {
+    return course;
+  }
+  const station = selectedStationStop();
+  const realPlaces = course.places.filter((p) => p.category !== "STATION");
+  return {
+    ...course,
+    places: [{ ...station }, ...realPlaces, { ...station }],
+  };
+}
+
+function realCoursePlaces() {
+  return currentPlaces.value.filter(
+    (p) => p.category !== "STATION" && !p.id.startsWith("__STATION") && !p.id.startsWith("STATION_"),
+  );
+}
+
+async function recalculateCurrentCourse() {
+  if (!courseStore.lastRequest || !currentCourse.value) return;
+
+  const placeIds = realCoursePlaces().map((place) => place.id);
+  if (placeIds.length === 0) return;
+
+  isRecalculating.value = true;
+  try {
+    const recalculated = await recalculateCourse({
+      ...courseStore.lastRequest,
+      title: currentCourse.value.title,
+      placeIds,
+    });
+    courses.value[activeTab.value] = withFixedStationStops(recalculated);
+    courseStore.setCourses(courses.value, courseStore.lastRequest);
+    setTimeout(renderCourseElementsOnMap, 50);
+  } catch (error) {
+    console.error("코스 이동시간 재계산 실패:", error);
+    alert("이동시간 재계산에 실패했습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    isRecalculating.value = false;
+  }
+}
+
 const activeTab = ref(0);
 const currentCourse = computed(() => courses.value[activeTab.value]);
 const currentPlaces = computed(() => currentCourse.value?.places ?? []);
 
 const calculatedCost = computed(() => {
+  if (currentCourse.value?.estimatedCost) return currentCourse.value.estimatedCost;
   let basePrice = 0;
   currentPlaces.value.forEach((p) => {
     if (p.category.includes("맛집")) basePrice += 10000;
@@ -51,6 +132,7 @@ const calculatedCost = computed(() => {
 });
 
 const calculatedTime = computed(() => {
+  if (currentCourse.value?.totalTime) return currentCourse.value.totalTime;
   let totalMinutes = 0;
   currentPlaces.value.forEach((p) => {
     const stay = parseInt(p.stayTime) || 0;
@@ -65,16 +147,18 @@ const calculatedTime = computed(() => {
 
 const isEditing = ref(false);
 const isSaving = ref(false);
+const isRecalculating = ref(false);
 const isRegenerating = ref(false);
 const panelMode = ref<"main" | "search">("main");
 const searchKeyword = ref("");
-const selectedCategory = ref("전체");
+const selectedCategory = ref("");
 const categories = [
-  "전체",
-  "🍞 맛집/빵집",
-  "☕ 카페",
-  "🌿 관광명소",
-  "🏛 문화/예술",
+  { key: "", label: "전체" },
+  { key: "FOOD", label: "맛집/빵집" },
+  { key: "CAFE", label: "카페" },
+  { key: "TOUR", label: "관광명소" },
+  { key: "CULTURE", label: "문화/예술" },
+  { key: "SHOPPING", label: "쇼핑" },
 ];
 
 const allDiPlaces = ref<DiPlace[]>([]);
@@ -83,7 +167,7 @@ const filteredSearchResults = computed(() => {
   return allDiPlaces.value.filter((p) => {
     const matchesKeyword = p.name.includes(searchKeyword.value);
     const matchesCategory =
-      selectedCategory.value === "전체" ||
+      selectedCategory.value === "" ||
       p.category === selectedCategory.value;
     return matchesKeyword && matchesCategory;
   });
@@ -184,7 +268,8 @@ watch(
 );
 
 onMounted(async () => {
-  courses.value = courseStore.generatedCourses;
+  courses.value = courseStore.generatedCourses.map(withFixedStationStops);
+  courseStore.setCourses(courses.value, courseStore.lastRequest ?? undefined);
 
   if (courses.value.length === 0) {
     router.push('/')
@@ -212,7 +297,7 @@ function toggleLock(idx: number) {
   currentPlaces.value[idx].isLocked = !currentPlaces.value[idx].isLocked;
 }
 
-function movePlace(idx: number, direction: "up" | "down") {
+async function movePlace(idx: number, direction: "up" | "down") {
   const places = currentPlaces.value;
   const first = 1;
   const last = places.length - 2;
@@ -224,44 +309,40 @@ function movePlace(idx: number, direction: "up" | "down") {
   const temp = places[idx];
   places[idx] = places[swapIdx];
   places[swapIdx] = temp;
+  await recalculateCurrentCourse();
 }
 
 function openSearchMode() {
   searchKeyword.value = "";
-  selectedCategory.value = "전체";
+  selectedCategory.value = "";
   panelMode.value = "search";
 }
 
-function addPlaceToCourse(scannedPlace: any) {
-  const insertIndex = currentPlaces.value.length - 1;
-  currentPlaces.value[insertIndex - 1].nextTransport = {
-    walkTime: "12분",
-    busTime: "7분",
-    taxiTime: "4분",
-    taxiFare: 4200,
-  };
+async function addPlaceToCourse(scannedPlace: any) {
+  if (currentPlaces.value.some((p) => p.id === scannedPlace.id)) {
+    alert("이미 코스에 추가된 장소입니다.");
+    return;
+  }
+
+  const insertIndex = Math.max(1, currentPlaces.value.length - 1);
   currentPlaces.value.splice(insertIndex, 0, {
     ...scannedPlace,
     stayTime: "45분",
     isLocked: false,
-    nextTransport: {
-      walkTime: "10분",
-      busTime: "6분",
-      taxiTime: "3분",
-      taxiFare: 3800,
-    },
   });
   panelMode.value = "main";
+  await recalculateCurrentCourse();
 }
 
-function removePlace(idx: number) {
+async function removePlace(idx: number) {
   if (idx === 0 || idx === currentPlaces.value.length - 1) return;
   currentPlaces.value.splice(idx, 1);
+  await recalculateCurrentCourse();
 }
 
 async function finishEdit() {
   isSaving.value = true;
-  await new Promise((r) => setTimeout(r, 400));
+  await recalculateCurrentCourse();
   isSaving.value = false;
   isEditing.value = false;
 }
@@ -274,7 +355,7 @@ async function confirmCourse() {
   isSaving.value = true;
   try {
     const places = currentPlaces.value
-      .filter((p) => p.lat && p.lng)
+      .filter((p) => p.category !== "STATION" && !p.id.startsWith("__STATION") && !p.id.startsWith("STATION_") && p.lat && p.lng)
       .map((p, idx) => ({
         placeId: p.id,
         orderIndex: idx,
@@ -320,11 +401,12 @@ async function confirmCourse() {
                 color: isEditing ? '#fff' : '#2fa38a',
                 borderColor: isEditing ? '#2fa38a' : '#d1ebe6',
               }"
+              :disabled="isRecalculating"
               @click="isEditing ? finishEdit() : (isEditing = true)"
             >
               <Check v-if="isEditing" :size="13" />
               <Edit2 v-else :size="13" />
-              {{ isEditing ? "완료" : "편집" }}
+              {{ isRecalculating ? "계산 중..." : isEditing ? "완료" : "편집" }}
             </button>
           </div>
 
@@ -501,7 +583,7 @@ async function confirmCourse() {
                         cursor: idx === 1 ? 'not-allowed' : 'pointer',
                         opacity: idx === 1 ? 0.4 : 1,
                       }"
-                      :disabled="idx === 1"
+                      :disabled="idx === 1 || isRecalculating"
                       @click="movePlace(idx, 'up')"
                     >
                       <ChevronUp :size="13" class="text-teal-600" />
@@ -514,7 +596,7 @@ async function confirmCourse() {
                         cursor: idx === currentPlaces.length - 2 ? 'not-allowed' : 'pointer',
                         opacity: idx === currentPlaces.length - 2 ? 0.4 : 1,
                       }"
-                      :disabled="idx === currentPlaces.length - 2"
+                      :disabled="idx === currentPlaces.length - 2 || isRecalculating"
                       @click="movePlace(idx, 'down')"
                     >
                       <ChevronDown :size="13" class="text-teal-600" />
@@ -574,9 +656,10 @@ async function confirmCourse() {
             </template>
 
             <button
-              v-if="isEditing"
-              class="w-full py-3 rounded-2xl flex items-center justify-center gap-1.5 mt-4 border-2 border-dashed border-teal-300 text-teal-700 font-black text-xs bg-transparent hover:bg-teal-50/20"
-              @click="openSearchMode"
+            v-if="isEditing"
+            class="w-full py-3 rounded-2xl flex items-center justify-center gap-1.5 mt-4 border-2 border-dashed border-teal-300 text-teal-700 font-black text-xs bg-transparent hover:bg-teal-50/20"
+            :disabled="isRecalculating"
+            @click="openSearchMode"
             >
               <Plus :size="14" /> 코스 사이에 장소 끼워넣기 (지도 연동)
             </button>
@@ -627,16 +710,16 @@ async function confirmCourse() {
           <div class="flex gap-1 mt-3 overflow-x-auto pb-1 scrollbar-none">
             <button
               v-for="cat in categories"
-              :key="cat"
-              @click="selectedCategory = cat"
+              :key="cat.key"
+              @click="selectedCategory = cat.key"
               class="px-2.5 py-1 rounded-lg text-[0.68rem] font-black border transition-all"
               :class="
-                selectedCategory === cat
+                selectedCategory === cat.key
                   ? 'bg-teal-600 text-white border-teal-600'
                   : 'bg-white text-gray-400 border-gray-200'
               "
             >
-              {{ cat.split(" ")[1] || cat }}
+              {{ cat.label }}
             </button>
           </div>
         </div>

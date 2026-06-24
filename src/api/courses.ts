@@ -1,5 +1,5 @@
 import type { DiPlace, CourseStop } from '@/types/course'
-import type { CourseGenerateRequest, CourseRegenerateRequest, CourseResponse } from '@/types/course'
+import type { CourseGenerateRequest, CourseRecalculateRequest, CourseRegenerateRequest, CourseResponse } from '@/types/course'
 import { http, httpGet, httpPost } from './http'
 
 export async function fetchDiPlaces(): Promise<DiPlace[]> {
@@ -19,6 +19,11 @@ export async function generateCourses(req: CourseGenerateRequest): Promise<Cours
 
 export async function regenerateCourse(req: CourseRegenerateRequest): Promise<CourseResponse> {
   const res = await http.post<CourseResponse>('/api/courses/regenerate', req)
+  return res.data
+}
+
+export async function recalculateCourse(req: CourseRecalculateRequest): Promise<CourseResponse> {
+  const res = await http.post<CourseResponse>('/api/courses/recalculate', req)
   return res.data
 }
 

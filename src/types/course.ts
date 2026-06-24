@@ -15,6 +15,11 @@ export interface CourseRegenerateRequest extends CourseGenerateRequest {
   }[]
 }
 
+export interface CourseRecalculateRequest extends CourseGenerateRequest {
+  title?: string
+  placeIds: string[]
+}
+
 export interface TransportInfo {
   walkTime: string
   busTime: string
