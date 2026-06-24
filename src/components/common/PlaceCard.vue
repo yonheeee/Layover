@@ -58,22 +58,8 @@ function shortAddress(address?: string): string {
         :alt="spot.name"
         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
-      <!-- 영업 상태 뱃지 -->
-      <div class="absolute top-3 right-3 spot-img-badge">
-        <span
-          class="px-2 py-1 rounded-full text-xs"
-          :style="{
-            background: spot.isOpen
-              ? 'rgba(61,184,158,0.92)'
-              : 'rgba(150,150,150,0.85)',
-            color: '#fff',
-            fontWeight: 600,
-            backdropFilter: 'blur(6px)',
-          }"
-        >
-          {{ spot.isOpen ? "● 영업중" : "○ 영업종료" }}
-        </span>
-      </div>
+      
+      
       <!-- 좋아요 버튼 -->
       <button
         class="absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center hover:scale-110 transition-all"
@@ -105,12 +91,7 @@ function shortAddress(address?: string): string {
           >
             {{ spot.name }}
           </h3>
-          <div class="flex items-center gap-1 shrink-0 pt-0.5">
-            <Star :size="11" fill="#fbbf24" color="#fbbf24" />
-            <span style="font-size: 0.78rem; font-weight: 600; color: #1a2e2b">
-              {{ spot.rating }}
-            </span>
-          </div>
+          
         </div>
         <p
           style="
@@ -129,17 +110,9 @@ function shortAddress(address?: string): string {
       >
         {{ shortAddress(spot.address) }}
       </p>
-      <div
-        class="spot-distance-time rounded-xl p-2.5 flex items-center justify-center"
-        style="background: #f0faf8"
-      >
-        <div class="flex items-center gap-1.5">
-          <Clock :size="12" color="#3db89e" />
-          <span style="font-size: 0.78rem; color: #1a2e2b; font-weight: 600">
-            평균 {{ spot.duration }} 소요
-          </span>
-        </div>
-      </div>
+      
+        
+      
     </div>
   </div>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from "@/stores/auth";
-import { Menu, X } from "lucide-vue-next";
+import { Menu, UserRound, X } from "lucide-vue-next";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -27,6 +27,14 @@ const ALL_NAV_LINKS = [
 
 const NAV_LINKS = computed(() =>
   ALL_NAV_LINKS.filter((link) => !link.authOnly || auth.isLoggedIn),
+);
+
+const displayName = computed(
+  () =>
+    auth.user?.realName ??
+    auth.user?.username ??
+    auth.nickname ??
+    "\ud68c\uc6d0\ub2d8",
 );
 </script>
 
@@ -76,6 +84,19 @@ const NAV_LINKS = computed(() =>
         <!-- 데스크탑 CTA -->
         <div class="hidden md:flex items-center gap-3">
           <template v-if="auth.isLoggedIn">
+            <router-link
+              to="/mypage"
+              class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
+              style="
+                color: #1a2e2b;
+                background: #e8f8f5;
+                font-weight: 700;
+                text-decoration: none;
+              "
+            >
+              <UserRound :size="15" color="#3db89e" />
+              {{ displayName }}
+            </router-link>
             <button
               class="px-4 py-2 rounded-xl text-sm"
               style="
@@ -100,17 +121,7 @@ const NAV_LINKS = computed(() =>
               style="color: #6b8c87; font-weight: 500; text-decoration: none"
               >로그인</router-link
             >
-            <router-link
-              to="/signup"
-              class="px-5 py-2.5 rounded-xl text-sm text-white hover:opacity-90 transition-opacity"
-              style="
-                background: linear-gradient(135deg, #b2e4dc, #3db89e);
-                font-weight: 600;
-                box-shadow: 0 4px 14px rgba(61, 184, 158, 0.3);
-                text-decoration: none;
-              "
-              >무료 시작</router-link
-            >
+            
           </template>
         </div>
 
@@ -151,6 +162,20 @@ const NAV_LINKS = computed(() =>
 
       <div class="flex gap-3 pt-3">
         <template v-if="auth.isLoggedIn">
+          <router-link
+            to="/mypage"
+            class="flex-1 py-2.5 rounded-xl text-sm text-center"
+            style="
+              border: 1.5px solid rgba(178, 228, 220, 0.5);
+              color: #1a2e2b;
+              background: #e8f8f5;
+              font-weight: 700;
+              text-decoration: none;
+            "
+            @click="mobileMenuOpen = false"
+          >
+            {{ displayName }}
+          </router-link>
           <button
             class="flex-1 py-2.5 rounded-xl text-sm text-center"
             style="

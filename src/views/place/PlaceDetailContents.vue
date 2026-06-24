@@ -219,15 +219,7 @@ const categoryColor: Record<string, string> = {
                 "
                 >{{ place.category }}</span
               >
-              <span
-                class="text-xs font-semibold px-2 py-0.5 rounded-full"
-                :style="
-                  place.isOpen
-                    ? 'background:#d1fae5;color:#065f46'
-                    : 'background:#fee2e2;color:#991b1b'
-                "
-                >{{ place.isOpen ? "영업중" : "영업종료" }}</span
-              >
+              
             </div>
             <h1 style="font-weight: 800; font-size: 1.3rem; color: #1a2e2b">
               {{ place.name }}

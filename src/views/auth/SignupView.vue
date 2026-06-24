@@ -41,6 +41,14 @@ const verifyCodeError = ref("");
 const signupError = ref("");
 const isLoading = ref(false);
 
+const todayDate = computed(() => {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const dd = String(today.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+});
+
 const isEmailValid = computed(() => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(signupEmail.value);
@@ -150,6 +158,10 @@ const handleSignup = async () => {
   }
   if (!signupBirthDate.value) {
     signupError.value = "생년월일을 입력해주세요.";
+    return;
+  }
+  if (signupBirthDate.value > todayDate.value) {
+    signupError.value = "생년월일은 오늘 이후 날짜를 선택할 수 없습니다.";
     return;
   }
   if (!signupPhone.value) {
@@ -275,6 +287,7 @@ const btnOutlineStyle =
             <input
               v-model="signupBirthDate"
               type="date"
+              :max="todayDate"
               :style="`${inputStyle}padding-left:40px; border:1.5px solid rgba(178,228,220,0.5);`"
             />
           </div>
