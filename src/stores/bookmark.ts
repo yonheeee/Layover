@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "./auth";
 import { addBookmark, removeBookmark, getBookmarks } from "@/api/bookmarks";
+import { CATEGORY_LABELS } from "@/api/places";
 import type { BookmarkPlace } from "@/api/bookmarks";
 import type { Place } from "@/types/place";
 
@@ -56,7 +57,7 @@ export const useBookmarkStore = defineStore("bookmark", () => {
     return {
       id: b.placeId,
       name: b.name,
-      category: b.category,
+      category: CATEGORY_LABELS[b.category] ?? b.category,
       address: b.address,
       image: b.imageUrl,
       isOpen: false,
