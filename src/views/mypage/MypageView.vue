@@ -25,6 +25,7 @@ import type {
   User as UserType,
 } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
+import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
 import {
   Activity,
   Award,
@@ -283,6 +284,16 @@ async function handleDeleteCourse(courseId: string) {
     deletingCourseId.value = null;
   }
 }
+function courseStampCount(course: MyCourse): number {
+  return stampStore.photosForCourse(course.id).length;
+}
+
+function goToCourseStamp(course: MyCourse) {
+  stampStore.setActiveCourse(course);
+  selectedCourse.value = null;
+  router.push('/stamp-tour');
+}
+
 const selectedPlaceId = ref<string | null>(null);
 const likedScrollRef = ref<HTMLDivElement | null>(null);
 const characters = ref<Character[]>([]);
@@ -353,10 +364,79 @@ const xpCourseCount = computed(() => myCourses.value.length);
 const xpPostCount = computed(() => myPosts.value.length);
 const { totalXp, currentLevel: currentXpLevel, nextLevel: nextXpLevel, xpProgress, levelUpModal } = useXp(xpCourseCount, xpPostCount);
 const xpLevels = XP_LEVELS;
+const roadmapProgressRatio = computed(() => {
+  if (xpLevels.length <= 1) return 1;
+
+  const currentXp = totalXp.value;
+  const lastLevel = xpLevels[xpLevels.length - 1];
+
+  if (currentXp <= xpLevels[0].minXp) return 0;
+  if (currentXp >= lastLevel.minXp) return 1;
+
+  const currentSegmentIndex = xpLevels.findIndex((level, index) => {
+    const nextLevel = xpLevels[index + 1];
+    return nextLevel && currentXp < nextLevel.minXp;
+  });
+  const index = Math.max(0, currentSegmentIndex);
+  const fromXp = xpLevels[index].minXp;
+  const toXp = xpLevels[index + 1].minXp;
+  const segmentProgress = (currentXp - fromXp) / Math.max(1, toXp - fromXp);
+
+  return Math.min(1, Math.max(0, (index + segmentProgress) / (xpLevels.length - 1)));
+});
 const XP_PER_STAMP = 100;
 const XP_PER_COURSE = 200;
 const XP_PER_POST = 50;
 const XP_PER_BOOKMARK = 10;
+
+const xpMissionCards = computed(() => [
+  {
+    label: "스탬프 인증",
+    description: "여행지에서 인증 사진 남기기",
+    count: stampStore.photos.length,
+    goal: 50,
+    xpEach: XP_PER_STAMP,
+    emoji: "📍",
+    accent: "#3db89e",
+  },
+  {
+    label: "코스 저장",
+    description: "마음에 드는 여행 코스 저장",
+    count: myCourses.value.length,
+    goal: 50,
+    xpEach: XP_PER_COURSE,
+    emoji: "🗺️",
+    accent: "#66a6ff",
+  },
+  {
+    label: "커뮤니티 글",
+    description: "대전 여행 팁과 후기 공유",
+    count: myPosts.value.length,
+    goal: 5,
+    xpEach: XP_PER_POST,
+    emoji: "✍️",
+    accent: "#f4a261",
+  },
+  {
+    label: "찜한 장소",
+    description: "가보고 싶은 장소 모으기",
+    count: bookmarkStore.bookmarkedPlaces.length,
+    goal: 10,
+    xpEach: XP_PER_BOOKMARK,
+    emoji: "❤️",
+    accent: "#ef476f",
+  },
+]);
+
+const xpRoadmapBenefits = [
+  ["지역 상권 5% 할인", "비밀 코스 지도 잠금 해제", "지역 굿즈 해제"],
+  ["맞춤 여행 제안 혜택", "특별 굿즈 교환권", "추천 코스 우선 제공"],
+];
+
+function percentOf(count: number, goal: number): number {
+  if (goal <= 0) return 0;
+  return Math.min(100, Math.round((count / goal) * 100));
+}
 
 // ─── 스타일 상수 ───
 const infoBoxBase =
@@ -401,7 +481,7 @@ function formatDate(dateStr: string): string {
         <aside class="w-64 flex-shrink-0 flex flex-col gap-8 sticky top-6">
           <!-- 프로필 카드 -->
           <div
-            class="p-6 bg-white flex flex-col items-center justify-center gap-3 shadow-sm"
+            class="p-6 bg-white flex flex-col items-center justify-center gap-4 shadow-sm"
             style="aspect-ratio: 4/5; width: 100%"
           >
             <div class="relative group">
@@ -410,11 +490,9 @@ function formatDate(dateStr: string): string {
                 style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
               >
                 <img
-                  v-if="user.profileImage"
-                  :src="user.profileImage"
+                  :src="user.profileImage ?? dreamCharacterImg"
                   class="w-full h-full object-cover"
                 />
-                <span v-else>{{ user.username[0] }}</span>
               </div>
               <label
                 class="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer bg-white shadow-md"
@@ -446,6 +524,37 @@ function formatDate(dateStr: string): string {
                 </p>
               </div>
             </div>
+
+            <div class="w-full mt-2 rounded-2xl p-3" style="background:#f8fbfa; border:1px solid rgba(178,228,220,0.45)">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-1.5 min-w-0">
+                  <span
+                    class="px-2 py-0.5 rounded-full text-[0.65rem] font-bold shrink-0"
+                    style="background: linear-gradient(135deg,#b2e4dc,#3db89e); color:white"
+                  >
+                    Lv.{{ currentXpLevel.level }}
+                  </span>
+                  <span class="truncate" style="font-size:0.78rem; font-weight:800; color:#1a2e2b">
+                    {{ currentXpLevel.name }}
+                  </span>
+                </div>
+                <span class="shrink-0" style="font-size:0.72rem; font-weight:700; color:#3db89e">
+                  {{ totalXp.toLocaleString() }} XP
+                </span>
+              </div>
+              <div class="h-2 rounded-full overflow-hidden" style="background:#e6f7f4">
+                <div
+                  class="h-full rounded-full transition-all duration-700"
+                  :style="`width:${xpProgress}%; background:linear-gradient(90deg,#b2e4dc,#3db89e)`"
+                />
+              </div>
+              <p v-if="nextXpLevel" class="mt-1.5 text-right" style="font-size:0.65rem; color:#9ca3af">
+                다음 레벨까지 {{ (nextXpLevel.minXp - totalXp).toLocaleString() }} XP
+              </p>
+              <p v-else class="mt-1.5 text-right" style="font-size:0.65rem; color:#3db89e; font-weight:700">
+                최고 레벨 달성 🎉
+              </p>
+            </div>
           </div>
 
           <!-- 탭 메뉴 -->
@@ -475,316 +584,384 @@ function formatDate(dateStr: string): string {
           "
         >
           <!-- 활동 탭 -->
+          <!-- 활동 탭 -->
           <template v-if="activeTab === 'activity'">
-            <!-- 내 여행 일지 -->
-            <div class="pb-6">
-              <div class="flex items-center justify-between mb-4">
-                <h2
-                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
-                >
-                  내 여행 일지
-                </h2>
-                <span
-                  style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
-                >
-                  총 {{ myCourses.length }}개
-                </span>
-              </div>
-              <div
-                v-if="myCourses.length === 0"
-                class="flex flex-col items-center justify-center py-12 rounded-2xl"
-                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
-              >
-                <span class="text-4xl mb-3">🗺️</span>
-                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
-                  아직 저장한 코스가 없어요
-                </p>
-                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
-                  코스를 만들고 여행을 기록해보세요!
-                </p>
-              </div>
-              <div v-else class="flex flex-col gap-2.5 overflow-y-auto pr-1 custom-scrollbar" style="max-height: 320px">
+            <div class="pb-6 space-y-5">
+
+              <section class="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-5">
                 <div
-                  v-for="course in myCourses"
-                  :key="course.id"
-                  class="flex items-start gap-3 p-4 rounded-xl border border-gray-100 transition-colors hover:bg-teal-50/30 hover:border-teal-100"
+                  class="rounded-[26px] p-5"
+                  style="background: #ffffff; border: 1px solid rgba(226,232,240,0.9); box-shadow: 0 10px 26px rgba(18,61,53,0.05)"
                 >
-                  <button
-                    @click="selectedCourse = course"
-                    class="flex items-start gap-3 flex-1 min-w-0 text-left cursor-pointer"
-                  >
-                    <div
-                      class="w-9 h-9 rounded-xl flex items-center justify-center bg-teal-50 shrink-0 mt-0.5"
-                    >
-                      <MapPin :size="16" color="#3db89e" />
+                  <div class="flex items-center justify-between mb-4">
+                    <div>
+                      <p style="font-size: 0.78rem; color: #3db89e; font-weight: 900">SAVED ROUTES</p>
+                      <h3 style="font-size: 1.05rem; color: #123d35; font-weight: 950">저장한 여행 코스</h3>
                     </div>
-                    <div class="flex-1 min-w-0">
-                      <p
-                        style="font-weight: 700; font-size: 0.9rem; color: #1a2e2b"
-                        class="truncate"
-                      >
-                        {{ course.subTitle }}
-                      </p>
-                      <div class="flex items-center gap-2 mt-1 flex-wrap">
-                        <span
-                          class="text-xs px-2 py-0.5 rounded-full font-semibold"
-                          style="background: #e6f7f4; color: #3db89e"
-                          >{{ travelModeLabel(course.travelMode) }}</span
+                    <span class="px-3 py-1 rounded-full" style="font-size: 0.74rem; color: #3db89e; background: #e7f7f3; font-weight: 900">
+                      총 {{ myCourses.length }}개
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="myCourses.length === 0"
+                    class="flex flex-col items-center justify-center py-14 rounded-[22px]"
+                    style="background: #f8fbfa; border: 1.5px dashed #d8e6e2"
+                  >
+                    <span class="text-4xl mb-3">🗺️</span>
+                    <p style="font-size: 0.9rem; font-weight: 800; color: #7b8f8b">아직 저장한 코스가 없어요</p>
+                    <p style="font-size: 0.76rem; color: #a6b5b1; margin-top: 4px">AI 추천 코스를 저장하면 여기에 쌓입니다.</p>
+                  </div>
+
+                  <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+                    <div
+                      v-for="course in myCourses"
+                      :key="course.id"
+                      class="group rounded-[22px] p-4 transition-all"
+                      style="background: linear-gradient(135deg, #f8fffd 0%, #ffffff 100%); border: 1px solid rgba(178,228,220,0.5)"
+                    >
+                      <button @click="selectedCourse = course" class="w-full text-left">
+                        <div class="flex items-start gap-3">
+                          <div class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0" style="background: #e7f7f3; color: #3db89e">
+                            <MapPin :size="18" />
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <p class="truncate" style="font-size: 0.92rem; font-weight: 950; color: #123d35">
+                              {{ course.subTitle || '나의 대전 코스' }}
+                            </p>
+                            <div class="flex items-center gap-1.5 mt-2 flex-wrap">
+                              <span class="px-2 py-0.5 rounded-full" style="font-size: 0.68rem; font-weight: 900; color: #3db89e; background: #e7f7f3">
+                                {{ travelModeLabel(course.travelMode) }}
+                              </span>
+                              <span style="font-size: 0.72rem; color: #8a9b97">{{ course.durationMinutes }}분</span>
+                              <span style="font-size: 0.72rem; color: #8a9b97">· · {{ course.places.length }}곳</span>
+                            </div>
+                            <p class="mt-2" style="font-size: 0.7rem; color: #b0bbb8">{{ formatDate(course.createdAt) }}</p>
+                          </div>
+                        </div>
+                      </button>
+                      <div class="mt-3 flex items-center justify-between">
+                        <button
+                          @click="selectedCourse = course"
+                          class="px-3 py-1.5 rounded-xl"
+                          style="font-size: 0.72rem; font-weight: 900; color: #246b5d; background: #edf8f5"
                         >
-                        <span style="font-size: 0.75rem; color: #9ca3af">{{ course.durationMinutes }}분</span>
-                        <span style="font-size: 0.75rem; color: #9ca3af">· {{ course.places.length }}곳</span>
-                        <span style="font-size: 0.75rem; color: #9ca3af">· {{ formatDate(course.createdAt) }}</span>
+                          자세히 보기
+                        </button>
+                        <button
+                          @click="handleDeleteCourse(course.id)"
+                          :disabled="deletingCourseId === course.id"
+                          class="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-red-50 disabled:opacity-40"
+                        >
+                          <Trash2 :size="14" color="#e07070" />
+                        </button>
                       </div>
                     </div>
-                  </button>
-                  <button
-                    @click="handleDeleteCourse(course.id)"
-                    :disabled="deletingCourseId === course.id"
-                    class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-red-50 disabled:opacity-40"
-                  >
-                    <Trash2 :size="14" color="#e07070" />
-                  </button>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <!-- 찜한 장소 -->
-            <div class="pt-6 border-t border-gray-100">
-              <div class="flex items-center justify-between mb-4">
-                <h2
-                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
-                >
-                  찜한 장소
-                </h2>
-                <button
-                  @click="router.push('/bookmarks')"
-                  style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
-                >
-                  더보기
-                </button>
-              </div>
-              <div class="relative px-10">
-                <button
-                  @click="
-                    likedScrollRef?.scrollBy({ left: -256, behavior: 'smooth' })
-                  "
-                  type="button"
-                  class="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center text-[#3db89e] hover:scale-125 transition-all duration-200"
-                >
-                  <ChevronLeft :size="28" :stroke-width="3" />
-                </button>
-                <div ref="likedScrollRef" class="liked-scroll-container">
-                  <div class="liked-scroll-inner">
+                <div class="space-y-5">
+                  <div
+                    class="rounded-[26px] p-5"
+                    style="background: #ffffff; border: 1px solid rgba(226,232,240,0.9); box-shadow: 0 10px 26px rgba(18,61,53,0.05)"
+                  >
+                    <div class="flex items-center justify-between mb-4">
+                      <div>
+                        <p style="font-size: 0.78rem; color: #ef476f; font-weight: 900">LIKED PLACES</p>
+                        <h3 style="font-size: 1.05rem; color: #123d35; font-weight: 950">찜한 장소</h3>
+                      </div>
+                      <button @click="router.push('/bookmarks')" style="font-size: 0.76rem; color: #3db89e; font-weight: 900">
+                        더보기
+                      </button>
+                    </div>
                     <div
                       v-if="bookmarkStore.bookmarkedPlaces.length === 0"
-                      class="flex flex-col items-center justify-center px-8 py-6 rounded-2xl"
-                      style="background: #f9fafb; border: 1.5px dashed #e5e7eb; min-width: 200px"
+                      class="rounded-[20px] py-9 text-center"
+                      style="background:#ffffff; border:1px solid #eef2f1"
                     >
-                      <p style="font-size: 0.82rem; font-weight: 600; color: #9ca3af">찜한 장소가 없어요</p>
+                      <p style="font-size:0.82rem; color:#9ca3af; font-weight:800">찜한 장소가 없어요</p>
                     </div>
-                    <PlaceCard
-                      v-for="place in bookmarkStore.bookmarkedPlaces.slice(0, 5)"
-                      :key="place.id"
-                      :spot="place"
-                      :liked="bookmarkStore.isBookmarked(place.id)"
-                      @click="selectedPlaceId = place.id"
-                      @toggleLike="(id) => bookmarkStore.toggleBookmark(id)"
-                    />
-                  </div>
-                </div>
-                <button
-                  @click="
-                    likedScrollRef?.scrollBy({ left: 256, behavior: 'smooth' })
-                  "
-                  type="button"
-                  class="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 flex items-center justify-center text-[#3db89e] hover:scale-125 transition-all duration-200"
-                >
-                  <ChevronRight :size="28" :stroke-width="3" />
-                </button>
-              </div>
-            </div>
 
-            <!-- 내가 쓴 글 -->
-            <div class="pt-6 border-t border-gray-100">
-              <div class="flex items-center justify-between mb-4">
-                <h2
-                  style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
-                >
-                  내가 쓴 글
-                </h2>
-                <div class="flex items-center gap-3">
-                  <span
-                    style="font-size: 0.78rem; color: #9ca3af; font-weight: 500"
+                    <div v-else class="flex gap-3 overflow-x-auto pb-1 custom-scrollbar">
+                      <button
+                        v-for="place in bookmarkStore.bookmarkedPlaces.slice(0, 5)"
+                        :key="place.id"
+                        @click="selectedPlaceId = place.id"
+                        class="min-w-[170px] rounded-[20px] p-3 text-left"
+                        style="background: #f8fbfa; border: 1px solid rgba(226,232,240,0.95)"
+                      >
+                        <div class="w-full h-20 rounded-2xl overflow-hidden mb-3" style="background:#e7f7f3">
+                          <img v-if="place.image" :src="place.image" :alt="place.name" class="w-full h-full object-cover" />
+                          <div v-else class="w-full h-full flex items-center justify-center text-2xl">📍</div>
+                        </div>
+                        <p class="truncate" style="font-size:0.84rem; color:#123d35; font-weight:950">{{ place.name }}</p>
+                        <p class="truncate mt-1" style="font-size:0.7rem; color:#8a9b97">{{ place.category }}</p>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    class="rounded-[26px] p-5"
+                    style="background: #ffffff; border: 1px solid rgba(226,232,240,0.9); box-shadow: 0 10px 26px rgba(18,61,53,0.05)"
                   >
-                    총 {{ myPosts.length }}개
-                  </span>
-                  <button
-                    @click="router.push('/community?my=true')"
-                    style="font-size: 0.78rem; color: #3db89e; font-weight: 600"
-                  >
-                    더보기
-                  </button>
-                </div>
-              </div>
-              <div
-                v-if="myPosts.length === 0"
-                class="flex flex-col items-center justify-center py-12 rounded-2xl"
-                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
-              >
-                <span class="text-4xl mb-3">✍️</span>
-                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
-                  아직 작성한 글이 없어요
-                </p>
-                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
-                  커뮤니티에서 첫 글을 남겨보세요!
-                </p>
-                <button
-                  @click="router.push('/community/write')"
-                  class="mt-4 px-4 py-2 rounded-xl text-white text-xs font-bold"
-                  style="background: #3db89e"
-                >
-                  글쓰기
-                </button>
-              </div>
-              <div v-else>
-                <div
-                  v-for="post in myPosts.slice(0, 5)"
-                  :key="post.id"
-                  @click="router.push('/community/' + post.id)"
-                  class="flex items-center gap-3 py-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors px-1"
-                >
-                  <span
-                    class="shrink-0 text-xs px-2 py-0.5 rounded-full font-bold"
-                    :style="
-                      post.category === 'SHARE'
-                        ? 'background:#d1fae5;color:#059669'
-                        : post.category === 'QUESTION'
-                          ? 'background:#dbeafe;color:#2563eb'
-                          : post.category === 'TOGETHER'
-                            ? 'background:#ede9fe;color:#7c3aed'
-                            : 'background:#f3f4f6;color:#6b7280'
-                    "
-                  >
-                    {{ CODE_TO_CATEGORY[post.category] }}
-                  </span>
-                  <p
-                    class="flex-1 truncate"
-                    style="font-size: 0.88rem; color: #1a2e2b; font-weight: 500"
-                  >
-                    {{ post.title }}
-                  </p>
-                  <div class="flex items-center gap-2.5 shrink-0">
-                    <span
-                      class="flex items-center gap-0.5"
-                      style="font-size: 0.72rem; color: #9ca3af"
+                    <div class="flex items-center justify-between mb-4">
+                      <div>
+                        <p style="font-size: 0.78rem; color: #f4a261; font-weight: 900">COMMUNITY</p>
+                        <h3 style="font-size: 1.05rem; color: #123d35; font-weight: 950">내가 쓴 글</h3>
+                      </div>
+                      <button @click="router.push('/community?my=true')" style="font-size: 0.76rem; color: #3db89e; font-weight: 900">
+                        더보기
+                      </button>
+                    </div>
+                    <div
+                      v-if="myPosts.length === 0"
+                      class="rounded-[20px] py-9 text-center"
+                      style="background:#ffffff; border:1px solid #eef2f1"
                     >
-                      <Eye :size="11" />&nbsp;{{ post.viewCount }}
-                    </span>
-                    <span
-                      class="flex items-center gap-0.5"
-                      style="font-size: 0.72rem; color: #9ca3af"
-                    >
-                      <Heart :size="11" />&nbsp;{{ post.likeCount }}
-                    </span>
-                    <span
-                      class="flex items-center gap-0.5"
-                      style="font-size: 0.72rem; color: #9ca3af"
-                    >
-                      <MessageCircle :size="11" />&nbsp;{{ post.commentCount }}
-                    </span>
-                    <span style="font-size: 0.72rem; color: #d1d5db">{{
-                      formatDate(post.createdAt)
-                    }}</span>
+                      <p style="font-size:0.82rem; color:#9ca3af; font-weight:800">아직 작성한 글이 없어요</p>
+                      <button @click="router.push('/community/write')" class="mt-4 px-4 py-2 rounded-xl text-white text-xs font-bold" style="background:#3db89e">
+                        글쓰기
+                      </button>
+                    </div>
+
+                    <div v-else class="space-y-2.5">
+                      <button
+                        v-for="post in myPosts.slice(0, 5)"
+                        :key="post.id"
+                        @click="router.push('/community/' + post.id)"
+                        class="w-full rounded-[18px] p-3 text-left transition-all hover:bg-teal-50/50"
+                        style="background:#f8fbfa; border:1px solid rgba(226,232,240,0.85)"
+                      >
+                        <div class="flex items-center gap-2 mb-2">
+                          <span
+                            class="shrink-0 text-xs px-2 py-0.5 rounded-full font-bold"
+                            :style="
+                              post.category === 'SHARE'
+                                ? 'background:#d1fae5;color:#059669'
+                                : post.category === 'QUESTION'
+                                  ? 'background:#dbeafe;color:#2563eb'
+                                  : post.category === 'TOGETHER'
+                                    ? 'background:#ede9fe;color:#7c3aed'
+                                    : 'background:#f3f4f6;color:#6b7280'
+                            "
+                          >
+                            {{ CODE_TO_CATEGORY[post.category] }}
+                          </span>
+                          <span style="font-size:0.7rem; color:#a6b5b1">{{ formatDate(post.createdAt) }}</span>
+                        </div>
+                        <p class="truncate" style="font-size:0.86rem; color:#123d35; font-weight:900">{{ post.title }}</p>
+                        <div class="flex items-center gap-3 mt-2" style="font-size:0.7rem; color:#8a9b97">
+                          <span class="flex items-center gap-1"><Eye :size="11" />{{ post.viewCount }}</span>
+                          <span class="flex items-center gap-1"><Heart :size="11" />{{ post.likeCount }}</span>
+                          <span class="flex items-center gap-1"><MessageCircle :size="11" />{{ post.commentCount }}</span>
+                        </div>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </section>
             </div>
           </template>
 
           <!-- 경험치 탭 -->
+          <!-- 경험치 탭 -->
           <template v-else-if="activeTab === 'xp'">
             <div class="pb-6">
-              <h2 class="mb-6" style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b">경험치</h2>
-
-              <!-- 레벨 카드 -->
-              <div class="rounded-2xl p-6 mb-5 text-center"
-                style="background: linear-gradient(135deg, #1a2e2b, #2a4a45); color: #fff">
-                <div class="text-4xl mb-2">{{ currentXpLevel.emoji }}</div>
-                <p style="font-size: 0.75rem; font-weight: 700; color: #3db89e; letter-spacing: 0.08em">
-                  LV.{{ currentXpLevel.level }}
-                </p>
-                <h3 style="font-size: 1.3rem; font-weight: 800; margin: 4px 0 2px">
-                  {{ currentXpLevel.name }}
-                </h3>
-                <p style="font-size: 1.6rem; font-weight: 900; color: #B2E4DC">
-                  {{ totalXp.toLocaleString() }} XP
-                </p>
-
-                <!-- 진행 바 -->
-                <div class="mt-4">
-                  <div class="flex justify-between mb-1.5" style="font-size: 0.7rem; color: rgba(178,228,220,0.7)">
-                    <span>{{ currentXpLevel.minXp.toLocaleString() }} XP</span>
-                    <span v-if="nextXpLevel">{{ nextXpLevel.minXp.toLocaleString() }} XP</span>
-                    <span v-else>MAX</span>
-                  </div>
-                  <div class="w-full h-2.5 rounded-full" style="background: rgba(255,255,255,0.15)">
-                    <div class="h-full rounded-full transition-all duration-700"
-                      :style="`width:${xpProgress}%; background: linear-gradient(90deg, #3db89e, #B2E4DC)`" />
-                  </div>
-                  <p v-if="nextXpLevel" class="mt-1.5" style="font-size: 0.7rem; color: rgba(178,228,220,0.6)">
-                    다음 레벨까지 {{ (nextXpLevel.minXp - totalXp).toLocaleString() }} XP
-                  </p>
-                  <p v-else class="mt-1.5" style="font-size: 0.7rem; color: #3db89e; font-weight: 700">
-                    최고 레벨 달성! 🎉
-                  </p>
-                </div>
-              </div>
-
-              <!-- XP 획득 내역 -->
-              <h3 class="mb-3" style="font-size: 0.85rem; font-weight: 700; color: #6b8c87">XP 획득 내역</h3>
-              <div class="flex flex-col gap-2.5">
-                <div v-for="item in [
-                  { label: '스탬프 인증', count: stampStore.photos.length, xpEach: XP_PER_STAMP, emoji: '📍' },
-                  { label: '코스 저장', count: myCourses.length, xpEach: XP_PER_COURSE, emoji: '🗺️' },
-                  { label: '커뮤니티 글', count: myPosts.length, xpEach: XP_PER_POST, emoji: '✍️' },
-                  { label: '찜한 장소', count: bookmarkStore.bookmarkedPlaces.length, xpEach: XP_PER_BOOKMARK, emoji: '❤️' },
-                ]" :key="item.label"
-                  class="flex items-center justify-between p-3.5 rounded-xl"
-                  style="background: #f9fafb; border: 1px solid #f0f0f0"
+              <div
+                class="rounded-[28px] overflow-hidden"
+                style="background: linear-gradient(135deg, #f7fffc 0%, #eef8f6 100%); border: 1px solid rgba(178,228,220,0.55)"
+              >
+                <div
+                  class="px-6 py-4 text-center"
+                  style="background: #123d35; color: white; font-size: 1.02rem; font-weight: 900; letter-spacing: -0.02em"
                 >
-                  <div class="flex items-center gap-3">
-                    <span class="text-xl">{{ item.emoji }}</span>
-                    <div>
-                      <p style="font-size: 0.88rem; font-weight: 600; color: #1a2e2b">{{ item.label }}</p>
-                      <p style="font-size: 0.72rem; color: #9ca3af">{{ item.count }}개 × {{ item.xpEach }} XP</p>
+                  나의 대전 여행 대시보드
+                </div>
+
+                <div class="grid grid-cols-1 xl:grid-cols-[270px_1fr] gap-6 p-6">
+                  <aside class="flex flex-col gap-4">
+                    <div
+                      class="rounded-[24px] p-5 text-center shadow-sm"
+                      style="background: rgba(255,255,255,0.92); border: 1px solid rgba(226,232,240,0.85)"
+                    >
+                      <div class="relative mx-auto mb-4 w-[92px] h-[92px]">
+                        <div
+                          class="w-full h-full rounded-[30px] flex items-center justify-center"
+                          style="background: linear-gradient(145deg, #e7f7f3, #b2e4dc); color: #3db89e; font-size: 2.45rem; font-weight: 900; box-shadow: inset 0 0 0 1px rgba(61,184,158,0.18)"
+                        >
+                          {{ currentXpLevel.emoji }}
+                        </div>
+                        <div
+                          class="absolute -right-2 -bottom-1 px-2.5 py-1 rounded-full"
+                          style="background:#123d35; color:#b2e4dc; font-size:0.68rem; font-weight:950; box-shadow:0 4px 12px rgba(18,61,53,0.18)"
+                        >
+                          Lv.{{ currentXpLevel.level }}
+                        </div>
+                      </div>
+
+                      <p style="font-size: 1.05rem; font-weight: 950; color: #123d35; letter-spacing:-0.02em">
+                        {{ currentXpLevel.name }}
+                      </p>
+                      <p class="mt-1" style="font-size: 0.76rem; color: #7b8f8b; font-weight:700">
+                        {{ totalXp.toLocaleString() }} XP를 모은 여행자예요
+                      </p>
+
+                      <div
+                        class="mt-4 rounded-2xl px-4 py-3 text-left"
+                        style="background: linear-gradient(135deg, #123d35, #246b5d); color: white"
+                      >
+                        <div class="flex items-center justify-between mb-2">
+                          <span style="font-size: 0.74rem; font-weight: 800; opacity: 0.75">레벨 진행률</span>
+                          <span style="font-size: 0.78rem; font-weight: 900; color: #b2e4dc">
+                            {{ xpProgress }}%
+                          </span>
+                        </div>
+                        <div class="h-2 rounded-full overflow-hidden" style="background: rgba(255,255,255,0.18)">
+                          <div
+                            class="h-full rounded-full transition-all duration-700"
+                            :style="`width:${xpProgress}%; background: linear-gradient(90deg, #b2e4dc, #3db89e)`"
+                          />
+                        </div>
+                        <p v-if="nextXpLevel" class="mt-2 text-right" style="font-size:0.68rem; color:rgba(255,255,255,0.72); font-weight:700">
+                          다음 {{ nextXpLevel.name }}까지 {{ (nextXpLevel.minXp - totalXp).toLocaleString() }} XP
+                        </p>
+                        <p v-else class="mt-2 text-right" style="font-size:0.68rem; color:#b2e4dc; font-weight:900">
+                          최고 레벨 달성 🎉
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <span style="font-size: 0.95rem; font-weight: 800; color: #3db89e">
-                    +{{ (item.count * item.xpEach).toLocaleString() }}
-                  </span>
-                </div>
-              </div>
+                  </aside>
 
-              <!-- 레벨 로드맵 -->
-              <h3 class="mt-6 mb-3" style="font-size: 0.85rem; font-weight: 700; color: #6b8c87">레벨 로드맵</h3>
-              <div class="flex flex-col gap-2">
-                <div v-for="lv in xpLevels" :key="lv.level"
-                  class="flex items-center gap-3 p-3 rounded-xl transition-all"
-                  :style="lv.level === currentXpLevel.level
-                    ? 'background: #e8f8f5; border: 1.5px solid rgba(61,184,158,0.4)'
-                    : 'background: #f9fafb; border: 1.5px solid transparent; opacity: 0.7'"
-                >
-                  <span class="text-xl">{{ lv.emoji }}</span>
-                  <div class="flex-1">
-                    <p style="font-size: 0.85rem; font-weight: 700; color: #1a2e2b">
-                      Lv.{{ lv.level }} {{ lv.name }}
-                    </p>
-                    <p style="font-size: 0.72rem; color: #9ca3af">{{ lv.minXp.toLocaleString() }} XP 이상</p>
-                  </div>
-                  <span v-if="totalXp >= lv.minXp"
-                    style="font-size: 0.7rem; font-weight: 700; color: #3db89e; background: #e8f8f5; padding: 2px 8px; border-radius: 999px">
-                    달성 ✓
-                  </span>
+                  <section class="min-w-0">
+                    <div class="flex items-end justify-between gap-4 mb-4">
+                      <div>
+                        <p style="font-size: 0.8rem; font-weight: 900; color: #3db89e">LV.{{ currentXpLevel.level }}</p>
+                        <h2 style="font-size: 1.28rem; font-weight: 950; color: #123d35; letter-spacing: -0.03em">
+                          {{ currentXpLevel.name }} · {{ totalXp.toLocaleString() }} XP
+                        </h2>
+                      </div>
+                      <p v-if="nextXpLevel" style="font-size: 0.78rem; color: #7b8f8b; font-weight: 700">
+                        다음 레벨까지 {{ (nextXpLevel.minXp - totalXp).toLocaleString() }} XP
+                      </p>
+                      <p v-else style="font-size: 0.78rem; color: #3db89e; font-weight: 900">
+                        최고 레벨 달성 🎉
+                      </p>
+                    </div>
+
+                    <h3 class="mb-3" style="font-size: 0.92rem; font-weight: 900; color: #123d35">
+                      확장된 XP 획득 진행률
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      <div
+                        v-for="item in xpMissionCards"
+                        :key="item.label"
+                        class="rounded-[22px] p-4 shadow-sm"
+                        style="background: rgba(255,255,255,0.92); border: 1px solid rgba(226,232,240,0.9)"
+                      >
+                        <div class="flex items-start gap-3">
+                          <div
+                            class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+                            :style="`background:${item.accent}18; color:${item.accent}; font-size:1.35rem`"
+                          >
+                            {{ item.emoji }}
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <div class="flex justify-between gap-3">
+                              <p style="font-size: 0.92rem; font-weight: 900; color: #123d35">{{ item.label }}</p>
+                              <span style="font-size: 0.78rem; font-weight: 900; color: #3db89e">
+                                +{{ (item.count * item.xpEach).toLocaleString() }} XP
+                              </span>
+                            </div>
+                            <p class="mt-0.5" style="font-size: 0.74rem; color: #7b8f8b">
+                              현재 {{ item.count }}개 / 목표 {{ item.goal }}개
+                            </p>
+                            <div class="mt-3 h-2.5 rounded-full overflow-hidden" style="background: #edf3f1">
+                              <div
+                                class="h-full rounded-full transition-all duration-700"
+                                :style="`width:${percentOf(item.count, item.goal)}%; background:${item.accent}`"
+                              />
+                            </div>
+                            <p class="mt-2" style="font-size: 0.72rem; color: #9ca3af">{{ item.description }}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                                        <h3 class="mt-6 mb-3" style="font-size: 0.92rem; font-weight: 900; color: #123d35">
+                      레벨 로드맵
+                    </h3>
+                    <div class="relative h-[410px] px-2 py-2 overflow-visible">
+                      <svg
+                        class="absolute inset-0 z-0 w-full h-full pointer-events-none"
+                        viewBox="0 0 280 410"
+                        preserveAspectRatio="none"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M72 34 H184 C222 34 236 50 236 76 C236 103 214 116 184 116 H96 C62 116 46 135 46 158 C46 184 64 198 96 198 H184 C222 198 236 216 236 240 C236 268 214 282 184 282 H96 C62 282 46 302 46 326 C46 352 64 366 96 366 H176"
+                          fill="none"
+                          stroke="#d7e5e1"
+                          stroke-width="18"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          opacity="0.7"
+                        />
+                        <path
+                          d="M72 34 H184 C222 34 236 50 236 76 C236 103 214 116 184 116 H96 C62 116 46 135 46 158 C46 184 64 198 96 198 H184 C222 198 236 216 236 240 C236 268 214 282 184 282 H96 C62 282 46 302 46 326 C46 352 64 366 96 366 H176"
+                          fill="none"
+                          stroke="#8fa4a0"
+                          stroke-width="18"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          pathLength="100"
+                          stroke-dasharray="100"
+                          :stroke-dashoffset="100 - roadmapProgressRatio * 100"
+                          class="transition-all duration-700"
+                        />
+                        <path
+                          d="M72 34 H184 C222 34 236 50 236 76 C236 103 214 116 184 116 H96 C62 116 46 135 46 158 C46 184 64 198 96 198 H184 C222 198 236 216 236 240 C236 268 214 282 184 282 H96 C62 282 46 302 46 326 C46 352 64 366 96 366 H176"
+                          fill="none"
+                          stroke="rgba(255,255,255,0.86)"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-dasharray="6 8"
+                        />
+                      </svg>
+
+                      <div
+                        v-for="(lv, idx) in xpLevels"
+                        :key="lv.level"
+                        class="absolute z-10 transition-all duration-500"
+                        :class="idx % 2 === 0 ? 'left-1' : 'right-1'"
+                        :style="{ top: `${idx * 78}px`, width: '62%' }"
+                      >
+                        <div
+                          class="flex items-center gap-3 p-3 rounded-[18px] shadow-sm transition-all duration-500"
+                          :style="totalXp >= lv.minXp
+                            ? 'background:#ffffff; border:1.5px solid rgba(61,184,158,0.72); opacity:1; transform:scale(1)'
+                            : 'background:rgba(255,255,255,0.92); border:1px solid rgba(226,232,240,0.82); opacity:0.42; transform:scale(0.985)'"
+                        >
+                          <div
+                            class="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0"
+                            :style="totalXp >= lv.minXp
+                              ? 'background:#e7f7f3; color:#3db89e'
+                              : 'background:#f3f5f4; color:#9ca3af'"
+                          >
+                            <span class="text-lg">{{ lv.emoji }}</span>
+                          </div>
+                          <div class="flex-1 min-w-0">
+                            <p style="font-size: 0.84rem; font-weight: 950; color: #123d35">
+                              Lv.{{ lv.level }} {{ lv.name }}
+                            </p>
+                            <p style="font-size: 0.72rem; color: #8a9b97">
+                              {{ lv.minXp.toLocaleString() }} XP 이상
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
                 </div>
               </div>
             </div>
@@ -895,19 +1072,11 @@ function formatDate(dateStr: string): string {
                 <!-- 전화번호 -->
                 <div class="flex flex-col gap-1.5">
                   <span :style="labelBase">전화번호</span>
-                  <div class="flex justify-between items-center gap-2">
-                    <input
-                      v-model="editPhone"
-                      :style="[inputBase, { background: '#ffffff', borderRadius: '4px' }]"
-                      placeholder="전화번호를 입력하세요"
-                    />
-                    <button
-                      @click="savePhone"
-                      class="px-4 h-[44px] shrink-0 rounded-[4px] bg-teal-500 text-white font-bold text-xs hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      :disabled="savingPhone || editPhone === (user.phone ?? '')"
-                    >
-                      {{ savingPhone ? "저장중" : "변경" }}
-                    </button>
+                  <div
+                    :style="infoBoxBase"
+                    style="background: #f3f4f6; color: #9ca3af; cursor: not-allowed;"
+                  >
+                    <span>{{ user.phone ?? '-' }}</span>
                   </div>
                 </div>
               </div>
@@ -1084,16 +1253,14 @@ function formatDate(dateStr: string): string {
                 스탬프 지도
               </h2>
               <div
-                class="relative w-full h-[340px] rounded-2xl overflow-hidden"
-                style="border: 1px solid rgba(178, 228, 220, 0.4)"
+                class="relative w-full h-[340px] rounded-2xl overflow-hidden bg-white"
               >
                 <div id="postcard-stamp-map" style="width: 100%; height: 100%" />
                 <div
                   v-if="stampStore.photos.length === 0"
                   class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-                >
-                  <span class="text-3xl mb-2">📍</span>
-                  <p style="font-size: 0.82rem; font-weight: 600; color: #6b8c87; background: rgba(255,255,255,0.85); padding: 6px 14px; border-radius: 20px">
+                >
+                  <p style="font-size: 0.82rem; font-weight: 600; color: #6b8c87; background: #ffffff; padding: 6px 14px; border-radius: 20px">
                     스탬프를 찍으면 지도에 표시돼요
                   </p>
                 </div>
@@ -1101,7 +1268,7 @@ function formatDate(dateStr: string): string {
             </div>
 
             <!-- 스탬프 인증 사진 -->
-            <div class="py-6 border-t border-gray-100">
+            <div class="py-6">
               <div class="flex items-center justify-between mb-4">
                 <h2
                   style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
@@ -1115,9 +1282,8 @@ function formatDate(dateStr: string): string {
               <div
                 v-if="stampStore.photos.length === 0"
                 class="flex flex-col items-center justify-center py-12 rounded-2xl"
-                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
-              >
-                <span class="text-4xl mb-3">📮</span>
+                style="background: #ffffff"
+              >
                 <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
                   아직 인증한 사진이 없어요
                 </p>
@@ -1151,7 +1317,7 @@ function formatDate(dateStr: string): string {
             </div>
 
             <!-- 캐릭터 -->
-            <div class="pt-6 border-t border-gray-100">
+            <div class="pt-6">
               <div class="flex items-center justify-between mb-4">
                 <h2
                   style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
@@ -1166,9 +1332,8 @@ function formatDate(dateStr: string): string {
               <div
                 v-if="postcardCharacters.length === 0"
                 class="flex flex-col items-center justify-center py-12 rounded-2xl"
-                style="background: #f9fafb; border: 1.5px dashed #e5e7eb"
-              >
-                <span class="text-4xl mb-3">🌟</span>
+                style="background: #ffffff"
+              >
                 <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
                   아직 함께 찍은 꿈씨패밀리가 없어요
                 </p>
@@ -1513,41 +1678,45 @@ function formatDate(dateStr: string): string {
               </div>
             </div>
 
-            <!-- 확장 포인트 -->
+            <!-- 스탬프 현황 -->
             <div>
-              <p
-                style="
-                  font-size: 0.78rem;
-                  font-weight: 700;
-                  color: #6b8c87;
-                  margin-bottom: 10px;
-                "
-              >
-                여행 기록
-              </p>
-              <div class="grid grid-cols-3 gap-2">
-                <div
-                  v-for="item in [
-                    { icon: '📸', label: '인증 사진' },
-                    { icon: '🎖️', label: '획득 엽서' },
-                    { icon: '⭐', label: '별점·한줄평' },
-                  ]"
-                  :key="item.label"
-                  class="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border"
-                  style="
-                    border-color: #e5e7eb;
-                    background: #fafafa;
-                    opacity: 0.6;
-                  "
-                >
-                  <span class="text-xl">{{ item.icon }}</span>
-                  <p
-                    style="font-size: 0.72rem; font-weight: 600; color: #9ca3af"
-                  >
-                    {{ item.label }}
-                  </p>
-                  <p style="font-size: 0.65rem; color: #d1d5db">준비 중</p>
+              <div class="flex items-center justify-between mb-3">
+                <p style="font-size: 0.78rem; font-weight: 800; color: #6b8c87">
+                  스탬프 현황
+                </p>
+                <span style="font-size: 0.72rem; font-weight: 800; color: #3db89e">
+                  {{ courseStampCount(selectedCourse) }}/{{ selectedCourse.places.length }} 완료
+                </span>
+              </div>
+              <div class="rounded-2xl p-4" style="background:#f8fbfa; border:1px solid rgba(178,228,220,0.45)">
+                <div class="flex items-center justify-between gap-4 mb-3">
+                  <div class="min-w-0">
+                    <p class="truncate" style="font-size:0.86rem; font-weight:900; color:#123d35">
+                      {{ selectedCourse.subTitle }} 스탬프 투어
+                    </p>
+                    <p style="font-size:0.72rem; color:#8a9b97; margin-top:3px">
+                      이 코스의 장소별 인증 현황을 이어서 확인해요.
+                    </p>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <p style="font-size:1.05rem; font-weight:950; color:#3db89e">
+                      {{ Math.round((courseStampCount(selectedCourse) / Math.max(1, selectedCourse.places.length)) * 100) }}%
+                    </p>
+                  </div>
                 </div>
+                <div class="h-2 rounded-full overflow-hidden mb-4" style="background:#e6f7f4">
+                  <div
+                    class="h-full rounded-full transition-all duration-500"
+                    :style="`width:${(courseStampCount(selectedCourse) / Math.max(1, selectedCourse.places.length)) * 100}%; background:linear-gradient(90deg,#b2e4dc,#3db89e)`"
+                  />
+                </div>
+                <button
+                  @click="goToCourseStamp(selectedCourse)"
+                  class="w-full py-3 rounded-xl font-bold text-white transition-all active:scale-[0.99]"
+                  style="background:linear-gradient(135deg,#3db89e,#2da08a); font-size:0.9rem"
+                >
+                  스탬프로 이동하기
+                </button>
               </div>
             </div>
           </div>

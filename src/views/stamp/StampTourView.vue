@@ -36,6 +36,21 @@ const router = useRouter()
 
 const places = ref<TourPlace[]>([])
 
+function toTourPlaces(coursePlaces: any[], courseId: string | null) {
+  return coursePlaces
+    .filter((p: any) => p.lat && p.lng)
+    .map((p: any) => ({
+      id: String(p.id),
+      name: p.name,
+      description: p.category ?? p.desc ?? '',
+      lat: p.lat,
+      lng: p.lng,
+      guideText: guideTextFor(p.category ?? p.desc),
+      guideEmoji: emojiFor(p.category ?? p.desc),
+      visited: stampStore.isPlaceStamped(String(p.id), courseId),
+    }))
+}
+
 function emojiFor(category: string) {
   switch (category) {
     case 'FOOD':    return '🍽️'
@@ -266,40 +281,25 @@ onMounted(async () => {
 
   bookmarkStore.fetchBookmarks().catch(() => {})
 
-  if (courseStore.hasConfirmedCourse) {
+  const selectedCourse = stampStore.activeCourse
+  if (selectedCourse?.places?.length) {
+    courseStore.hasConfirmedCourse = true
+    places.value = toTourPlaces(selectedCourse.places, selectedCourse.id)
+  } else if (courseStore.hasConfirmedCourse) {
     try {
       const res = await httpGet<any[]>('/api/courses/my')
       savedCoursesCount.value = res.data?.length ?? 0
-      const latestCourse = res.data[0]  // 가장 최근 코스
+      const latestCourse = res.data[0]
       if (latestCourse?.places?.length > 0) {
-        places.value = latestCourse.places
-          .filter((p: any) => p.lat && p.lng)
-          .map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            description: p.category,
-            lat: p.lat,
-            lng: p.lng,
-            guideText: guideTextFor(p.category),
-            guideEmoji: emojiFor(p.category),
-            visited: false,
-          }))
+        stampStore.setActiveCourse(latestCourse)
+        places.value = toTourPlaces(latestCourse.places, String(latestCourse.id))
       }
     } catch (err) {
       console.error('코스 로딩 실패:', err)
     }
   } else {
     const diPlaces = await fetchDiPlaces()
-    places.value = diPlaces.slice(0, 4).map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.desc,
-      lat: p.lat,
-      lng: p.lng,
-      guideText: guideTextFor(p.category),
-      guideEmoji: emojiFor(p.category),
-      visited: false,
-    }))
+    places.value = toTourPlaces(diPlaces.slice(0, 4), null)
   }
 
   if (!document.getElementById('kakao-map-script')) {
@@ -480,6 +480,8 @@ async function confirmResult() {
     url: resultImageUrl.value,
     placeName: place.name,
     placeEmoji: place.guideEmoji,
+    courseId: stampStore.activeCourseId ?? undefined,
+    courseTitle: stampStore.activeCourseTitle,
     characterId: rewardCharacter.id,
     characterName: rewardCharacter.name,
     characterRole: rewardCharacter.role,
