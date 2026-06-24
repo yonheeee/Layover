@@ -13,7 +13,11 @@ const courseStore = useCourseStore();
 const isLoading = ref(false);
 
 const FILTER_MAP: Record<string, string> = {
-  food: "FOOD", cafe: "CAFE", culture: "CULTURE", nature: "NATURE",
+  food: "FOOD",
+  cafe: "CAFE",
+  culture: "CULTURE",
+  nature: "NATURE",
+  shopping: "SHOPPING",
 };
 const STATION_MAP: Record<string, string> = {
   daejeon: "DAEJEON", "seo-daejeon": "SEODDAEJEON", sintanjin: "SINTANJIN",
