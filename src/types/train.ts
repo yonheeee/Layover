@@ -5,7 +5,11 @@ export interface Train {
   destination: string
   stationName: string
   stationCode: string
-  mrntNm: string
+  mrntNm?: string
+  trainName?: string
+  trainGrade?: string
+  trainKind?: string
+  kndNm?: string
 }
 
 export interface StationOption {

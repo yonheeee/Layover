@@ -3,7 +3,6 @@ import { ref } from "vue";
 import HeroSection from "@/components/home/HeroSection.vue";
 import RecommendedSpotsSection from "@/components/home/RecommendedSpotsSection.vue";
 import CtaBannerSection from "@/components/home/CtaBannerSection.vue";
-import PopularCoursesSection from "@/components/home/PopularCoursesSection.vue";
 import StampEventSection from "@/components/home/StampEventSection.vue";
 import PlaceDetailContent from "../place/PlaceDetailContents.vue";
 import { useBookmarkStore } from "@/stores/bookmark";
@@ -21,19 +20,25 @@ function closeSpotModal() {
 </script>
 
 <template>
-  <HeroSection />
+  <div class="home-page">
+    <HeroSection />
 
-  <RecommendedSpotsSection
-    :likedSpots="[...bookmarkStore.bookmarked]"
-    @openSpotModal="openSpotModal"
-    @toggleLike="bookmarkStore.toggleBookmark"
-  />
+    <div class="home-page__section home-page__section--after-hero">
+      <RecommendedSpotsSection
+        :likedSpots="[...bookmarkStore.bookmarked]"
+        @openSpotModal="openSpotModal"
+        @toggleLike="bookmarkStore.toggleBookmark"
+      />
+    </div>
 
-  <CtaBannerSection />
+    <div class="home-page__section">
+      <CtaBannerSection />
+    </div>
 
-  <PopularCoursesSection />
-
-  <StampEventSection />
+    <div class="home-page__section">
+      <StampEventSection />
+    </div>
+  </div>
 
   <!-- 장소 상세 모달 -->
   <Transition name="fade-modal">
@@ -66,6 +71,18 @@ function closeSpotModal() {
 </template>
 
 <style scoped>
+.home-page {
+  background: #ffffff;
+}
+
+.home-page__section {
+  margin-top: 56px;
+}
+
+.home-page__section--after-hero {
+  margin-top: 40px;
+}
+
 .fade-modal-enter-active,
 .fade-modal-leave-active {
   transition: opacity 0.25s ease;
@@ -86,5 +103,15 @@ function closeSpotModal() {
 }
 .animate-popup-up {
   animation: popupUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (max-width: 767px) {
+  .home-page__section {
+    margin-top: 36px;
+  }
+
+  .home-page__section--after-hero {
+    margin-top: 28px;
+  }
 }
 </style>
