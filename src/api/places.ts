@@ -29,7 +29,7 @@ interface PlaceDetailDto extends PlaceListDto {
   syncedAt: string;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
+export const CATEGORY_LABELS: Record<string, string> = {
   TOUR: "관광명소",
   CULTURE: "문화/예술",
   FESTIVAL: "축제/행사",
@@ -71,12 +71,15 @@ function mapDetail(dto: PlaceDetailDto): Place {
 export async function getPlaces(
   category?: string,
   keyword?: string,
+  district?: string,
   page = 0,
 ): Promise<PlacePage> {
   const params = new URLSearchParams();
   if (category) params.set("category", category);
   if (keyword) params.set("keyword", keyword);
+  if (district) params.set("district", district);
   params.set("page", String(page));
+  params.set("size", "32");
   const query = params.toString();
   const res = await httpGet<{
     content: PlaceListDto[];

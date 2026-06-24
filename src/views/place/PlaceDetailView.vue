@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { ArrowLeft, Search } from "lucide-vue-next";
+import { ArrowLeft, Search, SlidersHorizontal } from "lucide-vue-next";
 import PlaceDetailContent from "./PlaceDetailContents.vue";
 import PlaceCard from "@/components/common/PlaceCard.vue";
 import { getPlaces } from "@/api/places";
@@ -52,7 +52,7 @@ const CATEGORY_TABS = [
   { key: "TOUR", label: "관광명소" },
   { key: "FOOD", label: "음식" },
   { key: "CULTURE", label: "문화/예술" },
-  { key: "FESTIVAL", label: "축제" },
+  { key: "FESTIVAL", label: "축제/행사" },
   { key: "LEPORTS", label: "레포츠" },
   { key: "SHOPPING", label: "쇼핑" },
   { key: "STAY", label: "숙박" },
@@ -60,6 +60,23 @@ const CATEGORY_TABS = [
 
 const activeCategory = ref("");
 const searchQuery = ref("");
+const selectedDistrict = ref("");
+const showDistrictDropdown = ref(false);
+
+const DISTRICT_OPTIONS = ["전체", "동구", "중구", "서구", "유성구", "대덕구"];
+
+function selectDistrict(district: string) {
+  selectedDistrict.value = district === "전체" ? "" : district;
+  fetchPlaces(0);
+}
+
+function handleOutsideClick(e: MouseEvent) {
+  const target = e.target as HTMLElement;
+  if (!target.closest(".district-filter-container")) {
+    showDistrictDropdown.value = false;
+  }
+}
+
 const places = ref<PlacePage>({
   content: [],
   totalElements: 0,
@@ -77,6 +94,7 @@ async function fetchPlaces(page = 0) {
     places.value = await getPlaces(
       activeCategory.value || undefined,
       searchQuery.value || undefined,
+      selectedDistrict.value || undefined,
       page,
     );
   } catch (e) {
@@ -123,11 +141,13 @@ onMounted(() => {
   if (idFromQuery) {
     selectedPlaceId.value = idFromQuery;
   }
+  document.addEventListener("click", handleOutsideClick);
 });
 
 onUnmounted(() => {
   if (slideTimer) clearInterval(slideTimer);
   clearTimeout(debounceTimer);
+  document.removeEventListener("click", handleOutsideClick);
 });
 </script>
 
@@ -150,18 +170,8 @@ onUnmounted(() => {
           class="flex items-center gap-2 transition-opacity hover:opacity-70"
           style="color: #6b8c87; font-size: 0.88rem; font-weight: 600"
         >
-          <ArrowLeft :size="17" /> 뒤로가기
+          <ArrowLeft :size="17" />
         </button>
-
-        <div class="relative w-64">
-          <input
-            v-model="searchQuery"
-            type="text"
-            placeholder="어디로 떠나고 싶으신가요?"
-            class="w-full pl-9 pr-4 py-1.5 rounded-full border border-teal-100 text-xs outline-none bg-white/80 focus:bg-white focus:border-teal-400 transition-all text-[#1a2e2b]"
-          />
-          <Search class="absolute left-3 top-2 text-teal-500" :size="14" />
-        </div>
       </div>
 
       <!-- 배너 슬라이더 -->
@@ -207,30 +217,92 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <!-- 카테고리 필터 + 결과 수 -->
+      <!-- 결과 수 -->
       <section>
         <div
-          class="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-3 mb-6 gap-4"
+          class="flex items-center justify-between border-b border-gray-100 pb-3 mb-6"
         >
-          <div class="flex gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-            <button
-              v-for="tab in CATEGORY_TABS"
-              :key="tab.key"
-              @click="selectCategory(tab.key)"
-              class="px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all"
-              :style="
-                activeCategory === tab.key
-                  ? 'background: #3db89e; color: #ffffff;'
-                  : 'background: #ffffff; color: #6b8c87; border: 1px solid #e2e8f0;'
-              "
-            >
-              {{ tab.label }}
-            </button>
-          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative district-filter-container">
+              <button
+                @click.stop="showDistrictDropdown = !showDistrictDropdown"
+                class="flex items-center justify-center transition-all"
+              >
+                <SlidersHorizontal
+                  :size="16"
+                  :style="
+                    selectedDistrict || activeCategory
+                      ? 'color: #3db89e;'
+                      : 'color: #6b8c87;'
+                  "
+                />
+              </button>
 
-          <span
-            class="text-xs text-gray-400 font-semibold self-end md:self-auto"
-          >
+              <div
+                v-if="showDistrictDropdown"
+                class="absolute left-0 top-9 z-50 bg-white rounded-xl shadow-lg border border-gray-100 p-3"
+                style="min-width: 280px"
+              >
+                <!-- 지역 섹션 -->
+                <p
+                  style="font-size: 0.7rem; color: #6b8c87; font-weight: 600"
+                  class="mb-1.5"
+                >
+                  지역
+                </p>
+                <div class="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  <button
+                    v-for="district in DISTRICT_OPTIONS"
+                    :key="district"
+                    @click="selectDistrict(district)"
+                    class="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                    :style="
+                      (district === '전체' && selectedDistrict === '') ||
+                      district === selectedDistrict
+                        ? 'background: #3db89e; color: #ffffff;'
+                        : 'background: #f0faf8; color: #6b8c87;'
+                    "
+                  >
+                    {{ district }}
+                  </button>
+                </div>
+
+                <!-- 카테고리 섹션 -->
+                <p
+                  style="font-size: 0.7rem; color: #6b8c87; font-weight: 600"
+                  class="mt-3 mb-1.5"
+                >
+                  카테고리
+                </p>
+                <div class="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  <button
+                    v-for="tab in CATEGORY_TABS"
+                    :key="tab.key"
+                    @click="selectCategory(tab.key)"
+                    class="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex-shrink-0"
+                    :style="
+                      activeCategory === tab.key
+                        ? 'background: #3db89e; color: #ffffff;'
+                        : 'background: #f0faf8; color: #6b8c87;'
+                    "
+                  >
+                    {{ tab.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="relative w-64">
+              <input
+                v-model="searchQuery"
+                type="text"
+                placeholder="어디로 떠나고 싶으신가요?"
+                class="w-full pl-9 pr-4 py-1.5 rounded-full border border-teal-100 text-xs outline-none bg-white/80 focus:bg-white focus:border-teal-400 transition-all text-[#1a2e2b]"
+              />
+              <Search class="absolute left-3 top-2 text-teal-500" :size="14" />
+            </div>
+          </div>
+          <span class="text-xs text-gray-400 font-semibold">
             총 <span class="text-teal-600">{{ places.totalElements }}</span
             >개의 장소
           </span>
@@ -246,7 +318,7 @@ onUnmounted(() => {
         <!-- 카드 그리드 -->
         <div
           v-else-if="places.content.length > 0"
-          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 justify-items-center"
+          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 justify-items-center"
         >
           <PlaceCard
             v-for="place in places.content"
@@ -275,25 +347,25 @@ onUnmounted(() => {
           <button
             @click="fetchPlaces(places.currentPage - 1)"
             :disabled="places.currentPage === 0"
-            class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+            class="px-2 py-1 text-xs font-bold transition-all"
             :style="
               places.currentPage === 0
-                ? 'background: #f1f5f9; color: #b0c4c1; cursor: not-allowed;'
-                : 'background: #ffffff; color: #3db89e; border: 1px solid #b2e4dc;'
+                ? 'color: #b0c4c1; cursor: not-allowed;'
+                : 'color: #3db89e;'
             "
           >
-            &lt; 이전
+            &lt;
           </button>
 
           <button
             v-for="n in pageNumbers"
             :key="n"
             @click="fetchPlaces(n)"
-            class="w-8 h-8 rounded-xl text-xs font-bold transition-all"
+            class="px-2 py-1 text-xs font-bold transition-all"
             :style="
               places.currentPage === n
-                ? 'background: #3db89e; color: #ffffff;'
-                : 'background: #ffffff; color: #6b8c87; border: 1px solid #e2e8f0;'
+                ? 'color: #3db89e; font-weight: 900;'
+                : 'color: #6b8c87;'
             "
           >
             {{ n + 1 }}
@@ -302,14 +374,14 @@ onUnmounted(() => {
           <button
             @click="fetchPlaces(places.currentPage + 1)"
             :disabled="!places.hasNext"
-            class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
+            class="px-2 py-1 text-xs font-bold transition-all"
             :style="
               !places.hasNext
-                ? 'background: #f1f5f9; color: #b0c4c1; cursor: not-allowed;'
-                : 'background: #ffffff; color: #3db89e; border: 1px solid #b2e4dc;'
+                ? 'color: #b0c4c1; cursor: not-allowed;'
+                : 'color: #3db89e;'
             "
           >
-            다음 &gt;
+            &gt;
           </button>
         </div>
       </section>

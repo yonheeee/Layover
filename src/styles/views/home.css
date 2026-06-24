@@ -1,13 +1,15 @@
 /* ===== HomeView ===== */
 .home-wrap {
-  background: linear-gradient(155deg, #E8F8F5 0%, #ffffff 55%, #f0faf8 100%);
+  background: linear-gradient(155deg, #e8f8f5 0%, #ffffff 55%, #f0faf8 100%);
   min-height: calc(100vh - 64px);
 }
 
 .hero-card {
   background: #fff;
   border: 1.5px solid rgba(178, 228, 220, 0.4);
-  box-shadow: 0 24px 80px rgba(26, 46, 43, 0.12), 0 4px 16px rgba(178, 228, 220, 0.3);
+  box-shadow:
+    0 24px 80px rgba(26, 46, 43, 0.12),
+    0 4px 16px rgba(178, 228, 220, 0.3);
 }
 
 .station-btn {
@@ -20,7 +22,7 @@
 }
 
 .station-btn--active {
-  background: linear-gradient(135deg, #B2E4DC, #3db89e);
+  background: linear-gradient(135deg, #b2e4dc, #3db89e);
   color: #fff;
   border: none;
   box-shadow: 0 3px 10px rgba(61, 184, 158, 0.35);
@@ -55,7 +57,7 @@
 }
 
 .train-table tr.active td {
-  background: #E8F8F5;
+  background: #e8f8f5;
   font-weight: 700;
   color: #3db89e;
 }
@@ -71,7 +73,7 @@
 }
 
 .category-chip--active {
-  background: linear-gradient(135deg, #B2E4DC, #3db89e);
+  background: linear-gradient(135deg, #b2e4dc, #3db89e);
   color: #fff;
   box-shadow: 0 2px 8px rgba(61, 184, 158, 0.3);
 }
@@ -81,7 +83,7 @@
   color: #6b8c87;
   border: 1.5px solid rgba(178, 228, 220, 0.5);
 }
-
+/* 
 .spot-card {
   background: #fff;
   border: 1.5px solid rgba(178, 228, 220, 0.3);
@@ -94,7 +96,7 @@
 .spot-card:hover {
   box-shadow: 0 8px 32px rgba(26, 46, 43, 0.14);
   transform: translateY(-2px);
-}
+} */
 
 .cta-banner {
   background: linear-gradient(135deg, #1a2e2b, #2d4f4a);
