@@ -48,18 +48,25 @@ export function getCommunityErrorMessage(
   return fallbackMessage;
 }
 
-export async function uploadPostImage(file: File): Promise<string> {
+async function uploadToServer(file: File, endpoint: string, errorLabel: string): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
   const token = localStorage.getItem("accessToken");
   const baseURL = import.meta.env.VITE_API_BASE_URL ?? "";
-  // http 인스턴스의 Content-Type: application/json 기본값을 피하기 위해 axios 직접 사용
   const res = await axios.post<ApiResponse<string>>(
-    `${baseURL}/api/upload/image`,
+    `${baseURL}${endpoint}`,
     formData,
     { headers: token ? { Authorization: `Bearer ${token}` } : {} },
   );
-  return unwrapCommunityResponse(res.data, "이미지 업로드에 실패했습니다.");
+  return unwrapCommunityResponse(res.data, errorLabel);
+}
+
+export async function uploadPostImage(file: File): Promise<string> {
+  return uploadToServer(file, "/api/upload/image", "이미지 업로드에 실패했습니다.");
+}
+
+export async function uploadFile(file: File): Promise<string> {
+  return uploadToServer(file, "/api/upload/file", "파일 업로드에 실패했습니다.");
 }
 
 export const CATEGORY_TO_CODE: Record<string, string> = {
@@ -174,8 +181,8 @@ export async function getFaqs() {
 }
 
 // ─── 1:1 문의 ───
-export async function createInquiry(title: string, content: string) {
-  const res = await httpPost<InquiryItem>("/api/inquiries", { title, content });
+export async function createInquiry(title: string, content: string, attachmentUrls?: string[]) {
+  const res = await httpPost<InquiryItem>("/api/inquiries", { title, content, attachmentUrls: attachmentUrls ?? [] });
   return res.data;
 }
 

@@ -58,6 +58,7 @@ export interface InquiryItem {
 export interface InquiryDetail extends InquiryItem {
   content: string;
   answer?: string;
+  attachmentUrls?: string[];
 }
 
 export interface MyPost {

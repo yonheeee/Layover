@@ -27,6 +27,7 @@ import {
   createInquiry,
   getMyInquiries,
   getInquiry,
+  uploadFile,
   CATEGORY_TO_CODE,
   CODE_TO_CATEGORY,
 } from "@/api/community";
@@ -201,7 +202,12 @@ async function submitInquiry() {
   }
   isSubmittingInquiry.value = true;
   try {
-    await createInquiry(inquiryTitle.value.trim(), inquiryContent.value.trim());
+    const attachmentUrls: string[] = [];
+    for (const file of attachedFiles.value) {
+      const url = await uploadFile(file);
+      attachmentUrls.push(url);
+    }
+    await createInquiry(inquiryTitle.value.trim(), inquiryContent.value.trim(), attachmentUrls);
     inquiryTitle.value = "";
     inquiryContent.value = "";
     attachedFiles.value = [];
@@ -694,6 +700,37 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
                           >
                             {{ inquiryDetails[inq.id].content }}
                           </p>
+                        </div>
+                        <!-- 첨부파일 -->
+                        <div
+                          v-if="inquiryDetails[inq.id].attachmentUrls && inquiryDetails[inq.id].attachmentUrls!.length > 0"
+                          class="flex flex-col gap-1.5"
+                        >
+                          <p class="font-semibold text-gray-500 text-[11px]">첨부파일:</p>
+                          <div class="flex flex-wrap gap-2">
+                            <template v-for="(url, i) in inquiryDetails[inq.id].attachmentUrls" :key="i">
+                              <!-- 이미지 파일: 썸네일 표시 -->
+                              <a
+                                v-if="/\.(jpe?g|png|gif|webp|svg)$/i.test(url)"
+                                :href="url"
+                                target="_blank"
+                                class="block w-16 h-16 rounded overflow-hidden border border-gray-200 flex-shrink-0"
+                              >
+                                <img :src="url" class="w-full h-full object-cover" alt="첨부이미지" />
+                              </a>
+                              <!-- 그 외 파일: 다운로드 링크 -->
+                              <a
+                                v-else
+                                :href="url"
+                                target="_blank"
+                                download
+                                class="flex items-center gap-1 px-2 py-1 border border-gray-200 rounded text-[11px] text-gray-600 hover:bg-gray-50"
+                              >
+                                <Paperclip :size="11" />
+                                {{ url.split('/').pop() }}
+                              </a>
+                            </template>
+                          </div>
                         </div>
                         <div
                           v-if="inquiryDetails[inq.id].answer"
