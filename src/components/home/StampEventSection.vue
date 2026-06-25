@@ -1,9 +1,46 @@
 <script setup lang="ts">
 import { ChevronRight, Gift, Sparkles } from "lucide-vue-next";
 import { useRouter } from "vue-router";
+import { onMounted, ref } from "vue";
 import dreamCharacterImage from "@/assets/characters/dream/character_dream.png";
+import { useCourseStore } from "@/stores/course";
+import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
+const courseStore = useCourseStore();
+const authStore = useAuthStore();
+
+const pathRef = ref<SVGPathElement | null>(null);
+const dotPositions = ref<Array<{ x: number; y: number }>>([]);
+
+const DOT_COUNT = 6;
+
+onMounted(() => {
+  if (!pathRef.value) return;
+  const totalLength = pathRef.value.getTotalLength();
+  dotPositions.value = Array.from({ length: DOT_COUNT }, (_, i) => {
+    const t = i / (DOT_COUNT - 1);
+    const pt = pathRef.value!.getPointAtLength(t * totalLength);
+    return { x: pt.x, y: pt.y };
+  });
+});
+
+function dotStyle(pos: { x: number; y: number }) {
+  return {
+    left: `calc(${(pos.x / 980) * 100}% - 18px)`,
+    top: `${pos.y - 18}px`,
+  };
+}
+
+function cardStyle(dotIndex: number) {
+  const pos = dotPositions.value[dotIndex];
+  if (!pos) return {};
+  const above = dotIndex % 2 === 0;
+  return {
+    left: `calc(${(pos.x / 980) * 100}% - 102px)`,
+    top: above ? `${pos.y - 101}px` : `${pos.y + 26}px`,
+  };
+}
 
 const text = {
   title: "\uc624\ub298\uc758 \ud658\uc2b9 \ud018\uc2a4\ud2b8",
@@ -35,8 +72,17 @@ const questCards = [
   },
 ];
 
-function handleStartStampTour() {
-  router.push("/stamp-tour");
+async function handleStartStampTour() {
+  if (authStore.isLoggedIn) {
+    await courseStore.checkConfirmedCourse();
+  }
+
+  if (courseStore.hasConfirmedCourse) {
+    router.push("/stamp-tour");
+  } else {
+    router.push("/");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 }
 </script>
 
@@ -53,30 +99,33 @@ function handleStartStampTour() {
       <div class="stamp-route" aria-hidden="true">
         <svg viewBox="0 0 980 250" preserveAspectRatio="none">
           <path
+            ref="pathRef"
             class="route-path"
             d="M36 158 C160 236 235 94 352 132 S514 250 628 156 S804 42 944 132"
           />
         </svg>
 
         <span
-          v-for="index in 6"
-          :key="index"
+          v-for="(pos, i) in dotPositions"
+          :key="i"
           class="route-dot"
-          :class="[`route-dot--${index}`, { 'route-dot--locked': index > 4 }]"
+          :class="{ 'route-dot--locked': i + 1 > 4 }"
+          :style="dotStyle(pos)"
         >
-          {{ index }}
+          {{ i + 1 }}
         </span>
-      </div>
 
-      <article
-        v-for="card in questCards"
-        :key="card.title"
-        class="quest-card"
-        :class="card.className"
-      >
-        <strong>{{ card.title }}</strong>
-        <span>{{ card.body }}</span>
-      </article>
+        <article
+          v-for="(card, i) in questCards"
+          :key="card.title"
+          class="quest-card"
+          :class="card.className"
+          :style="cardStyle(i)"
+        >
+          <strong>{{ card.title }}</strong>
+          <span>{{ card.body }}</span>
+        </article>
+      </div>
 
       <div class="dream-reward">
         <img :src="dreamCharacterImage" alt="꿈돌이 캐릭터" />
@@ -106,25 +155,16 @@ function handleStartStampTour() {
 .stamp-game-board {
   position: relative;
   width: min(100%, 1440px);
-  min-height: 470px;
+  min-height: 580px;
   margin: 0 auto;
   overflow: hidden;
   border: 0;
   border-radius: 0;
   background: #ffffff;
   box-shadow: none;
-  padding: 28px 44px 34px;
+  padding: 28px 44px 100px;
 }
 
-.stamp-game-board::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 78% 24%, rgba(61, 184, 158, 0.1), transparent 32%),
-    radial-gradient(circle at 88% 88%, rgba(178, 228, 220, 0.22), transparent 28%);
-}
 
 .stamp-game-board__header {
   position: relative;
@@ -196,36 +236,6 @@ function handleStartStampTour() {
   color: #7aa59f;
 }
 
-.route-dot--1 {
-  left: 0;
-  top: 140px;
-}
-
-.route-dot--2 {
-  left: 16%;
-  top: 168px;
-}
-
-.route-dot--3 {
-  left: 32%;
-  top: 82px;
-}
-
-.route-dot--4 {
-  left: 48%;
-  top: 130px;
-}
-
-.route-dot--5 {
-  left: 67%;
-  top: 190px;
-}
-
-.route-dot--6 {
-  left: 89%;
-  top: 106px;
-}
-
 .quest-card {
   position: absolute;
   z-index: 2;
@@ -254,36 +264,17 @@ function handleStartStampTour() {
   font-weight: 800;
 }
 
-.quest-card--station {
-  left: 82px;
-  top: 170px;
-  background: #e8f8f5;
-}
-
-.quest-card--bakery {
-  left: 326px;
-  top: 206px;
-  background: #fff7dd;
-}
-
-.quest-card--market {
-  left: 160px;
-  bottom: 98px;
-  background: #f0fbf8;
-}
-
-.quest-card--reward {
-  left: 560px;
-  bottom: 95px;
-  background: #f4efff;
-}
+.quest-card--station { background: #e8f8f5; }
+.quest-card--bakery  { background: #fff7dd; }
+.quest-card--market  { background: #f0fbf8; }
+.quest-card--reward  { background: #f4efff; }
 
 .dream-reward {
   position: absolute;
   right: 66px;
   bottom: 28px;
   z-index: 2;
-  width: 365px;
+  width: 600px;
 }
 
 .dream-reward img {
@@ -337,7 +328,7 @@ function handleStartStampTour() {
 
 @media (max-width: 1120px) {
   .stamp-game-board {
-    min-height: 650px;
+    min-height: 720px;
   }
 
   .stamp-route {

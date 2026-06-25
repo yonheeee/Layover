@@ -70,7 +70,7 @@ onMounted(() => fetchSpots());
 </script>
 
 <template>
-  <section style="max-width: 1440px; margin: 0 auto; padding: 4rem 2rem">
+  <section style="max-width: 1440px; margin: 0 auto; padding: 1.5rem 2rem 4rem">
     <div class="flex items-end justify-between mb-4">
       <div class="space-y-2">
         <div
