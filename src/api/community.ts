@@ -132,6 +132,11 @@ export async function deletePost(id: string) {
 }
 
 // ─── 댓글 ───
+export async function getComments(postId: string) {
+  const res = await httpGet<PostComment[]>(`/api/posts/${postId}/comments`);
+  return unwrapCommunityResponse(res, "댓글을 불러올 수 없습니다.");
+}
+
 export async function createComment(postId: string, content: string) {
   const res = await httpPost<PostComment>(`/api/posts/${postId}/comments`, {
     content,

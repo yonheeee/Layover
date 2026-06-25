@@ -1,33 +1,32 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
 import {
+  CATEGORY_TO_CODE,
+  CODE_TO_CATEGORY,
   createPost,
+  getCommunityErrorMessage,
   getPost,
   updatePost,
   uploadPostImage,
-  CATEGORY_TO_CODE,
-  CODE_TO_CATEGORY,
-  getCommunityErrorMessage,
 } from "@/api/community";
+import type { SavedCourseResponse } from "@/api/courses";
+import { getMyCourses } from "@/api/courses";
 import {
-  ArrowLeft,
-  MapPin,
-  Clock,
-  Footprints,
   Car,
-  Image as ImageIcon,
-  Plus,
-  Trash2,
-  ArrowUp,
-  ArrowDown,
-  X,
-  Train,
-  Utensils,
+  Clock,
   Coffee,
+  Footprints,
+  GripVertical,
+  Image as ImageIcon,
+  MapPin,
   Palmtree,
+  Plus,
   Theater,
+  Trash2,
+  Utensils,
+  X,
 } from "lucide-vue-next";
+import { onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 const route = useRoute();
 const router = useRouter();
@@ -35,7 +34,7 @@ const router = useRouter();
 const editPostId = route.params.id as string | undefined;
 const isEditMode = !!editPostId;
 
-// ─── [폼 입력 데이터 상태] ───
+// ─── 폼 입력 데이터 ───
 const title = ref("");
 const categories = ["공유해요", "궁금해요", "함께해요", "자유"];
 const selectedCategory = ref(
@@ -44,63 +43,13 @@ const selectedCategory = ref(
     : "공유해요",
 );
 
-// 팝업 모달 제어 상태
+// ─── 코스 연결 ───
 const isCourseModalOpen = ref(false);
-// 기존: const connectedCourse = ref<any>(null);
-// 변경:
-const connectedCourse = ref<{
-  station: string;
-  duration: string;
-  items: { name: string; category: string; transport: string; time: string }[];
-} | null>(null);
+const connectedCourse = ref<SavedCourseResponse | null>(null);
+const mySavedCourses = ref<SavedCourseResponse[]>([]);
+const isLoadingCourses = ref(false);
 
-// 저장한 코스 목록 데이터
-const mySavedCourses = ref([
-  {
-    id: 101,
-    station: "대전역",
-    duration: "3시간 30분",
-    items: [
-      { name: "성심당 본점", category: "음식", transport: "도보", time: "5분" },
-      { name: "테미오래", category: "문화", transport: "택시", time: "10분" },
-      { name: "한밭수목원", category: "자연", transport: "도보", time: "15분" },
-    ],
-  },
-  {
-    id: 102,
-    station: "서대전역",
-    duration: "2시간",
-    items: [
-      {
-        name: "오정동 칼국수",
-        category: "음식",
-        transport: "도보",
-        time: "10분",
-      },
-      {
-        name: "예쁜 개인카페",
-        category: "카페",
-        transport: "도보",
-        time: "5분",
-      },
-    ],
-  },
-  {
-    id: 103,
-    station: "대전역",
-    duration: "1시간 30분",
-    items: [
-      {
-        name: "소제동 카페거리",
-        category: "카페",
-        transport: "도보",
-        time: "7분",
-      },
-    ],
-  },
-]);
-
-// ─── [블록 에디터 구조] ───
+// ─── 블록 에디터 ───
 interface TextBlock {
   id: number;
   type: "text";
@@ -111,6 +60,7 @@ interface ImageBlock {
   type: "image";
   value: string;
   file: File | null;
+  name?: string;
 }
 type EditorBlock = TextBlock | ImageBlock;
 
@@ -118,6 +68,37 @@ const blocks = ref<EditorBlock[]>([
   { id: Date.now(), type: "text", value: "" },
 ]);
 
+// ─── 드래그 앤 드롭 ───
+const dragIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
+
+function onDragStart(index: number) {
+  dragIndex.value = index;
+}
+
+function onDragOver(e: DragEvent, index: number) {
+  e.preventDefault();
+  dragOverIndex.value = index;
+}
+
+function onDrop(index: number) {
+  if (dragIndex.value === null || dragIndex.value === index) {
+    dragIndex.value = null;
+    dragOverIndex.value = null;
+    return;
+  }
+  const moved = blocks.value.splice(dragIndex.value, 1)[0];
+  blocks.value.splice(index, 0, moved);
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+}
+
+function onDragEnd() {
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+}
+
+// ─── 블록 조작 ───
 function addTextBlock(index: number) {
   blocks.value.splice(index + 1, 0, {
     id: Date.now(),
@@ -140,6 +121,7 @@ function triggerImageBlock(index: number) {
         type: "image",
         value: url,
         file: file,
+        name: file.name,
       });
     }
   };
@@ -154,18 +136,60 @@ function deleteBlock(index: number) {
   blocks.value.splice(index, 1);
 }
 
-function moveBlock(index: number, direction: "up" | "down") {
-  if (direction === "up" && index === 0) return;
-  if (direction === "down" && index === blocks.value.length - 1) return;
-  const targetIndex = direction === "up" ? index - 1 : index + 1;
-  const temp = blocks.value[index];
-  blocks.value[index] = blocks.value[targetIndex];
-  blocks.value[targetIndex] = temp;
+// ─── 코스 모달 ───
+async function openCourseModal() {
+  isCourseModalOpen.value = true;
+  if (mySavedCourses.value.length === 0 && !isLoadingCourses.value) {
+    isLoadingCourses.value = true;
+    try {
+      mySavedCourses.value = await getMyCourses();
+    } catch {
+      // 로드 실패 무시
+    } finally {
+      isLoadingCourses.value = false;
+    }
+  }
 }
 
-function selectCourse(course: any) {
+function selectCourse(course: SavedCourseResponse) {
   connectedCourse.value = course;
   isCourseModalOpen.value = false;
+}
+
+function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}분`;
+  if (m === 0) return `${h}시간`;
+  return `${h}시간 ${m}분`;
+}
+
+// ─── content JSON 파싱 (수정 모드 로드) ───
+function parseContentToBlocks(content: string): EditorBlock[] {
+  try {
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((b: any, i: number) => {
+        if (b.type === "image") {
+          return {
+            id: Date.now() + i,
+            type: "image",
+            value: b.url ?? "",
+            file: null,
+            name: b.name ?? "",
+          } as ImageBlock;
+        }
+        return {
+          id: Date.now() + i,
+          type: "text",
+          value: b.value ?? "",
+        } as TextBlock;
+      });
+    }
+  } catch {
+    // 레거시 데이터 fallback
+  }
+  return [{ id: Date.now(), type: "text", value: content }];
 }
 
 const isSubmitting = ref(false);
@@ -182,7 +206,7 @@ onMounted(async () => {
       const post = await getPost(editPostId);
       title.value = post.title;
       selectedCategory.value = CODE_TO_CATEGORY[post.category] ?? "공유해요";
-      blocks.value = [{ id: Date.now(), type: "text", value: post.content }];
+      blocks.value = parseContentToBlocks(post.content);
     } catch {
       alert("게시글을 불러올 수 없습니다.");
       router.back();
@@ -209,7 +233,7 @@ async function handleRegister() {
 
   isSubmitting.value = true;
   try {
-    // 이미지 블록을 서버에 먼저 업로드하고 URL로 교체
+    // 새 이미지 블록을 서버에 업로드하고 URL로 교체
     for (const block of blocks.value) {
       if (block.type === "image" && (block as ImageBlock).file) {
         const url = await uploadPostImage((block as ImageBlock).file!);
@@ -218,19 +242,24 @@ async function handleRegister() {
       }
     }
 
-    // 블록들을 HTML content로 조합
-    const content = blocks.value
+    // 블록 배열을 JSON으로 직렬화
+    const serializedBlocks = blocks.value
+      .filter(
+        (b) =>
+          b.type === "image" ||
+          (b.type === "text" && (b as TextBlock).value.trim()),
+      )
       .map((b) => {
-        if (b.type === "text") {
-          return b.value.trim()
-            ? `<p>${b.value.trim().replace(/\n/g, "<br>")}</p>`
-            : "";
-        } else {
-          return `<img src="${b.value}" style="max-width:100%;border-radius:8px;margin:8px 0;" />`;
+        if (b.type === "image") {
+          return {
+            type: "image",
+            url: b.value,
+            name: (b as ImageBlock).name ?? "",
+          };
         }
-      })
-      .filter(Boolean)
-      .join("\n");
+        return { type: "text", value: (b as TextBlock).value.trim() };
+      });
+    const content = JSON.stringify(serializedBlocks);
 
     const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
     if (!apiCategory) {
@@ -242,7 +271,11 @@ async function handleRegister() {
       await updatePost(editPostId, title.value.trim(), content, apiCategory);
       router.replace(`/community/${editPostId}`);
     } else {
-      const newPost = await createPost(apiCategory, title.value.trim(), content);
+      const newPost = await createPost(
+        apiCategory,
+        title.value.trim(),
+        content,
+      );
       router.replace(newPost?.id ? `/community/${newPost.id}` : "/community");
     }
   } catch (error) {
@@ -276,13 +309,13 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
     "
   >
     <div class="max-w-3xl mx-auto px-4 py-6">
-      <!-- 상단 내비게이션 -->
+      <!-- 상단 내비게이션 (화살표 제거) -->
       <button
         @click="handleCancel"
         class="flex items-center gap-2 mb-5 transition-opacity hover:opacity-70 bg-transparent border-none cursor-pointer"
         style="color: #6b8c87; font-size: 0.88rem; font-weight: 600"
       >
-        <ArrowLeft :size="17" /> 커뮤니티 목록으로 돌아가기
+        목록으로
       </button>
 
       <!-- 본문 박스 -->
@@ -320,13 +353,13 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
           style="border-color: rgba(178, 228, 220, 0.4); color: #1a2e2b"
         />
 
-        <!-- 수정된 코스 연결 박스 전체 -->
+        <!-- 저장된 코스 연결 -->
         <div class="mb-6">
-          <!-- 상황 1: 코스가 연결되지 않았을 때 -->
+          <!-- 코스 미연결 -->
           <button
             v-if="!connectedCourse"
             type="button"
-            @click="isCourseModalOpen = true"
+            @click="openCourseModal"
             class="flex items-center justify-between w-full py-3 px-4 rounded-sm font-bold text-sm transition-all bg-teal-50/40 hover:bg-teal-50 text-teal-700 border text-left cursor-pointer"
             style="border-color: rgba(178, 228, 220, 0.5)"
           >
@@ -334,46 +367,49 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
             <span class="text-xs text-teal-500 font-bold">선택하기 &gt;</span>
           </button>
 
-          <!-- 상황 2: 코스가 연결되었을 때 (삭제 버튼 추가 완료) -->
+          <!-- 코스 연결됨 -->
           <div
             v-else
-            @click="isCourseModalOpen = true"
+            @click="openCourseModal"
             class="group relative w-full p-4 rounded-sm bg-teal-50/20 hover:bg-teal-50/40 transition-all border flex flex-col gap-2.5 cursor-pointer"
             style="border-color: rgba(178, 228, 220, 0.6)"
           >
-            <!-- 🌟 추가된 삭제 버튼 (클릭 시 connectedCourse를 null로 만듭니다) -->
             <button
               type="button"
               @click.stop="connectedCourse = null"
-              class="absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+              class="absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
             >
               <Trash2 :size="16" />
             </button>
 
-            <!-- 칸 내부 상단 정보 바 -->
             <div class="flex items-center justify-between">
               <div
                 class="flex items-center gap-2 text-xs font-bold text-gray-500"
               >
                 <span class="flex items-center gap-1 text-teal-600">
-                  <Train :size="14" /> {{ connectedCourse.station }}
+                  <component
+                    :is="
+                      connectedCourse.travelMode === 'WALK' ? Footprints : Car
+                    "
+                    :size="14"
+                  />
+                  {{ connectedCourse.travelMode === "WALK" ? "도보" : "택시" }}
                 </span>
                 <span class="text-gray-300 font-normal">|</span>
                 <span class="flex items-center gap-1">
-                  <Clock :size="13" /> {{ connectedCourse.duration }} 소요
+                  <Clock :size="13" />
+                  {{ formatDuration(connectedCourse.durationMinutes) }} 소요
                 </span>
               </div>
-              <!-- 우측 텍스트 -->
               <span
                 class="text-xs font-bold text-teal-600 group-hover:underline mr-6"
                 >수정</span
               >
             </div>
 
-            <!-- 칸 내부 하단 경로 텍스트 정보 -->
             <div class="flex flex-wrap items-center gap-1.5">
               <MapPin :size="14" class="text-teal-500 flex-shrink-0 mr-0.5" />
-              <template v-for="(place, i) in connectedCourse.items" :key="i">
+              <template v-for="(place, i) in connectedCourse.places" :key="i">
                 <div class="flex items-center gap-1">
                   <component
                     v-if="categoryMeta[place.category]"
@@ -386,11 +422,10 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
                   }}</span>
                 </div>
                 <span
-                  v-if="connectedCourse && i < connectedCourse.items.length - 1"
+                  v-if="i < connectedCourse.places.length - 1"
                   class="text-[10px] text-gray-300 font-normal mx-0.5"
+                  >➔</span
                 >
-                  ➔
-                </span>
               </template>
             </div>
           </div>
@@ -401,30 +436,36 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
           <div
             v-for="(block, idx) in blocks"
             :key="block.id"
-            class="group relative border border-transparent hover:border-gray-100 rounded-sm transition-all p-3"
+            class="group relative border border-transparent hover:border-gray-100 rounded-sm transition-all p-3 pl-8"
+            :class="{
+              'opacity-40': dragIndex === idx,
+              'border-teal-200 bg-teal-50/10':
+                dragOverIndex === idx && dragIndex !== idx,
+            }"
+            @dragover="onDragOver($event, idx)"
+            @drop="onDrop(idx)"
+            @dragleave="dragOverIndex = null"
           >
+            <!-- 드래그 핸들 -->
             <div
-              class="absolute right-2 top-2 hidden group-hover:flex items-center gap-0.5 bg-white border rounded-md p-1 shadow-sm z-10"
+              class="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab"
+              :class="{ 'cursor-grabbing': dragIndex === idx }"
+              draggable="true"
+              @dragstart="onDragStart(idx)"
+              @dragend="onDragEnd"
             >
-              <button
-                type="button"
-                @click="moveBlock(idx, 'up')"
-                class="p-1 hover:bg-gray-50 rounded text-gray-400 hover:text-gray-700"
-              >
-                <ArrowUp :size="14" />
-              </button>
-              <button
-                type="button"
-                @click="moveBlock(idx, 'down')"
-                class="p-1 hover:bg-gray-50 rounded text-gray-400 hover:text-gray-700"
-              >
-                <ArrowDown :size="14" />
-              </button>
+              <GripVertical :size="16" class="text-gray-300" />
+            </div>
+
+            <!-- 삭제 버튼 -->
+            <div
+              class="absolute right-2 top-2 hidden group-hover:flex items-center bg-white border rounded-md p-1 shadow-sm z-10"
+            >
               <button
                 v-if="blocks.length > 1"
                 type="button"
                 @click="deleteBlock(idx)"
-                class="p-1 hover:bg-red-50 text-red-400 rounded"
+                class="p-1 hover:bg-red-50 text-red-400 rounded cursor-pointer"
               >
                 <Trash2 :size="14" />
               </button>
@@ -433,6 +474,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
               </span>
             </div>
 
+            <!-- 텍스트 블록 -->
             <div v-if="block.type === 'text'">
               <textarea
                 v-model="block.value"
@@ -443,6 +485,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
               ></textarea>
             </div>
 
+            <!-- 이미지 블록 -->
             <div
               v-else-if="block.type === 'image'"
               class="rounded-sm overflow-hidden bg-gray-50/50 border flex items-center justify-center p-1 max-h-[400px]"
@@ -453,20 +496,21 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
               />
             </div>
 
+            <!-- 블록 추가 버튼 (하단) -->
             <div
               class="absolute left-1/2 -bottom-3 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-20"
             >
               <button
                 type="button"
                 @click="addTextBlock(idx)"
-                class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600"
+                class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600 cursor-pointer"
               >
                 <Plus :size="11" /> 글 추가하기
               </button>
               <button
                 type="button"
                 @click="triggerImageBlock(idx)"
-                class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600"
+                class="flex items-center gap-1 text-[10px] font-bold bg-white border border-teal-200 px-2.5 py-0.5 rounded-full shadow-sm text-gray-600 hover:text-teal-600 cursor-pointer"
               >
                 <ImageIcon :size="11" /> 사진 추가하기
               </button>
@@ -475,7 +519,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
         </div>
       </div>
 
-      <!-- 하단 메인 액션 바 -->
+      <!-- 하단 액션 바 -->
       <div class="flex justify-end gap-3 mt-6">
         <button
           type="button"
@@ -508,7 +552,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
       </div>
     </div>
 
-    <!-- [모달 팝업] 1열 리스트 + 기차 아이콘 + 위치핀 + 카테고리별 인라인 아이콘 매핑 -->
+    <!-- 코스 선택 모달 -->
     <div
       v-if="isCourseModalOpen"
       class="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
@@ -528,14 +572,30 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
           </div>
           <button
             @click="isCourseModalOpen = false"
-            class="p-1 hover:bg-gray-100 rounded-sm text-gray-400 hover:text-gray-600 bg-transparent"
+            class="p-1 hover:bg-gray-100 rounded-sm text-gray-400 hover:text-gray-600 bg-transparent cursor-pointer"
           >
             <X :size="20" />
           </button>
         </div>
 
-        <!-- 모달 리스트 영역 -->
-        <div class="flex-1 overflow-y-auto pr-1 flex flex-col gap-3">
+        <!-- 로딩 -->
+        <div
+          v-if="isLoadingCourses"
+          class="text-center py-10 text-gray-400 text-sm"
+        >
+          불러오는 중...
+        </div>
+
+        <!-- 코스 없음 -->
+        <div
+          v-else-if="mySavedCourses.length === 0"
+          class="text-center py-10 text-gray-400 text-sm font-medium"
+        >
+          저장된 코스가 없습니다.
+        </div>
+
+        <!-- 코스 목록 -->
+        <div v-else class="flex-1 overflow-y-auto pr-1 flex flex-col gap-3">
           <div
             v-for="course in mySavedCourses"
             :key="course.id"
@@ -547,18 +607,22 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
                 class="flex items-center gap-2 text-xs font-bold text-gray-500"
               >
                 <span class="flex items-center gap-1 text-teal-600">
-                  <Train :size="14" /> {{ course.station }}
+                  <component
+                    :is="course.travelMode === 'WALK' ? Footprints : Car"
+                    :size="14"
+                  />
+                  {{ course.travelMode === "WALK" ? "도보" : "택시" }}
                 </span>
                 <span class="text-gray-300 font-normal">|</span>
                 <span class="flex items-center gap-1">
-                  <Clock :size="13" /> {{ course.duration }} 소요
+                  <Clock :size="13" />
+                  {{ formatDuration(course.durationMinutes) }} 소요
                 </span>
               </div>
 
               <div class="flex flex-wrap items-center gap-1.5 mt-1">
                 <MapPin :size="14" class="text-teal-500 flex-shrink-0 mr-0.5" />
-
-                <template v-for="(place, pIdx) in course.items" :key="pIdx">
+                <template v-for="(place, pIdx) in course.places" :key="pIdx">
                   <div class="flex items-center gap-1">
                     <component
                       v-if="categoryMeta[place.category]"
@@ -571,7 +635,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
                     }}</span>
                   </div>
                   <span
-                    v-if="pIdx < course.items.length - 1"
+                    v-if="pIdx < course.places.length - 1"
                     class="text-[10px] text-gray-300 font-normal mx-0.5"
                     >➔</span
                   >

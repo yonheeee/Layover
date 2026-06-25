@@ -1,37 +1,69 @@
-import type { DiPlace, CourseStop } from '@/types/course'
-import type { CourseGenerateRequest, CourseRecalculateRequest, CourseRegenerateRequest, CourseResponse } from '@/types/course'
-import { http, httpGet, httpPost } from './http'
+import type {
+  CourseGenerateRequest,
+  CourseRecalculateRequest,
+  CourseRegenerateRequest,
+  CourseResponse,
+  CourseStop,
+  DiPlace,
+} from "@/types/course";
+import { http, httpGet, httpPost } from "./http";
+
+export interface SavedCourseResponse {
+  id: string;
+  subTitle: string;
+  travelMode: "WALK" | "TAXI";
+  durationMinutes: number;
+  places: { id: string; name: string; category: string }[];
+}
 
 export async function fetchDiPlaces(): Promise<DiPlace[]> {
-  const res = await http.get<DiPlace[]>('/api/places/map-search')
-  return res.data
+  const res = await http.get<DiPlace[]>("/api/places/map-search");
+  return res.data;
 }
 
-export async function searchPlaces(keyword: string): Promise<Omit<CourseStop, 'stayTime' | 'isLocked'>[]> {
-  const res = await http.get<Omit<CourseStop, 'stayTime' | 'isLocked'>[]>(`/api/places/search?keyword=${encodeURIComponent(keyword)}`)
-  return res.data
+export async function searchPlaces(
+  keyword: string,
+): Promise<Omit<CourseStop, "stayTime" | "isLocked">[]> {
+  const res = await http.get<Omit<CourseStop, "stayTime" | "isLocked">[]>(
+    `/api/places/search?keyword=${encodeURIComponent(keyword)}`,
+  );
+  return res.data;
 }
 
-export async function generateCourses(req: CourseGenerateRequest): Promise<CourseResponse[]> {
-  const res = await http.post<CourseResponse[]>('/api/courses/generate', req)
-  return res.data
+export async function generateCourses(
+  req: CourseGenerateRequest,
+): Promise<CourseResponse[]> {
+  const res = await http.post<CourseResponse[]>("/api/courses/generate", req);
+  return res.data;
 }
 
-export async function regenerateCourse(req: CourseRegenerateRequest): Promise<CourseResponse> {
-  const res = await http.post<CourseResponse>('/api/courses/regenerate', req)
-  return res.data
+export async function regenerateCourse(
+  req: CourseRegenerateRequest,
+): Promise<CourseResponse> {
+  const res = await http.post<CourseResponse>("/api/courses/regenerate", req);
+  return res.data;
 }
 
-export async function recalculateCourse(req: CourseRecalculateRequest): Promise<CourseResponse> {
-  const res = await http.post<CourseResponse>('/api/courses/recalculate', req)
-  return res.data
+export async function recalculateCourse(
+  req: CourseRecalculateRequest,
+): Promise<CourseResponse> {
+  const res = await http.post<CourseResponse>("/api/courses/recalculate", req);
+  return res.data;
 }
 
-export async function saveCourse(req: CourseGenerateRequest, places: { placeId: string; orderIndex: number; travelTimeMin?: number }[]): Promise<string> {
-  const res = await httpPost<string>('/api/courses/save', { ...req, places })
-  return res.data
+export async function saveCourse(
+  req: CourseGenerateRequest,
+  places: { placeId: string; orderIndex: number; travelTimeMin?: number }[],
+): Promise<string> {
+  const res = await httpPost<string>("/api/courses/save", { ...req, places });
+  return res.data;
 }
 
 export async function deleteCourse(courseId: string): Promise<void> {
-  await http.delete(`/api/courses/${courseId}`)
+  await http.delete(`/api/courses/${courseId}`);
+}
+
+export async function getMyCourses(): Promise<SavedCourseResponse[]> {
+  const res = await httpGet<SavedCourseResponse[]>("/api/courses/my");
+  return res.data;
 }
