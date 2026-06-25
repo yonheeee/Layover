@@ -1,44 +1,42 @@
-import tailwindcss from '@tailwindcss/vite'
-import vue from '@vitejs/plugin-vue'
-import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import tailwindcss from "@tailwindcss/vite";
+import vue from "@vitejs/plugin-vue";
+import { fileURLToPath, URL } from "node:url";
+import { defineConfig } from "vite";
 
 function figmaAssetResolver() {
   return {
-    name: 'figma-asset-resolver',
+    name: "figma-asset-resolver",
     resolveId(id: string) {
-      if (id.startsWith('figma:asset/')) {
-        const filename = id.replace('figma:asset/', '')
-        return fileURLToPath(new URL(`src/assets/${filename}`, import.meta.url))
+      if (id.startsWith("figma:asset/")) {
+        const filename = id.replace("figma:asset/", "");
+        return fileURLToPath(
+          new URL(`src/assets/${filename}`, import.meta.url),
+        );
       }
     },
-  }
+  };
 }
 
 export default defineConfig({
-  plugins: [
-    figmaAssetResolver(),
-    vue(),
-    tailwindcss(),
-  ],
+  plugins: [figmaAssetResolver(), vue(), tailwindcss()],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  assetsInclude: ['**/*.svg', '**/*.csv'],
+  assetsInclude: ["**/*.svg", "**/*.csv"],
   server: {
     host: true,
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:8080',
+      "/api": {
+        target: "http://192.168.208.53:8080",
         changeOrigin: true,
       },
-      '/uploads': {
-        target: 'http://localhost:8080',
+      "/uploads": {
+        target: "http://192.168.208.53:8080",
         changeOrigin: true,
       },
     },
-  }
-})
+  },
+});
