@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { fetchDiPlaces, recalculateCourse, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
+import { useStampStore } from "@/stores/stamp";
 import type { Course, CourseStop, DiPlace } from "@/types/course";
 import {
   ArrowLeft,
@@ -30,6 +31,7 @@ declare global {
 }
 
 const courseStore = useCourseStore();
+const stampStore = useStampStore();
 const router = useRouter();
 const courses = ref<Course[]>([]);
 
@@ -213,7 +215,7 @@ const filteredSearchResults = computed(() => {
 // [카카오 지도 엔진 인터랙션 데이터]
 let mapObject: any = null;
 let markers: any[] = [];
-let polylineObject: any = null;
+let polylineObjects: any[] = [];
 let previewMarker: any = null;
 
 function clearPreviewMarker() {
@@ -267,18 +269,17 @@ function renderCourseElementsOnMap() {
   if (!mapObject) return;
   markers.forEach((m) => m.setMap(null));
   markers = [];
-  if (polylineObject) polylineObject.setMap(null);
+  polylineObjects.forEach((p) => p.setMap(null));
+  polylineObjects = [];
 
-  const linePath: any[] = [];
   const bounds = new (window as any).kakao.maps.LatLngBounds();
+  const places = currentPlaces.value.filter(
+    (p) => p.lat && p.lng && p.lat !== 0 && p.lng !== 0,
+  );
   let placeIndex = 1;
 
-  currentPlaces.value.forEach((place) => {
-    if (!place.lat || !place.lng || place.lat === 0 || place.lng === 0) return;
-
+  places.forEach((place) => {
     const position = new (window as any).kakao.maps.LatLng(place.lat, place.lng);
-    linePath.push(position);
-
     const isStation = place.category === "STATION";
     const label = isStation ? "🚉" : String(placeIndex);
     if (!isStation) placeIndex++;
@@ -312,16 +313,33 @@ function renderCourseElementsOnMap() {
     bounds.extend(position);
   });
 
-  polylineObject = new (window as any).kakao.maps.Polyline({
-    path: linePath,
-    strokeWeight: 5,
-    strokeColor: "#2fa38a",
-    strokeOpacity: 0.85,
-    strokeStyle: "solid",
-  });
-  polylineObject.setMap(mapObject);
+  // 각 장소 간 구간별 폴리라인 렌더링
+  for (let i = 0; i < places.length - 1; i++) {
+    const cur = places[i];
+    const routePath = cur.nextTransport?.routePath;
 
-  if (linePath.length > 0) {
+    let segmentPath: any[];
+    if (routePath && routePath.length > 1) {
+      segmentPath = routePath.map(([lat, lng]) => new (window as any).kakao.maps.LatLng(lat, lng));
+    } else {
+      segmentPath = [
+        new (window as any).kakao.maps.LatLng(cur.lat, cur.lng),
+        new (window as any).kakao.maps.LatLng(places[i + 1].lat, places[i + 1].lng),
+      ];
+    }
+
+    const polyline = new (window as any).kakao.maps.Polyline({
+      path: segmentPath,
+      strokeWeight: 5,
+      strokeColor: "#2fa38a",
+      strokeOpacity: 0.85,
+      strokeStyle: "solid",
+    });
+    polyline.setMap(mapObject);
+    polylineObjects.push(polyline);
+  }
+
+  if (places.length > 0) {
     mapObject.setBounds(bounds);
   }
 }
@@ -455,6 +473,7 @@ async function confirmCourse() {
       }));
     await saveCourse(courseStore.lastRequest, places);
     courseStore.setConfirmed();
+    stampStore.clearActiveCourse();
     router.push('/stamp-tour')
   } catch {
     alert("저장에 실패했습니다. 로그인 상태를 확인해주세요.");
@@ -700,35 +719,16 @@ async function confirmCourse() {
                 >
                   <div class="flex items-center gap-1 text-gray-500">
                     <Footprints :size="12" class="text-gray-400" />
-                    <span
-                      >도보
-                      <span class="text-gray-700 font-extrabold">{{
-                        place.nextTransport.walkTime
-                      }}</span></span
-                    >
+                    <span>도보 <span class="text-gray-700 font-extrabold">{{ place.nextTransport.walkTime }}</span></span>
                   </div>
                   <div class="flex items-center gap-1 text-blue-600">
                     <Bus :size="12" class="text-blue-400" />
-                    <span
-                      >버스
-                      <span class="text-blue-800 font-extrabold">{{
-                        place.nextTransport.busTime
-                      }}</span></span
-                    >
+                    <span>버스 <span class="text-blue-800 font-extrabold">{{ place.nextTransport.busTime }}</span></span>
                   </div>
                   <div class="flex items-center gap-1 text-teal-600">
                     <Car :size="12" class="text-teal-500" />
-                    <span
-                      >택시
-                      <span class="text-teal-800 font-black">{{
-                        place.nextTransport.taxiTime
-                      }}</span></span
-                    >
-                    <span class="text-[0.65rem] text-teal-600/80 font-medium"
-                      >({{
-                        place.nextTransport.taxiFare.toLocaleString()
-                      }}원)</span
-                    >
+                    <span>택시 <span class="text-teal-800 font-black">{{ place.nextTransport.taxiTime }}</span></span>
+                    <span class="text-[0.65rem] text-teal-600/80 font-medium">({{ place.nextTransport.taxiFare.toLocaleString() }}원)</span>
                   </div>
                 </div>
               </div>
