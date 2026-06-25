@@ -4,6 +4,7 @@ export interface Post {
   username: string;
   category: string;
   title: string;
+  content?: string;
   viewCount: number;
   likeCount: number;
   commentCount: number;

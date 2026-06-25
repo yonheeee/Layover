@@ -1,18 +1,25 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { useAuthStore } from "@/stores/auth";
-import { ArrowLeft, Heart, MessageCircle, Eye, Trash2, Send, Pencil } from "lucide-vue-next";
-import type { PostDetail, PostComment } from "@/types/community";
 import {
-  getPost,
-  deletePost,
-  toggleLike,
-  getLikeStatus,
+  CODE_TO_CATEGORY,
   createComment,
   deleteComment,
-  CODE_TO_CATEGORY,
+  deletePost,
+  getLikeStatus,
+  getPost,
+  toggleLike,
 } from "@/api/community";
+import { useAuthStore } from "@/stores/auth";
+import type { PostComment, PostDetail } from "@/types/community";
+import {
+  Eye,
+  Heart,
+  MessageCircle,
+  Pencil,
+  Send,
+  Trash2,
+} from "lucide-vue-next";
+import { computed, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 const route = useRoute();
 const router = useRouter();
@@ -25,9 +32,35 @@ const isLiked = ref(false);
 const commentText = ref("");
 const isSubmittingComment = ref(false);
 
+// ─── content 블록 파싱 ───
+interface ContentBlock {
+  type: "text" | "image";
+  value?: string;
+  url?: string;
+  name?: string;
+}
+
+const parsedBlocks = computed((): ContentBlock[] => {
+  if (!post.value?.content) return [];
+  try {
+    const parsed = JSON.parse(post.value.content);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+  } catch {
+    // legacy fallback
+  }
+  // 레거시 HTML/평문 → HTML 태그 제거 후 텍스트 하나로 표시
+  const plainText = post.value.content
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+  return [{ type: "text", value: plainText }];
+});
+
 const isLoggedIn = computed(() => auth.isLoggedIn);
 const isOwner = computed(
-  () => !!post.value && !!auth.userId && post.value.userId === auth.userId
+  () => !!post.value && !!auth.userId && post.value.userId === auth.userId,
 );
 
 function isMyComment(comment: PostComment): boolean {
@@ -113,7 +146,9 @@ onMounted(async () => {
     const [postData] = await Promise.all([
       getPost(postId),
       isLoggedIn.value
-        ? getLikeStatus(postId).then((s) => { isLiked.value = s.liked; })
+        ? getLikeStatus(postId).then((s) => {
+            isLiked.value = s.liked;
+          })
         : Promise.resolve(),
     ]);
     post.value = postData;
@@ -121,6 +156,11 @@ onMounted(async () => {
     router.replace("/community");
   } finally {
     isLoading.value = false;
+    if (route.hash === "#comments") {
+      setTimeout(() => {
+        document.getElementById("comments")?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
   }
 });
 </script>
@@ -145,7 +185,7 @@ onMounted(async () => {
         class="flex items-center gap-2 mb-6 transition-opacity hover:opacity-70"
         style="color: #6b8c87; font-size: 0.88rem; font-weight: 600"
       >
-        <ArrowLeft :size="17" /> 목록으로
+        목록으로
       </button>
 
       <!-- 로딩 -->
@@ -211,9 +251,7 @@ onMounted(async () => {
               <div class="flex items-center gap-2">
                 <div
                   class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white"
-                  style="
-                    background: linear-gradient(135deg, #b2e4dc, #3db89e);
-                  "
+                  style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
                 >
                   {{ post.username.charAt(0) }}
                 </div>
@@ -249,14 +287,25 @@ onMounted(async () => {
             class="mb-10 py-6 border-y"
             style="border-color: rgba(178, 228, 220, 0.2)"
           >
-            <p
-              style="
-                font-size: 0.95rem;
-                color: #374151;
-                line-height: 1.9;
-              "
-              v-html="post.content"
-            ></p>
+            <div class="flex flex-col gap-4">
+              <template v-for="(block, i) in parsedBlocks" :key="i">
+                <p
+                  v-if="block.type === 'text'"
+                  style="
+                    font-size: 0.95rem;
+                    color: #374151;
+                    line-height: 1.9;
+                    white-space: pre-line;
+                  "
+                >{{ block.value }}</p>
+                <img
+                  v-else-if="block.type === 'image'"
+                  :src="block.url"
+                  :alt="block.name || '이미지'"
+                  style="max-width: 100%; border-radius: 8px;"
+                />
+              </template>
+            </div>
           </div>
 
           <!-- 좋아요 -->
@@ -276,7 +325,7 @@ onMounted(async () => {
           </div>
 
           <!-- 댓글 -->
-          <section>
+          <section id="comments">
             <div class="mb-4 font-bold text-gray-800">
               댓글 {{ post.commentCount }}개
             </div>
@@ -341,8 +390,16 @@ onMounted(async () => {
                     }}</span>
                     <span
                       v-if="comment.userId === post.userId"
-                      style="background:#e8f8f5; color:#3db89e; font-size:10px; padding:1px 6px; border-radius:4px; font-weight:700;"
-                    >작성자</span>
+                      style="
+                        background: #e8f8f5;
+                        color: #3db89e;
+                        font-size: 10px;
+                        padding: 1px 6px;
+                        border-radius: 4px;
+                        font-weight: 700;
+                      "
+                      >작성자</span
+                    >
                     <span class="text-xs text-gray-400">{{
                       formatDate(comment.createdAt)
                     }}</span>

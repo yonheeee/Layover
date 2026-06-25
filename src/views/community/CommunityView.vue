@@ -9,11 +9,11 @@ import {
   User,
   Paperclip,
   X,
-  Eye,
   Heart,
 } from "lucide-vue-next";
 import type {
   Post,
+  PostComment,
   Notice,
   FaqItem,
   InquiryItem,
@@ -21,6 +21,8 @@ import type {
 } from "@/types/community";
 import {
   getPosts,
+  getComments,
+  createComment,
   getNotices,
   getNotice,
   getFaqs,
@@ -122,6 +124,60 @@ const filteredPosts = computed(() => {
     return matchesCat && matchesMine;
   });
 });
+
+
+// ─── content 블록 파싱 ───
+interface ContentBlock { type: "text" | "image"; value?: string; url?: string; name?: string }
+
+function parsedBlocks(content?: string): ContentBlock[] {
+  if (!content) return [];
+  try {
+    const blocks = JSON.parse(content);
+    if (Array.isArray(blocks) && blocks.length > 0) return blocks;
+  } catch { /* fallthrough */ }
+  const plainText = content
+    .replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").trim();
+  return plainText ? [{ type: "text", value: plainText }] : [];
+}
+
+// ─── 인라인 댓글 ───
+const expandedComments = ref<Record<string, boolean>>({});
+const postComments = ref<Record<string, PostComment[]>>({});
+const commentLoadingIds = ref<Set<string>>(new Set());
+const commentTexts = ref<Record<string, string>>({});
+const commentSubmittingIds = ref<Set<string>>(new Set());
+
+async function toggleComments(postId: string) {
+  expandedComments.value[postId] = !expandedComments.value[postId];
+  if (expandedComments.value[postId] && postComments.value[postId] === undefined) {
+    commentLoadingIds.value.add(postId);
+    try {
+      postComments.value[postId] = await getComments(postId);
+    } catch {
+      postComments.value[postId] = [];
+    } finally {
+      commentLoadingIds.value.delete(postId);
+    }
+  }
+}
+
+async function submitComment(postId: string) {
+  const text = (commentTexts.value[postId] ?? "").trim();
+  if (!text || commentSubmittingIds.value.has(postId)) return;
+  commentSubmittingIds.value.add(postId);
+  try {
+    await createComment(postId, text);
+    commentTexts.value[postId] = "";
+    postComments.value[postId] = await getComments(postId);
+    const post = posts.value.find((p) => p.id === postId);
+    if (post) post.commentCount++;
+  } catch {
+    alert("댓글 등록에 실패했습니다.");
+  } finally {
+    commentSubmittingIds.value.delete(postId);
+  }
+}
 
 const hasNewPostInCategory = (category: string) => {
   if (!posts.value || posts.value.length === 0) return false;
@@ -832,62 +888,145 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
             }}
           </div>
 
-          <!-- 게시글 목록 -->
-          <div
-            v-for="post in filteredPosts"
-            :key="post.id"
-            class="group cursor-pointer pt-4 pb-5 transition-colors border-b flex gap-4 items-start"
-            style="border-color: rgba(178, 228, 220, 0.25)"
-            @click="router.push(`/community/${post.id}`)"
-          >
-            <!-- 텍스트 영역 -->
-            <div class="flex-1 min-w-0">
-              <!-- 카테고리 + 통계 -->
-              <div class="flex items-center gap-2 pb-2">
+          <!-- 게시글 피드 (단일 컬럼) -->
+          <div v-else class="flex flex-col w-full">
+            <div
+              v-for="(post, idx) in filteredPosts"
+              :key="post.id"
+              :class="idx < filteredPosts.length - 1 ? 'border-b' : ''"
+              style="border-color: rgba(178, 228, 220, 0.35);"
+            >
+              <!-- 카드 상단: 작성자 + 날짜 / 카테고리 배지 -->
+              <div class="flex items-center justify-between px-4 pt-4 pb-2">
+                <div class="flex items-center gap-2">
+                  <div
+                    class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-[11px]"
+                    style="background: linear-gradient(135deg, #b2e4dc, #3db89e); color: #fff;"
+                  >
+                    {{ post.username.charAt(0) }}
+                  </div>
+                  <div class="flex flex-col leading-tight">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: #1a2e2b;">{{ post.username }}</span>
+                    <span style="font-size: 0.7rem; color: #9ca3af;">{{ formatDate(post.createdAt) }}</span>
+                  </div>
+                </div>
                 <span
-                  class="text-[11px] font-bold px-2.5 py-0.5 flex-shrink-0"
-                  :style="`background:${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.bg ?? '#f3f4f6'}; color:${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.color ?? '#374151'}; border: 1px solid ${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.border ?? '#e5e7eb'}; font-weight: 700;`"
+                  class="text-[10px] font-bold px-2.5 py-0.5"
+                  :style="`background:${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.bg ?? '#f3f4f6'}; color:${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.color ?? '#374151'}; border: 1px solid ${categoryStyle[CODE_TO_CATEGORY[post.category] ?? post.category]?.border ?? '#e5e7eb'};`"
                 >
                   {{ CODE_TO_CATEGORY[post.category] ?? post.category }}
                 </span>
-                <div
-                  class="flex items-center gap-3 ml-auto text-[11px] text-gray-400 font-medium"
-                >
-                  <span class="flex items-center gap-1"><Eye :size="11" /> {{ post.viewCount }}</span>
-                  <span class="flex items-center gap-1"><Heart :size="11" /> {{ post.likeCount }}</span>
-                  <span class="flex items-center gap-1"><MessageCircle :size="11" /> {{ post.commentCount }}</span>
-                </div>
               </div>
 
               <!-- 제목 -->
-              <p class="pb-2.5 text-sm font-semibold text-gray-800 group-hover:text-teal-600 transition-colors line-clamp-2">
-                {{ post.title }}
-              </p>
-
-              <!-- 작성자 + 날짜 -->
-              <div class="flex items-center gap-2">
-                <div
-                  class="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 font-bold text-[9px]"
-                  style="background: linear-gradient(135deg, #b2e4dc, #3db89e); color: #fff;"
-                >
-                  {{ post.username.charAt(0) }}
-                </div>
-                <span style="font-size: 0.8rem; font-weight: 600; color: #1a2e2b">{{ post.username }}</span>
-                <span class="ml-auto" style="font-size: 0.75rem; color: #9ca3af">{{ formatDate(post.createdAt) }}</span>
+              <div
+                class="px-4 pb-1 cursor-pointer"
+                @click="router.push(`/community/${post.id}`)"
+              >
+                <p class="text-sm font-semibold text-gray-800 hover:text-teal-600 transition-colors leading-snug">
+                  {{ post.title }}
+                </p>
               </div>
-            </div>
 
-            <!-- 썸네일 -->
-            <div
-              v-if="post.thumbnailUrl"
-              class="flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden"
-              style="border: 1px solid rgba(178,228,220,0.3)"
-            >
-              <img
-                :src="post.thumbnailUrl"
-                class="w-full h-full object-cover"
-                alt="썸네일"
-              />
+              <!-- 본문 전체 (JSON 블록 렌더링) -->
+              <div
+                class="px-4 pb-2 flex flex-col gap-3 cursor-pointer"
+                @click="router.push(`/community/${post.id}`)"
+              >
+                <template v-for="(block, bi) in parsedBlocks(post.content)" :key="bi">
+                  <p
+                    v-if="block.type === 'text'"
+                    style="font-size: 0.88rem; color: #374151; line-height: 1.75; white-space: pre-line;"
+                  >{{ block.value }}</p>
+                  <img
+                    v-else-if="block.type === 'image'"
+                    :src="block.url"
+                    :alt="block.name || '이미지'"
+                    class="w-full object-cover rounded-lg"
+                    style="max-height: 400px;"
+                  />
+                </template>
+              </div>
+
+              <!-- 하단 바: 좋아요 (표시만) / 댓글 수 (인라인 토글) -->
+              <div class="flex items-center gap-4 px-4 py-3 border-t" style="border-color: rgba(178, 228, 220, 0.2);">
+                <span
+                  class="flex items-center gap-1 text-xs text-gray-400 font-medium cursor-default select-none"
+                >
+                  <Heart :size="13" /> {{ post.likeCount }}
+                </span>
+                <button
+                  class="flex items-center gap-1 text-xs font-medium cursor-pointer transition-colors bg-transparent border-none"
+                  :style="expandedComments[post.id] ? 'color:#3db89e;' : 'color:#9ca3af;'"
+                  @click.stop="toggleComments(post.id)"
+                >
+                  <MessageCircle :size="13" /> {{ post.commentCount }}
+                </button>
+              </div>
+
+              <!-- 인라인 댓글 섹션 -->
+              <div
+                v-if="expandedComments[post.id]"
+                class="border-t px-4 py-4 flex flex-col gap-3"
+                style="border-color: rgba(178, 228, 220, 0.2); background: #fafffe;"
+              >
+                <!-- 로딩 -->
+                <div v-if="commentLoadingIds.has(post.id)" class="text-xs text-gray-400 text-center py-2">
+                  불러오는 중...
+                </div>
+
+                <!-- 댓글 목록 -->
+                <template v-else>
+                  <div
+                    v-if="(postComments[post.id] ?? []).length === 0"
+                    class="text-xs text-gray-400 text-center py-1"
+                  >
+                    아직 댓글이 없습니다.
+                  </div>
+                  <div
+                    v-for="comment in (postComments[post.id] ?? [])"
+                    :key="comment.id"
+                    class="flex gap-2"
+                  >
+                    <div
+                      class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+                      style="background: linear-gradient(135deg, #b2e4dc, #3db89e);"
+                    >
+                      {{ comment.username.charAt(0) }}
+                    </div>
+                    <div class="flex flex-col gap-0.5">
+                      <span class="text-[11px] font-bold text-gray-700">{{ comment.username }}</span>
+                      <p class="text-xs text-gray-600 leading-relaxed" style="white-space: pre-line;">{{ comment.content }}</p>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- 댓글 입력 (로그인 시) -->
+                <div v-if="isLoggedIn" class="flex gap-2 mt-1">
+                  <input
+                    v-model="commentTexts[post.id]"
+                    @keydown.enter="submitComment(post.id)"
+                    class="flex-1 px-3 py-1.5 rounded-lg border text-xs outline-none bg-white"
+                    style="border-color: rgba(178, 228, 220, 0.4);"
+                    placeholder="댓글을 입력하세요"
+                    :disabled="commentSubmittingIds.has(post.id)"
+                  />
+                  <button
+                    @click="submitComment(post.id)"
+                    :disabled="commentSubmittingIds.has(post.id) || !(commentTexts[post.id] ?? '').trim()"
+                    class="px-3 py-1.5 rounded-lg text-white text-xs font-bold transition-opacity"
+                    :style="(commentSubmittingIds.has(post.id) || !(commentTexts[post.id] ?? '').trim()) ? 'background:#9ca3af; cursor:not-allowed;' : 'background:#3db89e;'"
+                  >
+                    등록
+                  </button>
+                </div>
+                <div
+                  v-else
+                  class="text-[11px] text-gray-400 text-center py-1"
+                >
+                  로그인 후 댓글을 작성할 수 있습니다.
+                </div>
+              </div>
             </div>
           </div>
         </div>
