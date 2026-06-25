@@ -17,8 +17,7 @@ import {
   Plus,
   Search,
   Train,
-  Unlock,
-  X
+  X,
 } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
@@ -87,7 +86,10 @@ function withFixedStationStops(course: Course): Course {
 
 function realCoursePlaces() {
   return currentPlaces.value.filter(
-    (p) => p.category !== "STATION" && !p.id.startsWith("__STATION") && !p.id.startsWith("STATION_"),
+    (p) =>
+      p.category !== "STATION" &&
+      !p.id.startsWith("__STATION") &&
+      !p.id.startsWith("STATION_"),
   );
 }
 
@@ -120,7 +122,8 @@ const currentCourse = computed(() => courses.value[activeTab.value]);
 const currentPlaces = computed(() => currentCourse.value?.places ?? []);
 
 const calculatedCost = computed(() => {
-  if (currentCourse.value?.estimatedCost) return currentCourse.value.estimatedCost;
+  if (currentCourse.value?.estimatedCost)
+    return currentCourse.value.estimatedCost;
   let basePrice = 0;
   currentPlaces.value.forEach((p) => {
     if (p.category.includes("맛집")) basePrice += 10000;
@@ -161,7 +164,12 @@ const categories = [
 
 const allDiPlaces = ref<DiPlace[]>([]);
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
@@ -185,13 +193,15 @@ const filteredSearchResults = computed(() => {
 
   // 홈에서 선택했던 카테고리 태그 (전체 보기 시 우선 정렬에 사용)
   const preferredCategories = new Set(
-    (courseStore.lastRequest?.themeTags ?? []).map((t) => t.toUpperCase())
+    (courseStore.lastRequest?.themeTags ?? []).map((t) => t.toUpperCase()),
   );
 
   return allDiPlaces.value
     .filter((p) => {
-      const matchesKeyword = !searchKeyword.value || p.name.includes(searchKeyword.value);
-      const matchesCategory = !selectedCategory.value || p.category === selectedCategory.value;
+      const matchesKeyword =
+        !searchKeyword.value || p.name.includes(searchKeyword.value);
+      const matchesCategory =
+        !selectedCategory.value || p.category === selectedCategory.value;
       return matchesKeyword && matchesCategory;
     })
     .sort((a, b) => {
@@ -203,8 +213,12 @@ const filteredSearchResults = computed(() => {
       }
       // 2) 홈에서 선택한 카테고리 일치 우선 (전체 보기 시에만 적용)
       if (!selectedCategory.value && preferredCategories.size > 0) {
-        const aMatch = preferredCategories.has(a.category.toUpperCase()) ? 0 : 1;
-        const bMatch = preferredCategories.has(b.category.toUpperCase()) ? 0 : 1;
+        const aMatch = preferredCategories.has(a.category.toUpperCase())
+          ? 0
+          : 1;
+        const bMatch = preferredCategories.has(b.category.toUpperCase())
+          ? 0
+          : 1;
         if (aMatch !== bMatch) return aMatch - bMatch;
       }
       // 3) 이름 가나다순 (ㄱ-ㅎ → a-z → 0-9)
@@ -279,7 +293,10 @@ function renderCourseElementsOnMap() {
   let placeIndex = 1;
 
   places.forEach((place) => {
-    const position = new (window as any).kakao.maps.LatLng(place.lat, place.lng);
+    const position = new (window as any).kakao.maps.LatLng(
+      place.lat,
+      place.lng,
+    );
     const isStation = place.category === "STATION";
     const label = isStation ? "🚉" : String(placeIndex);
     if (!isStation) placeIndex++;
@@ -320,11 +337,16 @@ function renderCourseElementsOnMap() {
 
     let segmentPath: any[];
     if (routePath && routePath.length > 1) {
-      segmentPath = routePath.map(([lat, lng]) => new (window as any).kakao.maps.LatLng(lat, lng));
+      segmentPath = routePath.map(
+        ([lat, lng]) => new (window as any).kakao.maps.LatLng(lat, lng),
+      );
     } else {
       segmentPath = [
         new (window as any).kakao.maps.LatLng(cur.lat, cur.lng),
-        new (window as any).kakao.maps.LatLng(places[i + 1].lat, places[i + 1].lng),
+        new (window as any).kakao.maps.LatLng(
+          places[i + 1].lat,
+          places[i + 1].lng,
+        ),
       ];
     }
 
@@ -359,15 +381,14 @@ onMounted(async () => {
   courseStore.setCourses(courses.value, courseStore.lastRequest ?? undefined);
 
   if (courses.value.length === 0) {
-    router.push('/')
+    router.push("/");
   }
-  
+
   allDiPlaces.value = await fetchDiPlaces();
   if (!document.getElementById("kakao-map-script")) {
     const script = document.createElement("script");
     script.id = "kakao-map-script";
-    script.src =
-      `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
+    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
     document.head.appendChild(script);
     script.onload = () => {
       (window as any).kakao.maps.load(() => {
@@ -463,7 +484,14 @@ async function confirmCourse() {
   isSaving.value = true;
   try {
     const places = currentPlaces.value
-      .filter((p) => p.category !== "STATION" && !p.id.startsWith("__STATION") && !p.id.startsWith("STATION_") && p.lat && p.lng)
+      .filter(
+        (p) =>
+          p.category !== "STATION" &&
+          !p.id.startsWith("__STATION") &&
+          !p.id.startsWith("STATION_") &&
+          p.lat &&
+          p.lng,
+      )
       .map((p, idx) => ({
         placeId: p.id,
         orderIndex: idx,
@@ -474,7 +502,7 @@ async function confirmCourse() {
     await saveCourse(courseStore.lastRequest, places);
     courseStore.setConfirmed();
     stampStore.clearActiveCourse();
-    router.push('/stamp-tour')
+    router.push("/stamp-tour");
   } catch {
     alert("저장에 실패했습니다. 로그인 상태를 확인해주세요.");
   } finally {
@@ -497,10 +525,10 @@ async function confirmCourse() {
               <p
                 class="text-[0.68rem] text-teal-600 font-extrabold tracking-wide uppercase mb-0.5"
               >
-                AI 레이오버 추천 결과
+                레이오버 AI가 추천하는
               </p>
               <h1 class="text-xl font-black text-[#1a2e2b] tracking-tight">
-                나의 대전 환승 코스
+                추천 대전 환승 여행
               </h1>
             </div>
             <button
@@ -525,7 +553,11 @@ async function confirmCourse() {
               :key="course.id"
               @click="activeTab = idx"
               class="flex-1 py-3 text-center relative group transition-opacity"
-              :class="activeTab === idx ? 'opacity-100' : 'opacity-40 hover:opacity-70'"
+              :class="
+                activeTab === idx
+                  ? 'opacity-100'
+                  : 'opacity-40 hover:opacity-70'
+              "
               :disabled="isEditing"
             >
               <div
@@ -536,7 +568,9 @@ async function confirmCourse() {
               </div>
               <div
                 class="text-[0.62rem] font-medium mt-0.5 transition-colors line-clamp-1"
-                :class="activeTab === idx ? 'text-teal-500/80' : 'text-gray-400'"
+                :class="
+                  activeTab === idx ? 'text-teal-500/80' : 'text-gray-400'
+                "
               >
                 {{ course.subTitle }}
               </div>
@@ -560,9 +594,17 @@ async function confirmCourse() {
             v-if="activeTab === 2"
             class="rounded-2xl overflow-hidden shadow-sm"
           >
-            <div class="bg-gradient-to-r from-teal-600 via-teal-500 to-emerald-400 px-5 py-4">
-              <p class="text-white font-black text-sm tracking-tight drop-shadow-sm">⏱ 1시간만 더 있다면?</p>
-              <p class="text-teal-50 text-xs font-medium mt-1 leading-relaxed opacity-90">
+            <div
+              class="bg-gradient-to-r from-teal-600 via-teal-500 to-emerald-400 px-5 py-4"
+            >
+              <p
+                class="text-white font-black text-sm tracking-tight drop-shadow-sm"
+              >
+                ⏱ 1시간만 더 있다면?
+              </p>
+              <p
+                class="text-teal-50 text-xs font-medium mt-1 leading-relaxed opacity-90"
+              >
                 잔여시간을 1시간 늘리면 더 많은 곳을 즐길 수 있어요
               </p>
             </div>
@@ -604,7 +646,14 @@ async function confirmCourse() {
           </div>
 
           <div class="relative pl-1 space-y-1">
-            <template v-for="(place, idx) in currentPlaces" :key="idx === 0 || idx === currentPlaces.length - 1 ? `${place.id}_${idx}` : place.id">
+            <template
+              v-for="(place, idx) in currentPlaces"
+              :key="
+                idx === 0 || idx === currentPlaces.length - 1
+                  ? `${place.id}_${idx}`
+                  : place.id
+              "
+            >
               <div
                 class="relative flex items-center gap-4 py-4 px-4 rounded-2xl border-2 bg-white transition-all shadow-2xs"
                 :class="[
@@ -612,8 +661,12 @@ async function confirmCourse() {
                     ? 'bg-teal-50/20 border-teal-300/80'
                     : 'border-[#e6f4f1]',
                   draggingIndex === idx ? 'opacity-40' : '',
-                  dragOverIndex === idx ? 'ring-2 ring-teal-400 ring-offset-1' : '',
-                  isEditing && idx !== 0 && idx !== currentPlaces.length - 1 ? 'cursor-grab active:cursor-grabbing' : '',
+                  dragOverIndex === idx
+                    ? 'ring-2 ring-teal-400 ring-offset-1'
+                    : '',
+                  isEditing && idx !== 0 && idx !== currentPlaces.length - 1
+                    ? 'cursor-grab active:cursor-grabbing'
+                    : '',
                 ]"
                 :style="
                   place.isLocked &&
@@ -623,8 +676,15 @@ async function confirmCourse() {
                     ? { borderColor: '#2fa38a' }
                     : {}
                 "
-                :draggable="isEditing && idx !== 0 && idx !== currentPlaces.length - 1"
-                @dragstart="isEditing && idx !== 0 && idx !== currentPlaces.length - 1 && onDragStart(idx)"
+                :draggable="
+                  isEditing && idx !== 0 && idx !== currentPlaces.length - 1
+                "
+                @dragstart="
+                  isEditing &&
+                  idx !== 0 &&
+                  idx !== currentPlaces.length - 1 &&
+                  onDragStart(idx)
+                "
                 @dragover.prevent="onDragOver(idx)"
                 @drop.prevent="onDrop(idx)"
                 @dragend="onDragEnd"
@@ -719,26 +779,45 @@ async function confirmCourse() {
                 >
                   <div class="flex items-center gap-1 text-gray-500">
                     <Footprints :size="12" class="text-gray-400" />
-                    <span>도보 <span class="text-gray-700 font-extrabold">{{ place.nextTransport.walkTime }}</span></span>
+                    <span
+                      >도보
+                      <span class="text-gray-700 font-extrabold">{{
+                        place.nextTransport.walkTime
+                      }}</span></span
+                    >
                   </div>
                   <div class="flex items-center gap-1 text-blue-600">
                     <Bus :size="12" class="text-blue-400" />
-                    <span>버스 <span class="text-blue-800 font-extrabold">{{ place.nextTransport.busTime }}</span></span>
+                    <span
+                      >버스
+                      <span class="text-blue-800 font-extrabold">{{
+                        place.nextTransport.busTime
+                      }}</span></span
+                    >
                   </div>
                   <div class="flex items-center gap-1 text-teal-600">
                     <Car :size="12" class="text-teal-500" />
-                    <span>택시 <span class="text-teal-800 font-black">{{ place.nextTransport.taxiTime }}</span></span>
-                    <span class="text-[0.65rem] text-teal-600/80 font-medium">({{ place.nextTransport.taxiFare.toLocaleString() }}원)</span>
+                    <span
+                      >택시
+                      <span class="text-teal-800 font-black">{{
+                        place.nextTransport.taxiTime
+                      }}</span></span
+                    >
+                    <span class="text-[0.65rem] text-teal-600/80 font-medium"
+                      >({{
+                        place.nextTransport.taxiFare.toLocaleString()
+                      }}원)</span
+                    >
                   </div>
                 </div>
               </div>
             </template>
 
             <button
-            v-if="isEditing"
-            class="w-full py-3 rounded-2xl flex items-center justify-center gap-1.5 mt-4 border-2 border-dashed border-teal-300 text-teal-700 font-black text-xs bg-transparent hover:bg-teal-50/20"
-            :disabled="isRecalculating"
-            @click="openSearchMode"
+              v-if="isEditing"
+              class="w-full py-3 rounded-2xl flex items-center justify-center gap-1.5 mt-4 border-2 border-dashed border-teal-300 text-teal-700 font-black text-xs bg-transparent hover:bg-teal-50/20"
+              :disabled="isRecalculating"
+              @click="openSearchMode"
             >
               <Plus :size="14" /> 코스 사이에 장소 끼워넣기 (지도 연동)
             </button>
@@ -752,7 +831,8 @@ async function confirmCourse() {
             @click="confirmCourse"
             :disabled="isSaving"
           >
-            {{ isSaving ? "저장 중..." : "코스 최종 확정하기" }} <ChevronRight :size="14" />
+            {{ isSaving ? "저장 중..." : "코스 최종 확정하기" }}
+            <ChevronRight :size="14" />
           </button>
         </div>
       </template>
@@ -762,7 +842,10 @@ async function confirmCourse() {
           class="p-6 pb-4 border-b border-teal-200 bg-gradient-to-br from-[#E8F8F5]/30 to-white"
         >
           <button
-            @click="panelMode = 'main'; clearPreviewMarker()"
+            @click="
+              panelMode = 'main';
+              clearPreviewMarker();
+            "
             class="flex items-center gap-1 text-xs font-black text-gray-400 hover:text-gray-600 mb-3"
           >
             <ArrowLeft :size="14" /> 타임라인으로 돌아가기
@@ -809,8 +892,12 @@ async function confirmCourse() {
           >
             <div class="flex justify-between items-start gap-2">
               <div class="flex-1 min-w-0">
-                <h4 class="font-black text-sm text-[#1a2e2b]">{{ item.name }}</h4>
-                <p class="text-[0.72rem] text-gray-400 font-medium leading-relaxed mt-1.5">
+                <h4 class="font-black text-sm text-[#1a2e2b]">
+                  {{ item.name }}
+                </h4>
+                <p
+                  class="text-[0.72rem] text-gray-400 font-medium leading-relaxed mt-1.5"
+                >
                   {{ item.desc }}
                 </p>
               </div>
@@ -834,7 +921,6 @@ async function confirmCourse() {
 
     <div class="flex-1 h-full relative bg-[#e5e9f0]">
       <div id="kakao-render-map" class="w-full h-full"></div>
-
     </div>
   </div>
 </template>
