@@ -100,17 +100,7 @@ const NAV_LINKS = computed(() =>
               style="color: #6b8c87; font-weight: 500; text-decoration: none"
               >로그인</router-link
             >
-            <router-link
-              to="/signup"
-              class="px-5 py-2.5 rounded-xl text-sm text-white hover:opacity-90 transition-opacity"
-              style="
-                background: linear-gradient(135deg, #b2e4dc, #3db89e);
-                font-weight: 600;
-                box-shadow: 0 4px 14px rgba(61, 184, 158, 0.3);
-                text-decoration: none;
-              "
-              >무료 시작</router-link
-            >
+            
           </template>
         </div>
 

@@ -76,11 +76,13 @@ function closeSpotModal() {
 }
 
 .home-page__section {
-  margin-top: 56px;
+  margin-top: 80px;
+  margin-bottom: 80px;
 }
 
 .home-page__section--after-hero {
-  margin-top: 40px;
+  margin-top: 48px;
+  margin-bottom: 0;
 }
 
 .fade-modal-enter-active,
@@ -107,11 +109,13 @@ function closeSpotModal() {
 
 @media (max-width: 767px) {
   .home-page__section {
-    margin-top: 36px;
+    margin-top: 48px;
+    margin-bottom: 48px;
   }
 
   .home-page__section--after-hero {
-    margin-top: 28px;
+    margin-top: 32px;
+    margin-bottom: 0;
   }
 }
 </style>

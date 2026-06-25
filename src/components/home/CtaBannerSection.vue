@@ -40,6 +40,7 @@ function scrollToTop() {
 </script>
 
 <template>
+  <div class="smart-course-wrap">
   <section class="smart-course">
     <div class="smart-course__copy">
       <p class="smart-course__eyebrow">{{ text.eyebrow }}</p>
@@ -59,18 +60,18 @@ function scrollToTop() {
     </div>
 
     <div class="smart-course__visual" aria-hidden="true">
-      <div class="preview-card">
-        <span>{{ text.previewLabel }}</span>
-        <strong>{{ text.previewTitle }}</strong>
-        <em>{{ text.previewMeta }}</em>
-        <div class="preview-route">
-          <i />
-          <i />
-          <i />
-        </div>
-      </div>
-
       <div class="laptop">
+        <div class="preview-card">
+          <span>{{ text.previewLabel }}</span>
+          <strong>{{ text.previewTitle }}</strong>
+          <em>{{ text.previewMeta }}</em>
+          <div class="preview-route">
+            <i />
+            <i />
+            <i />
+          </div>
+        </div>
+
         <div class="laptop__screen">
           <img :src="heroPreview" alt="" />
           <div class="laptop__overlay">
@@ -91,9 +92,17 @@ function scrollToTop() {
 
     <Sparkles class="smart-course__sparkle" :size="22" aria-hidden="true" />
   </section>
+  </div>
 </template>
 
 <style scoped>
+.smart-course-wrap {
+  width: 100%;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 253, 250, 0.94) 48%, rgba(255, 255, 255, 0.98) 100%),
+    radial-gradient(circle at 88% 20%, rgba(61, 184, 158, 0.16), transparent 34%);
+}
+
 .smart-course {
   position: relative;
   display: grid;
@@ -102,11 +111,6 @@ function scrollToTop() {
   width: min(100%, 1440px);
   margin: 0 auto;
   padding: 54px 48px 44px;
-  overflow: hidden;
-  border-radius: 8px;
-  background:
-    linear-gradient(115deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 253, 250, 0.94) 48%, rgba(255, 255, 255, 0.98) 100%),
-    radial-gradient(circle at 88% 20%, rgba(61, 184, 158, 0.16), transparent 34%);
 }
 
 .smart-course__eyebrow {
@@ -228,14 +232,15 @@ function scrollToTop() {
 
 .preview-card {
   position: absolute;
-  top: 10px;
-  left: 14px;
+  top: 24px;
+  left: 24px;
   z-index: 3;
-  width: 310px;
-  padding: 24px 26px;
+  width: 260px;
+  padding: 18px 20px;
   border: 1px solid rgba(178, 228, 220, 0.6);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
   box-shadow: 0 18px 40px rgba(25, 58, 54, 0.1);
 }
 
@@ -356,7 +361,7 @@ function scrollToTop() {
 .smart-course__button {
   position: absolute;
   right: 0;
-  bottom: -6px;
+  bottom: -36px;
   z-index: 4;
   display: inline-flex;
   align-items: center;

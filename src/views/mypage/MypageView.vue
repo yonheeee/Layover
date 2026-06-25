@@ -588,7 +588,7 @@ function formatDate(dateStr: string): string {
           <template v-if="activeTab === 'activity'">
             <div class="pb-6 space-y-5">
 
-              <section class="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-5">
+              <section class="grid grid-cols-1 gap-5">
                 <div
                   class="rounded-[26px] p-5"
                   style="background: #ffffff; border: 1px solid rgba(226,232,240,0.9); box-shadow: 0 10px 26px rgba(18,61,53,0.05)"
@@ -1259,7 +1259,7 @@ function formatDate(dateStr: string): string {
                 <div
                   v-if="stampStore.photos.length === 0"
                   class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-                >
+                >
                   <p style="font-size: 0.82rem; font-weight: 600; color: #6b8c87; background: #ffffff; padding: 6px 14px; border-radius: 20px">
                     스탬프를 찍으면 지도에 표시돼요
                   </p>
@@ -1283,7 +1283,7 @@ function formatDate(dateStr: string): string {
                 v-if="stampStore.photos.length === 0"
                 class="flex flex-col items-center justify-center py-12 rounded-2xl"
                 style="background: #ffffff"
-              >
+              >
                 <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
                   아직 인증한 사진이 없어요
                 </p>
@@ -1333,7 +1333,7 @@ function formatDate(dateStr: string): string {
                 v-if="postcardCharacters.length === 0"
                 class="flex flex-col items-center justify-center py-12 rounded-2xl"
                 style="background: #ffffff"
-              >
+              >
                 <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
                   아직 함께 찍은 꿈씨패밀리가 없어요
                 </p>

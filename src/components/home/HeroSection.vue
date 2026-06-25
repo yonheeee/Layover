@@ -139,8 +139,6 @@ async function handleRecommendCourse(filters: {
 <style scoped>
 .home-hero {
   position: relative;
-  min-height: calc(100vh - 64px);
-  min-height: calc(100dvh - 64px);
   overflow: hidden;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(244, 253, 250, 0.78)),
