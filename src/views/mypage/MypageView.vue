@@ -613,7 +613,7 @@ function formatDate(dateStr: string): string {
                     <p style="font-size: 0.76rem; color: #a6b5b1; margin-top: 4px">AI 추천 코스를 저장하면 여기에 쌓입니다.</p>
                   </div>
 
-                  <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+                  <div v-else class="grid grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
                     <div
                       v-for="course in myCourses"
                       :key="course.id"
@@ -629,12 +629,8 @@ function formatDate(dateStr: string): string {
                             <p class="truncate" style="font-size: 0.92rem; font-weight: 950; color: #123d35">
                               {{ course.subTitle || '나의 대전 코스' }}
                             </p>
-                            <div class="flex items-center gap-1.5 mt-2 flex-wrap">
-                              <span class="px-2 py-0.5 rounded-full" style="font-size: 0.68rem; font-weight: 900; color: #3db89e; background: #e7f7f3">
-                                {{ travelModeLabel(course.travelMode) }}
-                              </span>
-                              <span style="font-size: 0.72rem; color: #8a9b97">{{ course.durationMinutes }}분</span>
-                              <span style="font-size: 0.72rem; color: #8a9b97">· · {{ course.places.length }}곳</span>
+                            <div class="flex items-center gap-1 mt-2 flex-wrap">
+                              <span style="font-size: 0.72rem; color: #8a9b97">{{ course.places.length }}곳</span>
                             </div>
                             <p class="mt-2" style="font-size: 0.7rem; color: #b0bbb8">{{ formatDate(course.createdAt) }}</p>
                           </div>
@@ -778,7 +774,7 @@ function formatDate(dateStr: string): string {
                   나의 대전 여행 대시보드
                 </div>
 
-                <div class="grid grid-cols-1 xl:grid-cols-[270px_1fr] gap-6 p-6">
+                <div class="flex flex-col gap-6 p-6">
                   <aside class="flex flex-col gap-4">
                     <div
                       class="rounded-[24px] p-5 text-center shadow-sm"
@@ -851,7 +847,7 @@ function formatDate(dateStr: string): string {
                     <h3 class="mb-3" style="font-size: 0.92rem; font-weight: 900; color: #123d35">
                       확장된 XP 획득 진행률
                     </h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    <div class="grid grid-cols-2 gap-3.5">
                       <div
                         v-for="item in xpMissionCards"
                         :key="item.label"
@@ -1603,26 +1599,7 @@ function formatDate(dateStr: string): string {
 
           <div class="p-5 flex flex-col gap-5">
             <!-- 여행 정보 칩 -->
-            <div class="flex items-center gap-2 flex-wrap">
-              <span
-                class="px-3 py-1 rounded-full text-xs font-bold"
-                style="background: #e6f7f4; color: #3db89e"
-              >
-                {{ travelModeLabel(selectedCourse.travelMode) }}
-              </span>
-              <span
-                class="px-3 py-1 rounded-full text-xs font-semibold"
-                style="background: #f0faf8; color: #6b8c87"
-              >
-                {{ selectedCourse.durationMinutes }}분
-              </span>
-              <span
-                class="px-3 py-1 rounded-full text-xs font-semibold"
-                style="background: #f0faf8; color: #6b8c87"
-              >
-                {{ selectedCourse.places.length }}곳
-              </span>
-            </div>
+        
 
             <!-- 장소 목록 -->
             <div>
