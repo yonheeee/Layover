@@ -1,7 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import { fileURLToPath, URL } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 
 function figmaAssetResolver() {
   return {
@@ -17,26 +17,31 @@ function figmaAssetResolver() {
   };
 }
 
-export default defineConfig({
-  plugins: [figmaAssetResolver(), vue(), tailwindcss()],
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
-    },
-  },
-  assetsInclude: ["**/*.svg", "**/*.csv"],
-  server: {
-    host: true,
-    port: 5173,
-    proxy: {
-      "/api": {
-        target: "http://192.168.208.53:8080",
-        changeOrigin: true,
-      },
-      "/uploads": {
-        target: "http://192.168.208.53:8080",
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const proxyTarget = env.VITE_PROXY_TARGET || "http://localhost:8080";
+
+  return {
+    plugins: [figmaAssetResolver(), vue(), tailwindcss()],
+    resolve: {
+      alias: {
+        "@": fileURLToPath(new URL("./src", import.meta.url)),
       },
     },
-  },
+    assetsInclude: ["**/*.svg", "**/*.csv"],
+    server: {
+      host: true,
+      port: 5173,
+      proxy: {
+        "/api": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/uploads": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+      },
+    },
+  };
 });
