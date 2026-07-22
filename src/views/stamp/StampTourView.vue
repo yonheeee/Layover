@@ -10,6 +10,7 @@ import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
 import { useXp } from '@/composables/useXp'
+import GuidedTour from '@/components/tutorial/GuidedTour.vue'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -35,6 +36,19 @@ interface TourPlace {
 const router = useRouter()
 
 const places = ref<TourPlace[]>([])
+
+const stampTourSteps = [
+  {
+    selector: '[data-tour="stamp-next-place"]',
+    title: "다음으로 방문할 장소를 확인해요",
+    description: "강조된 장소가 지금 인증할 목적지예요. 장소 카드를 클릭해 보세요.",
+  },
+  {
+    selector: '[data-tour="stamp-verify"]',
+    title: "도착했다면 인증을 시작해요",
+    description: "인증하기를 누르면 위치 확인과 사진 촬영이 시작돼요. 지금은 실제 실행 없이 안내만 끝나요.",
+  },
+]
 
 function toTourPlaces(coursePlaces: any[], courseId: string | null) {
   return coursePlaces
@@ -668,6 +682,7 @@ onUnmounted(() => {
           <!-- 장소 목록 -->
           <div class="flex flex-col gap-1.5">
             <div v-for="(place, idx) in places" :key="place.id"
+              :data-tour="idx === nextPlaceIdx ? 'stamp-next-place' : undefined"
               class="flex items-center gap-2 px-2 py-2 rounded-xl transition-all"
               :style="place.visited
                 ? 'opacity:0.55'
@@ -707,6 +722,7 @@ onUnmounted(() => {
           <div v-if="nextPlaceIdx !== -1" class="mt-3 pt-2"
             style="border-top:1px solid rgba(178,228,220,0.3)">
             <button @click="startVerify(nextPlaceIdx)"
+              data-tour="stamp-verify"
               class="w-full py-2 rounded-xl font-bold text-xs text-white transition-all hover:opacity-90 active:scale-95"
               style="background:linear-gradient(135deg,#3db89e,#2da08a)">
               <MapPin :size="11" class="inline mr-0.5 -mt-0.5" />
@@ -870,6 +886,12 @@ onUnmounted(() => {
     </Teleport>
 
     </template>
+
+    <GuidedTour
+      v-if="courseStore.hasConfirmedCourse"
+      storage-key="layover-tour-stamp-v1"
+      :steps="stampTourSteps"
+    />
 
     <!-- ── 레벨업 축하 팝업 ────────────────────────────────── -->
     <Teleport to="body">

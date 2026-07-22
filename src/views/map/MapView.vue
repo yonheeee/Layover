@@ -2,6 +2,7 @@
 import { fetchDiPlaces, recalculateCourse, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
 import { useStampStore } from "@/stores/stamp";
+import GuidedTour from "@/components/tutorial/GuidedTour.vue";
 import type { Course, CourseStop, DiPlace } from "@/types/course";
 import {
   ArrowLeft,
@@ -33,6 +34,24 @@ const courseStore = useCourseStore();
 const stampStore = useStampStore();
 const router = useRouter();
 const courses = ref<Course[]>([]);
+
+const courseTourSteps = [
+  {
+    selector: '[data-tour="course-options"]',
+    title: "추천 일정들을 비교해 보세요",
+    description: "AI가 만든 추천안 중 하나를 눌러 장소와 이동 동선을 확인할 수 있어요.",
+  },
+  {
+    selector: '[data-tour="course-edit"]',
+    title: "일정을 내 취향대로 바꿀 수 있어요",
+    description: "편집을 누르면 장소 순서를 바꾸거나 새로운 장소를 추가할 수 있어요.",
+  },
+  {
+    selector: '[data-tour="course-confirm"]',
+    title: "마음에 들면 일정을 확정해요",
+    description: "체험 클릭에서는 저장하거나 화면을 이동하지 않고 안내만 완료돼요.",
+  },
+];
 
 const STATION_STOPS: Record<string, CourseStop> = {
   DAEJEON: {
@@ -532,6 +551,7 @@ async function confirmCourse() {
               </h1>
             </div>
             <button
+              data-tour="course-edit"
               class="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border"
               :style="{
                 background: isEditing ? '#2fa38a' : '#E8F8F5',
@@ -547,7 +567,7 @@ async function confirmCourse() {
             </button>
           </div>
 
-          <div class="px-6 flex border-b border-gray-200">
+          <div class="px-6 flex border-b border-gray-200" data-tour="course-options">
             <button
               v-for="(course, idx) in courses"
               :key="course.id"
@@ -826,6 +846,7 @@ async function confirmCourse() {
 
         <div class="p-6 border-t border-gray-100 bg-white">
           <button
+            data-tour="course-confirm"
             class="w-full py-3.5 rounded-xl flex items-center justify-center gap-1 font-black text-xs text-white shadow-md"
             style="background: linear-gradient(135deg, #b2e4dc, #2fa38a)"
             @click="confirmCourse"
@@ -922,6 +943,8 @@ async function confirmCourse() {
     <div class="flex-1 h-full relative bg-[#e5e9f0]">
       <div id="kakao-render-map" class="w-full h-full"></div>
     </div>
+
+    <GuidedTour storage-key="layover-tour-course-v1" :steps="courseTourSteps" />
   </div>
 </template>
 
