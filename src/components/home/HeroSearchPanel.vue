@@ -248,7 +248,7 @@ function handleRecommendCourse() {
 
         <div class="field-block">
           <span class="field-label">{{ text.station }}</span>
-          <div class="segmented">
+          <div class="segmented" data-tour="home-station">
             <button
               v-for="station in STATION_OPTIONS"
               :key="station.value"
@@ -266,7 +266,7 @@ function handleRecommendCourse() {
             {{ text.category }}
             <small>({{ text.multiSelect }})</small>
           </span>
-          <div class="category-grid">
+          <div class="category-grid" data-tour="home-category">
             <button
               v-for="category in CATEGORY_FILTERS"
               :key="category.key"
@@ -283,7 +283,7 @@ function handleRecommendCourse() {
       </section>
 
       <section class="course-finder__right" :aria-label="text.timeSelect">
-        <div class="mode-tabs">
+        <div class="mode-tabs" data-tour="home-time">
           <button
             type="button"
             :class="{ active: searchMode === 'train' }"
@@ -345,6 +345,7 @@ function handleRecommendCourse() {
 
     <button
       class="recommend-button"
+      data-tour="home-recommend"
       type="button"
       :disabled="isLoading"
       @click="handleRecommendCourse"

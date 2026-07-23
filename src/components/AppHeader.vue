@@ -10,6 +10,12 @@ const router = useRouter();
 const mobileMenuOpen = ref(false);
 const scrolled = ref(false);
 
+const TOUR_STORAGE_KEYS = [
+  "layover-tour-home-v1",
+  "layover-tour-course-v1",
+  "layover-tour-stamp-v1",
+];
+
 function onScroll() {
   scrolled.value = window.scrollY > 10;
 }
@@ -19,6 +25,7 @@ onUnmounted(() => window.removeEventListener("scroll", onScroll));
 
 const ALL_NAV_LINKS = [
   { label: "홈", to: "/" },
+  { label: "튜토리얼", to: "/", tutorial: true },
   { label: "관광지", to: "/place" },
   { label: "커뮤니티", to: "/community" },
   { label: "스탬프", to: "/stamp-tour" },
@@ -28,6 +35,26 @@ const ALL_NAV_LINKS = [
 const NAV_LINKS = computed(() =>
   ALL_NAV_LINKS.filter((link) => !link.authOnly || auth.isLoggedIn),
 );
+
+function isActiveLink(link: (typeof ALL_NAV_LINKS)[number]) {
+  if (link.tutorial) return route.query.tour === "home";
+  return route.path === link.to && route.query.tour !== "home";
+}
+
+function handleNavClick(
+  event: MouseEvent,
+  link: (typeof ALL_NAV_LINKS)[number],
+) {
+  mobileMenuOpen.value = false;
+  if (!link.tutorial) return;
+
+  event.preventDefault();
+  TOUR_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+  router.push({
+    path: "/",
+    query: { tour: "home", run: Date.now().toString() },
+  });
+}
 </script>
 
 <template>
@@ -61,14 +88,15 @@ const NAV_LINKS = computed(() =>
             :to="link.to"
             class="px-4 py-2 rounded-xl transition-all duration-200 text-sm"
             :style="{
-              color: route.path === link.to ? '#3db89e' : '#1a2e2b',
-              fontWeight: route.path === link.to ? 600 : 400,
+              color: isActiveLink(link) ? '#3db89e' : '#1a2e2b',
+              fontWeight: isActiveLink(link) ? 600 : 400,
               background:
-                route.path === link.to
+                isActiveLink(link)
                   ? 'rgba(232,248,245,0.8)'
                   : 'transparent',
               textDecoration: 'none',
             }"
+            @click="handleNavClick($event, link)"
             >{{ link.label }}</router-link
           >
         </div>
@@ -130,12 +158,12 @@ const NAV_LINKS = computed(() =>
         :to="link.to"
         class="py-3 px-4 rounded-xl text-sm block text-right"
         :style="{
-          color: route.path === link.to ? '#3db89e' : '#1a2e2b',
-          background: route.path === link.to ? '#E8F8F5' : 'transparent',
-          fontWeight: route.path === link.to ? 600 : 400,
+          color: isActiveLink(link) ? '#3db89e' : '#1a2e2b',
+          background: isActiveLink(link) ? '#E8F8F5' : 'transparent',
+          fontWeight: isActiveLink(link) ? 600 : 400,
           textDecoration: 'none',
         }"
-        @click="mobileMenuOpen = false"
+        @click="handleNavClick($event, link)"
         >{{ link.label }}</router-link
       >
 
