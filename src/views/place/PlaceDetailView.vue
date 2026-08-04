@@ -13,39 +13,32 @@ const router = useRouter();
 const route = useRoute();
 const bookmarkStore = useBookmarkStore();
 
-const recommendedPlaces = ref([
-  {
-    id: "banner-1",
-    name: "장태산 자연휴양림",
-    desc: "메타세쿼이아 숲길에서 즐기는 이국적인 힐링",
-    img: "https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=1200&q=80",
-    tag: "#인생샷 #힐링명소",
-  },
-  {
-    id: "banner-2",
-    name: "대청호 오백리길",
-    desc: "푸른 호수를 따라 걷는 대전 최고의 드라이브 코스",
-    img: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
-    tag: "#데이트코스 #산책",
-  },
-  {
-    id: "banner-3",
-    name: "엑스포 과학공원 한빛탑",
-    desc: "화려한 음악분수와 대전의 아름다운 야경을 한눈에",
-    img: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=1200&q=80",
-    tag: "#야경명소 #음악분수",
-  },
-]);
+const recommendedPlaces = ref<Place[]>([]);
 
 const currentSlide = ref(0);
 let slideTimer: any = null;
 
 const startSlideShow = () => {
+  if (slideTimer || recommendedPlaces.value.length <= 1) return;
   slideTimer = setInterval(() => {
     currentSlide.value =
       (currentSlide.value + 1) % recommendedPlaces.value.length;
   }, 4000);
 };
+
+async function fetchRecommendedPlaces() {
+  try {
+    const result = await getPlaces(undefined, undefined, undefined, 0);
+    recommendedPlaces.value = result.content
+      .filter((place) => place.image)
+      .slice(0, 3);
+    currentSlide.value = 0;
+    startSlideShow();
+  } catch (e) {
+    console.error("추천 장소 배너 로딩 실패:", e);
+    recommendedPlaces.value = [];
+  }
+}
 
 const CATEGORY_TABS = [
   { key: "", label: "전체" },
@@ -135,7 +128,7 @@ function openDetail(place: Place) {
 }
 
 onMounted(() => {
-  startSlideShow();
+  fetchRecommendedPlaces();
   fetchPlaces();
   const idFromQuery = route.query.id as string | undefined;
   if (idFromQuery) {
@@ -176,6 +169,7 @@ onUnmounted(() => {
 
       <!-- 배너 슬라이더 -->
       <section
+        v-if="recommendedPlaces.length > 0"
         class="relative w-full h-[260px] md:h-[320px] rounded-2xl overflow-hidden shadow-sm mb-10 group"
       >
         <div
@@ -188,20 +182,21 @@ onUnmounted(() => {
             class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-10"
           ></div>
           <img
-            :src="slide.img"
+            :src="slide.image"
+            :alt="slide.name"
             class="w-full h-full object-cover transform scale-100 group-hover:scale-102 transition-transform duration-[4000ms]"
           />
           <div class="absolute bottom-6 left-6 right-6 z-20 text-white">
             <span
               class="px-2.5 py-1 rounded-md bg-teal-500/90 text-[0.68rem] font-bold tracking-wider mb-2 inline-block"
             >
-              {{ slide.tag }}
+              #{{ slide.category }}
             </span>
             <h2 class="text-xl md:text-2xl font-extrabold tracking-tight mb-1">
               {{ slide.name }}
             </h2>
             <p class="text-xs md:text-sm text-gray-200 font-light opacity-90">
-              {{ slide.desc }}
+              {{ slide.description || slide.address }}
             </p>
           </div>
         </div>

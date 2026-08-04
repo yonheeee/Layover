@@ -49,6 +49,18 @@ const connectedCourse = ref<SavedCourseResponse | null>(null);
 const mySavedCourses = ref<SavedCourseResponse[]>([]);
 const isLoadingCourses = ref(false);
 
+async function ensureSavedCoursesLoaded() {
+  if (mySavedCourses.value.length > 0 || isLoadingCourses.value) return;
+  isLoadingCourses.value = true;
+  try {
+    mySavedCourses.value = await getMyCourses();
+  } catch {
+    // Ignore load failures in the optional course picker.
+  } finally {
+    isLoadingCourses.value = false;
+  }
+}
+
 // ─── 블록 에디터 ───
 interface TextBlock {
   id: number;
@@ -207,6 +219,12 @@ onMounted(async () => {
       title.value = post.title;
       selectedCategory.value = CODE_TO_CATEGORY[post.category] ?? "공유해요";
       blocks.value = parseContentToBlocks(post.content);
+      if (post.courseId) {
+        await ensureSavedCoursesLoaded();
+        connectedCourse.value =
+          mySavedCourses.value.find((course) => course.id === post.courseId) ??
+          null;
+      }
     } catch {
       alert("게시글을 불러올 수 없습니다.");
       router.back();
@@ -267,14 +285,16 @@ async function handleRegister() {
       return;
     }
 
+    const courseId = connectedCourse.value?.id ?? null;
     if (isEditMode && editPostId) {
-      await updatePost(editPostId, title.value.trim(), content, apiCategory);
+      await updatePost(editPostId, title.value.trim(), content, apiCategory, courseId);
       router.replace(`/community/${editPostId}`);
     } else {
       const newPost = await createPost(
         apiCategory,
         title.value.trim(),
         content,
+        courseId,
       );
       router.replace(newPost?.id ? `/community/${newPost.id}` : "/community");
     }

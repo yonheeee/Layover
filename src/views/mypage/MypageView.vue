@@ -3,12 +3,7 @@ import { ref, computed, watch, onMounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { CODE_TO_CATEGORY, getMyPosts } from "@/api/community";
 import { httpDelete, httpPut } from "@/api/http";
-import {
-  fetchCharacters,
-  fetchPostcardData,
-  fetchUser,
-  fetchUserActivity,
-} from "@/api/user";
+import { fetchUser, fetchUserActivity } from "@/api/user";
 import PlaceCard from "@/components/common/PlaceCard.vue";
 import { deleteCourse } from "@/api/courses";
 import { useAuthStore } from "@/stores/auth";
@@ -17,13 +12,7 @@ import { useStampStore, type StampPhoto } from "@/stores/stamp";
 import { useXp, XP_LEVELS } from "@/composables/useXp";
 import type { MyPost } from "@/types/community";
 import type { Place } from "@/types/place";
-import type {
-  Character,
-  MapPin as MapPinType,
-  MyCourse,
-  UserPhoto,
-  User as UserType,
-} from "@/types/user";
+import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
 import {
@@ -76,8 +65,6 @@ onMounted(async () => {
   const results = await Promise.allSettled([
     fetchUser(),
     fetchUserActivity(),
-    fetchCharacters(),
-    fetchPostcardData(),
     getMyPosts(),
   ]);
 
@@ -92,12 +79,7 @@ onMounted(async () => {
   } else {
     console.error("코스 로딩 실패:", results[1].reason);
   }
-  if (results[2].status === "fulfilled") characters.value = results[2].value;
-  if (results[3].status === "fulfilled") {
-    mapPins.value = results[3].value.mapPins;
-    userPhotos.value = results[3].value.userPhotos;
-  }
-  if (results[4].status === "fulfilled") myPosts.value = results[4].value;
+  if (results[2].status === "fulfilled") myPosts.value = results[2].value;
 
   await bookmarkStore.fetchBookmarks();
 });
@@ -204,8 +186,6 @@ async function withdraw() {
 }
 
 // ─── 엽서 탭 (카카오 지도) ───
-const mapPins = ref<MapPinType[]>([]);
-const userPhotos = ref<UserPhoto[]>([]);
 let postcardMap: any = null;
 let postcardOverlays: any[] = [];
 
@@ -296,12 +276,9 @@ function goToCourseStamp(course: MyCourse) {
 
 const selectedPlaceId = ref<string | null>(null);
 const likedScrollRef = ref<HTMLDivElement | null>(null);
-const characters = ref<Character[]>([]);
-
 // ─── 모달 상태 ───
 const showLogout = ref(false);
 const activePhotoModal = ref<string | null>(null);
-const activeMapPopup = ref<(typeof mapPins.value)[0] | null>(null);
 const activeCharacterDetail = ref<{
   name: string;
   imageUrl?: string;

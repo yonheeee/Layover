@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import GuidedTour from "@/components/tutorial/GuidedTour.vue";
 import HeroSection from "@/components/home/HeroSection.vue";
 import RecommendedSpotsSection from "@/components/home/RecommendedSpotsSection.vue";
+import PopularCoursesSection from "@/components/home/PopularCoursesSection.vue";
 import CtaBannerSection from "@/components/home/CtaBannerSection.vue";
 import StampEventSection from "@/components/home/StampEventSection.vue";
 import PlaceDetailContent from "../place/PlaceDetailContents.vue";
@@ -58,6 +59,10 @@ function closeSpotModal() {
         @openSpotModal="openSpotModal"
         @toggleLike="bookmarkStore.toggleBookmark"
       />
+    </div>
+
+    <div class="home-page__section">
+      <PopularCoursesSection />
     </div>
 
     <div class="home-page__section">

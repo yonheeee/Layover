@@ -1,133 +1,514 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowLeft, Lock, Star } from 'lucide-vue-next'
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { ArrowLeft, Lock, Star } from "lucide-vue-next";
+import { getCharacters, type CharacterResponse } from "@/api/characters";
+import { fetchUser } from "@/api/user";
+import ImageWithFallback from "@/components/ImageWithFallback.vue";
+import dreamCharacterImage from "@/assets/characters/dream/character_dream.png";
 
-const router = useRouter()
+const router = useRouter();
 
-const characters = ref([
-  { id: 1, name: '꿈돌이 베이직', emoji: '🌟', description: '대전의 마스코트 꿈돌이! 첫 번째 코스 완료로 획득했어요.', requiredStamps: 1, unlocked: true, acquiredDate: '2025.03.15' },
-  { id: 2, name: '꿈돌이 탐험가', emoji: '🗺️', description: '3개 코스를 완료한 탐험가! 대전 구석구석을 누볐어요.', requiredStamps: 3, unlocked: true, acquiredDate: '2025.04.20' },
-  { id: 3, name: '꿈돌이 미식가', emoji: '🍞', description: '음식 카테고리 장소를 5곳 이상 방문한 미식가!', requiredStamps: 5, unlocked: true, acquiredDate: '2025.05.10' },
-  { id: 4, name: '꿈돌이 문화인', emoji: '🎭', description: '문화·역사 장소를 3곳 이상 방문한 문화인이 되세요.', requiredStamps: 8, unlocked: false, acquiredDate: null },
-  { id: 5, name: '꿈돌이 자연인', emoji: '🌿', description: '자연 카테고리 장소를 3곳 이상 방문해 보세요.', requiredStamps: 10, unlocked: false, acquiredDate: null },
-  { id: 6, name: '꿈돌이 대전왕', emoji: '👑', description: '10개 코스를 완료한 진정한 대전의 왕!', requiredStamps: 20, unlocked: false, acquiredDate: null },
-])
+const characters = ref<CharacterResponse[]>([]);
+const selectedChar = ref<CharacterResponse | null>(null);
+const myStamps = ref(0);
+const isLoading = ref(false);
 
-const selectedChar = ref<typeof characters.value[0] | null>(null)
-const myStamps = ref(7)
+const obtainedCount = computed(
+  () => characters.value.filter((character) => character.obtained).length,
+);
+
+const maxRequiredStamps = computed(() =>
+  Math.max(...characters.value.map((character) => character.requiredStamps), 1),
+);
+
+const nextCharacter = computed(() =>
+  characters.value.find((character) => !character.obtained),
+);
+
+const remainingStamps = computed(() => {
+  if (!nextCharacter.value) return 0;
+  return Math.max(nextCharacter.value.requiredStamps - myStamps.value, 0);
+});
+
+function characterImageUrl(character: CharacterResponse | null) {
+  return character?.imageUrl || dreamCharacterImage;
+}
+
+async function loadCharacters() {
+  isLoading.value = true;
+  try {
+    const [user, characterList] = await Promise.all([
+      fetchUser(),
+      getCharacters(),
+    ]);
+    myStamps.value = user.stampCount ?? 0;
+    characters.value = characterList;
+  } catch (error) {
+    console.error("캐릭터 정보를 불러오지 못했습니다.", error);
+    characters.value = [];
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+onMounted(loadCharacters);
 </script>
 
 <template>
-  <div style="background: linear-gradient(155deg, #E8F8F5 0%, #ffffff 50%, #f0faf8 100%); min-height: calc(100vh - 64px)">
-    <div class="max-w-2xl mx-auto px-4 py-6">
-
-      <!-- 헤더 -->
-      <button @click="router.back()" class="flex items-center gap-2 mb-5 transition-opacity hover:opacity-70" style="color:#6b8c87;font-size:0.88rem;font-weight:600">
+  <div class="characters-page">
+    <div class="characters-page__inner">
+      <button type="button" class="characters-page__back" @click="router.back()">
         <ArrowLeft :size="17" />
         마이페이지
       </button>
 
-      <div class="flex items-center gap-3 mb-2">
-        <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background: linear-gradient(135deg, #B2E4DC, #3db89e)">
-          <span style="font-size:0.85rem">🌟</span>
+      <div class="characters-page__title">
+        <div class="characters-page__title-icon">
+          <img :src="dreamCharacterImage" alt="" />
         </div>
-        <h1 style="font-weight:800;font-size:1.2rem;color:#1a2e2b">꿈돌이 컬렉션</h1>
+        <div>
+          <h1>꿈돌이 컬렉션</h1>
+          <p>대전 곳곳에서 모은 스탬프로 해금한 캐릭터를 확인해보세요.</p>
+        </div>
       </div>
-      <p style="font-size:0.85rem;color:#6b8c87;margin-bottom:24px">대전을 탐험하며 꿈돌이 캐릭터를 수집해 보세요!</p>
 
-      <!-- 스탬프 현황 -->
-      <div class="rounded-2xl p-5 mb-6 flex items-center gap-4" style="background: linear-gradient(135deg, #E8F8F5, #f0faf8); border:1.5px solid rgba(178,228,220,0.4); box-shadow:0 2px 12px rgba(26,46,43,0.05)">
-        <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style="background: linear-gradient(135deg, #B2E4DC, #3db89e)">
+      <section class="stamp-summary">
+        <div class="stamp-summary__icon">
           <Star :size="20" fill="#fff" color="#fff" />
         </div>
-        <div class="flex-1">
-          <div class="flex items-center justify-between mb-1.5">
-            <span style="font-weight:700;font-size:0.95rem;color:#1a2e2b">누적 스탬프</span>
-            <span style="font-weight:800;font-size:1rem;color:#3db89e">{{ myStamps }}개</span>
+        <div class="stamp-summary__body">
+          <div class="stamp-summary__row">
+            <span>누적 스탬프</span>
+            <strong>{{ myStamps }}개</strong>
           </div>
-          <div class="w-full h-2.5 rounded-full overflow-hidden" style="background:rgba(178,228,220,0.3)">
-            <div
-              class="h-full rounded-full transition-all"
-              :style="`width:${Math.min((myStamps / 20) * 100, 100)}%;background: linear-gradient(90deg, #B2E4DC, #3db89e)`"
+          <div class="stamp-summary__bar">
+            <span
+              :style="`width:${Math.min((myStamps / maxRequiredStamps) * 100, 100)}%`"
             />
           </div>
-          <p style="font-size:0.75rem;color:#6b8c87;margin-top:4px">다음 꿈돌이까지 {{ 8 - myStamps > 0 ? 8 - myStamps : 0 }}개</p>
+          <p v-if="nextCharacter">
+            다음 꿈돌이까지 {{ remainingStamps }}개
+          </p>
+          <p v-else>모든 꿈돌이를 획득했어요.</p>
         </div>
+      </section>
+
+      <div class="characters-page__count">
+        획득한 꿈돌이
+        <span>{{ obtainedCount }}</span>
+        / {{ characters.length }}
       </div>
 
-      <!-- 획득 현황 -->
-      <div class="flex items-center justify-between mb-4">
-        <span style="font-weight:700;font-size:0.9rem;color:#1a2e2b">
-          획득한 꿈돌이 <span style="color:#3db89e">{{ characters.filter(c => c.unlocked).length }}</span> / {{ characters.length }}
-        </span>
+      <div v-if="isLoading" class="characters-page__loading">
+        불러오는 중...
       </div>
 
-      <!-- 캐릭터 그리드 -->
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div v-else-if="characters.length === 0" class="characters-page__empty">
+        표시할 캐릭터가 없습니다.
+      </div>
+
+      <div v-else class="characters-grid">
         <button
-          v-for="char in characters"
-          :key="char.id"
-          @click="selectedChar = char"
-          class="rounded-2xl p-4 flex flex-col items-center gap-2 transition-all text-center"
-          :style="char.unlocked
-            ? 'background:#fff;border:1.5px solid rgba(178,228,220,0.5);box-shadow:0 2px 12px rgba(26,46,43,0.06);'
-            : 'background:#f8f8f8;border:1.5px solid rgba(220,220,220,0.5);'"
+          v-for="character in characters"
+          :key="character.id"
+          type="button"
+          class="character-card"
+          :class="{ 'character-card--locked': !character.obtained }"
+          @click="selectedChar = character"
         >
-          <!-- 이모지 / 잠금 -->
-          <div
-            class="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl relative"
-            :style="char.unlocked ? 'background: linear-gradient(135deg, #E8F8F5, #f0faf8)' : 'background:#f0f0f0;filter:grayscale(1)'"
-          >
-            {{ char.emoji }}
-            <div v-if="!char.unlocked" class="absolute inset-0 flex items-center justify-center rounded-2xl" style="background:rgba(0,0,0,0.25)">
+          <div class="character-card__image">
+            <ImageWithFallback
+              :src="characterImageUrl(character)"
+              :alt="character.name"
+              class="character-card__img"
+            />
+            <div v-if="!character.obtained" class="character-card__lock">
               <Lock :size="18" color="#fff" />
             </div>
           </div>
-          <div class="w-full">
-            <p :style="`font-weight:700;font-size:0.82rem;${char.unlocked ? 'color:#1a2e2b' : 'color:#9ca3af'}`">{{ char.name }}</p>
-            <p v-if="char.unlocked" style="font-size:0.7rem;color:#3db89e;font-weight:600;margin-top:2px">획득 완료!</p>
-            <p v-else style="font-size:0.7rem;color:#9ca3af;margin-top:2px">스탬프 {{ char.requiredStamps }}개 필요</p>
+          <div class="character-card__text">
+            <p>{{ character.name }}</p>
+            <span v-if="character.obtained">획득 완료</span>
+            <span v-else>스탬프 {{ character.requiredStamps }}개 필요</span>
           </div>
         </button>
       </div>
-
     </div>
 
-    <!-- 캐릭터 상세 모달 -->
     <Teleport to="body">
       <div
         v-if="selectedChar"
-        class="fixed inset-0 flex items-center justify-center z-50 px-4"
-        style="background:rgba(0,0,0,0.45)"
+        class="character-modal"
         @click.self="selectedChar = null"
       >
-        <div class="rounded-3xl overflow-hidden w-full" style="max-width:340px;background:#fff;box-shadow:0 24px 80px rgba(26,46,43,0.15)">
-          <!-- 이모지 배경 -->
-          <div class="flex items-center justify-center py-8" :style="selectedChar.unlocked ? 'background: linear-gradient(135deg, #E8F8F5, #f0faf8)' : 'background:#f0f0f0'">
-            <span class="text-7xl" :style="selectedChar.unlocked ? '' : 'filter:grayscale(1)'">{{ selectedChar.emoji }}</span>
+        <div class="character-modal__panel">
+          <div
+            class="character-modal__image"
+            :class="{ 'character-modal__image--locked': !selectedChar.obtained }"
+          >
+            <ImageWithFallback
+              :src="characterImageUrl(selectedChar)"
+              :alt="selectedChar.name"
+              class="character-modal__img"
+            />
           </div>
-          <div class="p-6">
-            <div class="flex items-center gap-2 mb-1">
-              <h3 style="font-weight:800;font-size:1.05rem;color:#1a2e2b">{{ selectedChar.name }}</h3>
-              <span
-                class="text-xs font-bold px-2 py-0.5 rounded-full"
-                :style="selectedChar.unlocked ? 'background:#d1fae5;color:#065f46' : 'background:#f3f4f6;color:#9ca3af'"
-              >{{ selectedChar.unlocked ? '획득 완료' : '미획득' }}</span>
+          <div class="character-modal__body">
+            <div class="character-modal__title">
+              <h3>{{ selectedChar.name }}</h3>
+              <span :class="{ 'is-obtained': selectedChar.obtained }">
+                {{ selectedChar.obtained ? "획득 완료" : "미획득" }}
+              </span>
             </div>
-            <p style="font-size:0.88rem;color:#6b8c87;line-height:1.65;margin-bottom:16px">{{ selectedChar.description }}</p>
-            <div class="flex items-center gap-2 mb-4 p-3 rounded-xl" style="background:#f0faf8">
+            <p>{{ selectedChar.description }}</p>
+            <div class="character-modal__requirement">
               <Star :size="14" color="#3db89e" />
-              <span style="font-size:0.82rem;font-weight:600;color:#1a2e2b">필요 스탬프</span>
-              <span style="font-size:0.82rem;color:#3db89e;font-weight:700;margin-left:auto">{{ selectedChar.requiredStamps }}개</span>
+              <span>필요 스탬프</span>
+              <strong>{{ selectedChar.requiredStamps }}개</strong>
             </div>
-            <p v-if="selectedChar.acquiredDate" style="font-size:0.78rem;color:#9ca3af;text-align:center;margin-bottom:12px">{{ selectedChar.acquiredDate }} 획득</p>
-            <button @click="selectedChar = null" class="w-full py-3 rounded-xl font-semibold text-sm" style="background: linear-gradient(135deg, #B2E4DC, #3db89e); color:#fff">
-              닫기
-            </button>
+            <button type="button" @click="selectedChar = null">닫기</button>
           </div>
         </div>
       </div>
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.characters-page {
+  min-height: calc(100vh - 64px);
+  background: linear-gradient(155deg, #e8f8f5 0%, #ffffff 50%, #f0faf8 100%);
+}
+
+.characters-page__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.characters-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: #6b8c87;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+}
+
+.characters-page__title {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 1.5rem;
+}
+
+.characters-page__title-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #dff6f1;
+}
+
+.characters-page__title-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.characters-page__title h1 {
+  margin: 0;
+  color: #1a2e2b;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.characters-page__title p {
+  margin: 0.25rem 0 0;
+  color: #6b8c87;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.stamp-summary {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid rgba(178, 228, 220, 0.4);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #e8f8f5, #f0faf8);
+  box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
+  margin-bottom: 1.5rem;
+  padding: 1.2rem;
+}
+
+.stamp-summary__icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #b2e4dc, #3db89e);
+}
+
+.stamp-summary__body {
+  flex: 1;
+}
+
+.stamp-summary__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #1a2e2b;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.stamp-summary__row strong {
+  color: #3db89e;
+}
+
+.stamp-summary__bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(178, 228, 220, 0.3);
+  margin-top: 0.5rem;
+}
+
+.stamp-summary__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b2e4dc, #3db89e);
+  transition: width 0.25s ease;
+}
+
+.stamp-summary p {
+  margin: 0.35rem 0 0;
+  color: #6b8c87;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.characters-page__count {
+  color: #1a2e2b;
+  font-size: 0.92rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.characters-page__count span {
+  color: #3db89e;
+}
+
+.characters-page__loading,
+.characters-page__empty {
+  border: 1px dashed #d6e7e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #6b8c87;
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 2rem;
+  text-align: center;
+}
+
+.characters-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.character-card {
+  display: flex;
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid rgba(178, 228, 220, 0.5);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(26, 46, 43, 0.06);
+  padding: 1rem;
+  text-align: center;
+}
+
+.character-card--locked {
+  border-color: rgba(220, 220, 220, 0.8);
+  background: #f8f8f8;
+}
+
+.character-card__image {
+  position: relative;
+  display: grid;
+  width: 80px;
+  height: 80px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #e8f8f5, #f0faf8);
+}
+
+.character-card--locked .character-card__image {
+  filter: grayscale(1);
+}
+
+.character-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.character-card__lock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.character-card__text p {
+  margin: 0;
+  color: #1a2e2b;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.character-card__text span {
+  display: block;
+  color: #3db89e;
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-top: 0.2rem;
+}
+
+.character-card--locked .character-card__text p,
+.character-card--locked .character-card__text span {
+  color: #9ca3af;
+}
+
+.character-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 1rem;
+}
+
+.character-modal__panel {
+  width: min(100%, 340px);
+  overflow: hidden;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(26, 46, 43, 0.15);
+}
+
+.character-modal__image {
+  display: grid;
+  min-height: 210px;
+  place-items: center;
+  background: linear-gradient(135deg, #e8f8f5, #f0faf8);
+  padding: 1.5rem;
+}
+
+.character-modal__image--locked {
+  filter: grayscale(1);
+}
+
+.character-modal__img {
+  width: min(100%, 210px);
+  height: 180px;
+  object-fit: contain;
+}
+
+.character-modal__body {
+  padding: 1.5rem;
+}
+
+.character-modal__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.character-modal__title h3 {
+  margin: 0;
+  color: #1a2e2b;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.character-modal__title span {
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #9ca3af;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.18rem 0.55rem;
+}
+
+.character-modal__title span.is-obtained {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.character-modal__body p {
+  color: #6b8c87;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.65;
+  margin: 0 0 1rem;
+}
+
+.character-modal__requirement {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 8px;
+  background: #f0faf8;
+  color: #1a2e2b;
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin-bottom: 1rem;
+  padding: 0.8rem;
+}
+
+.character-modal__requirement strong {
+  color: #3db89e;
+  margin-left: auto;
+}
+
+.character-modal button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #b2e4dc, #3db89e);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 0.85rem 1rem;
+}
+
+@media (max-width: 520px) {
+  .characters-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stamp-summary {
+    align-items: flex-start;
+  }
+}
+</style>

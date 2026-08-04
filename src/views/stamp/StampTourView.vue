@@ -90,7 +90,14 @@ const errorMsg = ref('')
 const guideCountdown = ref(2)
 const resultImageUrl = ref('')
 const stampAnimIdx = ref<number | null>(null)
-type StampRewardCharacter = DreamCharacter & { requiredStamps: number }
+type StampRewardCharacter = Pick<
+  DreamCharacter,
+  'id' | 'name' | 'description' | 'imageUrl'
+> & {
+  role?: string
+  imageAlt?: string
+  requiredStamps: number
+}
 const newCharacterPopup = ref<StampRewardCharacter | null>(null)
 const isSavingStamp = ref(false)
 const allowDevStampVerification = import.meta.env.DEV
@@ -101,6 +108,23 @@ function rewardCharacterForStampIndex(index: number): StampRewardCharacter {
   return {
     ...character,
     requiredStamps: index + 1,
+  }
+}
+
+function rewardCharacterFromApi(character: {
+  id: string
+  name: string
+  imageUrl: string
+  requiredStamps: number
+  description: string
+}): StampRewardCharacter {
+  return {
+    id: character.id,
+    name: character.name,
+    imageUrl: character.imageUrl,
+    imageAlt: character.name,
+    description: character.description,
+    requiredStamps: character.requiredStamps,
   }
 }
 
@@ -487,6 +511,29 @@ async function confirmResult() {
   const idx = currentPlaceIdx.value
   const place = places.value[idx]
   const rewardCharacter = rewardCharacterForStampIndex(idx)
+  let apiRewardCharacter: StampRewardCharacter | null = null
+
+  isSavingStamp.value = true
+  try {
+    const res = await saveStamp(place.id)
+    if (res.newCharacter) {
+      apiRewardCharacter = rewardCharacterFromApi(res.newCharacter)
+    }
+  } catch (err: any) {
+    const status = err?.response?.status
+    if (status === 409) {
+      alert('이미 방문한 장소입니다.')
+      isSavingStamp.value = false
+      return
+    }
+    if (status && status !== 401) {
+      console.error('스탬프 저장 실패:', err)
+      isSavingStamp.value = false
+      return
+    }
+  } finally {
+    isSavingStamp.value = false
+  }
 
   // 로컬 저장
   stampStore.addPhoto({
@@ -511,30 +558,11 @@ async function confirmResult() {
   stampAnimIdx.value = idx
   returnToTimeline()
   currentPlaceIdx.value = null
-  newCharacterPopup.value = rewardCharacter
+  newCharacterPopup.value = apiRewardCharacter
   setTimeout(() => {
     places.value[idx].visited = true
     setTimeout(() => (stampAnimIdx.value = null), 800)
   }, 100)
-
-  // 백엔드 저장 (비동기 - UI 블로킹 없음)
-  isSavingStamp.value = true
-  try {
-    const res = await saveStamp(place.id)
-    if (res.newCharacter) {
-      newCharacterPopup.value = rewardCharacter
-    }
-  } catch (err: any) {
-    const status = err?.response?.status
-    if (status === 409) {
-      alert('이미 방문한 장소입니다.')
-    } else if (status && status !== 401) {
-      console.error('스탬프 저장 실패:', err)
-    }
-    // 401(미로그인)은 조용히 무시 — 로컬 저장은 이미 완료됨
-  } finally {
-    isSavingStamp.value = false
-  }
 }
 
 function goBack() {
