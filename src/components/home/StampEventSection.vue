@@ -326,7 +326,7 @@ async function handleStartStampTour() {
   opacity: 0.22;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1024px) {
   .stamp-game-board {
     min-height: 720px;
   }
@@ -340,10 +340,9 @@ async function handleStartStampTour() {
     bottom: 108px;
     width: 310px;
   }
-
 }
 
-@media (max-width: 820px) {
+@media (max-width: 767px) {
   .stamp-game-section {
     padding: 0 1rem 4rem;
   }
@@ -387,6 +386,35 @@ async function handleStartStampTour() {
     flex-direction: column;
     align-items: stretch;
     margin-top: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .stamp-game-board {
+    padding: 24px 16px;
+  }
+
+  .stamp-route {
+    height: 170px;
+  }
+
+  .stamp-tour-button {
+    width: 100%;
+    min-height: 52px;
+  }
+}
+
+@media (max-width: 420px) {
+  .stamp-game-section {
+    padding: 0 0.75rem 3.5rem;
+  }
+
+  .stamp-game-board {
+    padding: 22px 14px;
+  }
+
+  .stamp-route {
+    height: 150px;
   }
 }
 </style>

@@ -633,8 +633,7 @@ onUnmounted(() => {
     <template v-else>
 
     <!-- ── 타임라인 뷰 ─────────────────────────────────────── -->
-    <div v-show="currentStep === 'timeline' || currentStep === 'verifying'" class="flex flex-col overflow-hidden"
-      style="height:calc(100dvh - 64px);min-height:560px">
+    <div v-show="currentStep === 'timeline' || currentStep === 'verifying'" class="stamp-tour-timeline flex flex-col overflow-hidden">
 
       <!-- ░░ 게이미피케이션 히어로 (컴팩트) ░░ -->
       <div class="relative overflow-hidden px-4 pt-2.5 pb-2.5 flex-shrink-0"
@@ -990,6 +989,10 @@ onUnmounted(() => {
 .stamp-pop-enter-active {
   animation: stamp-pop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+.stamp-tour-timeline {
+  height: calc(100dvh - 64px);
+  min-height: 560px;
+}
 .levelup-enter-active { animation: levelupIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
 .levelup-leave-active { animation: levelupOut 0.2s ease-in; }
 @keyframes levelupIn {
@@ -999,5 +1002,19 @@ onUnmounted(() => {
 @keyframes levelupOut {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0; transform: scale(0.85); }
+}
+
+@media (max-width: 767px) {
+  .stamp-tour-timeline {
+    height: calc(100dvh - 92px);
+    min-height: 480px;
+  }
+}
+
+@media (max-width: 420px) {
+  .stamp-tour-timeline {
+    height: calc(100dvh - 84px);
+    min-height: 440px;
+  }
 }
 </style>

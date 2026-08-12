@@ -116,15 +116,29 @@ function shortAddress(address?: string): string {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-@media (max-width: 767px) {
+@media (max-width: 1024px) {
+  .spot-card {
+    width: 228px;
+  }
+}
+
+@media (max-width: 640px) {
   .spot-card {
     width: 222px;
   }
+
   .spot-card-body {
     display: none;
   }
+
   .spot-img-badge {
     display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .spot-card {
+    width: 204px;
   }
 }
 </style>

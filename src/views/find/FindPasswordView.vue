@@ -128,7 +128,7 @@ const handleResetPassword = async () => {
 
 <template>
   <div
-    class="min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-12"
+    class="find-page min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-12"
     style="
       background: linear-gradient(
         155deg,

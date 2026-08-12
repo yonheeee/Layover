@@ -179,3 +179,131 @@
   font-size: 0.88rem;
   outline: none;
 }
+
+.community-mobile-subnav {
+  width: 100%;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.community-mobile-subnav::-webkit-scrollbar {
+  display: none;
+}
+
+.community-mobile-subnav button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(178, 228, 220, 0.35);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@media (max-width: 1024px) {
+  .community-shell {
+    max-width: 100%;
+  }
+
+  .community-tab {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+}
+
+@media (max-width: 767px) {
+  .community-page {
+    min-height: calc(100vh - 92px) !important;
+  }
+
+  .community-shell {
+    padding: 20px 14px 28px;
+  }
+
+  .community-topbar {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+
+  .community-topbar__actions {
+    order: 2;
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .community-section-layout {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .community-mobile-subnav {
+    display: flex;
+  }
+
+  .review-action-bar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .write-section-card,
+  .notice-pinned,
+  .notice-content {
+    padding: 16px;
+  }
+
+  .write-image-thumb,
+  .write-image-add {
+    width: 82px;
+    height: 82px;
+  }
+}
+
+@media (max-width: 640px) {
+  .community-shell {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .community-tab {
+    flex: 1;
+    padding-right: 10px;
+    padding-left: 10px;
+    text-align: center;
+  }
+
+  .detail-comment-input {
+    min-width: 0;
+  }
+
+  .write-input,
+  .write-textarea {
+    padding: 11px 13px;
+  }
+}
+
+@media (max-width: 420px) {
+  .community-page {
+    min-height: calc(100vh - 84px) !important;
+  }
+
+  .community-shell {
+    padding: 16px 10px 24px;
+  }
+
+  .write-section-card,
+  .notice-pinned,
+  .notice-content {
+    padding: 14px;
+  }
+
+  .write-image-thumb,
+  .write-image-add {
+    width: 72px;
+    height: 72px;
+  }
+}

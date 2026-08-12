@@ -673,13 +673,59 @@ function handleRecommendCourse() {
   font-weight: 700;
 }
 
-@media (max-width: 620px) {
+@media (max-width: 1024px) {
+  .course-finder__grid {
+    gap: 14px;
+  }
+
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
   .course-finder__grid {
     grid-template-columns: 1fr;
   }
 
   .train-list__body {
     max-height: 170px;
+  }
+}
+
+@media (max-width: 640px) {
+  .course-finder__title {
+    margin-bottom: 14px;
+  }
+
+  .selected-summary {
+    min-height: 74px;
+  }
+
+  .mode-tabs button,
+  .segmented button,
+  .category-grid button {
+    min-height: 36px;
+  }
+
+  .recommend-button {
+    min-height: 46px;
+  }
+}
+
+@media (max-width: 420px) {
+  .category-grid,
+  .segmented {
+    grid-template-columns: 1fr;
+  }
+
+  .train-list__head,
+  .train-list__body button {
+    gap: 8px;
+  }
+
+  .stay-input {
+    padding: 14px;
   }
 }
 </style>

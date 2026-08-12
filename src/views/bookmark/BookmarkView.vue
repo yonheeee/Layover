@@ -15,12 +15,13 @@ onMounted(() => {
 
 <template>
   <div
+    class="bookmark-page"
     style="
       background: linear-gradient(155deg, #e8f8f5 0%, #ffffff 50%, #f0faf8 100%);
       min-height: calc(100vh - 64px);
     "
   >
-    <div class="max-w-5xl mx-auto px-4 py-8">
+    <div class="bookmark-shell max-w-5xl mx-auto px-4 py-8">
       <!-- 헤더 -->
       <div class="flex items-center gap-3 mb-7">
         <div
@@ -72,7 +73,7 @@ onMounted(() => {
       </div>
 
       <!-- 3열 카드 그리드 -->
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+      <div v-else class="bookmark-card-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
         <PlaceCard
           v-for="place in bookmarkStore.bookmarkedPlaces"
           :key="place.id"

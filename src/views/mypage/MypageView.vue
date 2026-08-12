@@ -442,6 +442,7 @@ function formatDate(dateStr: string): string {
 
 <template>
   <div
+    class="mypage-page"
     style="
       background: linear-gradient(
         155deg,
@@ -452,13 +453,13 @@ function formatDate(dateStr: string): string {
       min-height: calc(100vh - 64px);
     "
   >
-    <div class="max-w-5xl mx-auto px-4 py-8">
-      <div class="flex gap-6 items-start">
+    <div class="mypage-shell max-w-5xl mx-auto px-4 py-8">
+      <div class="mypage-layout flex gap-6 items-start">
         <!-- ─── 사이드바 ─── -->
-        <aside class="w-64 flex-shrink-0 flex flex-col gap-8 sticky top-6">
+        <aside class="mypage-sidebar w-64 flex-shrink-0 flex flex-col gap-8 sticky top-6">
           <!-- 프로필 카드 -->
           <div
-            class="p-6 bg-white flex flex-col items-center justify-center gap-4 shadow-sm"
+            class="mypage-profile-card p-6 bg-white flex flex-col items-center justify-center gap-4 shadow-sm"
             style="aspect-ratio: 4/5; width: 100%"
           >
             <div class="relative group">
@@ -535,7 +536,7 @@ function formatDate(dateStr: string): string {
           </div>
 
           <!-- 탭 메뉴 -->
-          <div class="flex flex-col gap-4 text-right">
+          <div class="mypage-tab-list flex flex-col gap-4 text-right">
             <button
               v-for="tab in sidebarTabs"
               :key="tab.key"
@@ -554,7 +555,7 @@ function formatDate(dateStr: string): string {
 
         <!-- ─── 메인 콘텐츠 ─── -->
         <main
-          class="flex-1 min-w-0 bg-white rounded-2xl p-6"
+          class="mypage-main flex-1 min-w-0 bg-white rounded-2xl p-6"
           style="
             border: 1.5px solid rgba(178, 228, 220, 0.35);
             box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
@@ -590,7 +591,7 @@ function formatDate(dateStr: string): string {
                     <p style="font-size: 0.76rem; color: #a6b5b1; margin-top: 4px">AI 추천 코스를 저장하면 여기에 쌓입니다.</p>
                   </div>
 
-                  <div v-else class="grid grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
+                  <div v-else class="mypage-saved-course-grid grid grid-cols-2 gap-3 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
                     <div
                       v-for="course in myCourses"
                       :key="course.id"
@@ -949,7 +950,7 @@ function formatDate(dateStr: string): string {
               >
                 내 정보
               </h2>
-              <div class="grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
+              <div class="mypage-info-grid grid grid-cols-2 gap-x-6 gap-y-5 mb-6">
                 <!-- 이름 (수정 불가) -->
                 <div class="flex flex-col gap-1.5">
                   <span :style="labelBase">이름</span>
@@ -1226,7 +1227,7 @@ function formatDate(dateStr: string): string {
                 스탬프 지도
               </h2>
               <div
-                class="relative w-full h-[340px] rounded-2xl overflow-hidden bg-white"
+                class="mypage-postcard-map relative w-full h-[340px] rounded-2xl overflow-hidden bg-white"
               >
                 <div id="postcard-stamp-map" style="width: 100%; height: 100%" />
                 <div
@@ -1266,7 +1267,7 @@ function formatDate(dateStr: string): string {
               </div>
               <div
                 v-else
-                class="grid grid-cols-3 gap-2 overflow-y-auto pr-1 max-h-[420px] custom-scrollbar"
+                class="mypage-photo-grid grid grid-cols-3 gap-2 overflow-y-auto pr-1 max-h-[420px] custom-scrollbar"
               >
                 <div
                   v-for="photo in stampStore.photos"
@@ -1314,7 +1315,7 @@ function formatDate(dateStr: string): string {
                   스탬프 투어에서 사진을 인증하면 여기에 모여요!
                 </p>
               </div>
-              <div v-else class="grid grid-cols-3 gap-3">
+              <div v-else class="mypage-character-grid grid grid-cols-3 gap-3">
                 <div
                   v-for="char in postcardCharacters"
                   :key="char.id"
@@ -1382,7 +1383,7 @@ function formatDate(dateStr: string): string {
           class="fixed inset-0 flex items-center justify-center z-50 bg-black/50"
           @click.self="levelUpModal = null"
         >
-          <div class="bg-white rounded-3xl p-8 w-[300px] text-center shadow-2xl">
+          <div class="mypage-dialog mypage-dialog--sm bg-white rounded-3xl p-8 w-[300px] text-center shadow-2xl">
             <div class="text-6xl mb-3">{{ levelUpModal.emoji }}</div>
             <p style="font-size: 0.75rem; font-weight: 700; color: #3db89e; letter-spacing: 0.1em">LEVEL UP!</p>
             <h2 style="font-size: 1.5rem; font-weight: 900; color: #1a2e2b; margin: 8px 0 4px">LV.{{ levelUpModal.level }}</h2>
@@ -1403,7 +1404,7 @@ function formatDate(dateStr: string): string {
         class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
         @click.self="showLogout = false"
       >
-        <div class="bg-white p-6 rounded-2xl w-[320px]">
+        <div class="mypage-dialog mypage-dialog--sm bg-white p-6 rounded-2xl w-[320px]">
           <p class="font-bold mb-4">로그아웃 하시겠어요?</p>
           <div class="flex gap-2">
             <button
@@ -1431,7 +1432,7 @@ function formatDate(dateStr: string): string {
         class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
         @click.self="showDeleteDialog = false"
       >
-        <div class="bg-white p-6 rounded-2xl w-[360px]">
+        <div class="mypage-dialog mypage-dialog--sm bg-white p-6 rounded-2xl w-[360px]">
           <p class="font-bold mb-2">정말 탈퇴하시겠어요?</p>
           <p class="text-sm text-gray-500 mb-4">
             모든 데이터가 영구 삭제됩니다.
@@ -1488,7 +1489,7 @@ function formatDate(dateStr: string): string {
         @click.self="activeCharacterDetail = null"
       >
         <div
-          class="bg-white p-6 rounded-2xl w-[340px] shadow-xl border border-teal-50 flex flex-col items-center gap-4"
+          class="mypage-dialog mypage-dialog--sm bg-white p-6 rounded-2xl w-[340px] shadow-xl border border-teal-50 flex flex-col items-center gap-4"
         >
           <img
             v-if="activeCharacterDetail.imageUrl"
@@ -1549,7 +1550,7 @@ function formatDate(dateStr: string): string {
         @click.self="selectedCourse = null"
       >
         <div
-          class="bg-white rounded-2xl w-[480px] max-h-[80vh] overflow-y-auto shadow-2xl"
+          class="mypage-dialog mypage-dialog--lg bg-white rounded-2xl w-[480px] max-h-[80vh] overflow-y-auto shadow-2xl"
           style="border: 1.5px solid rgba(178, 228, 220, 0.4)"
         >
           <div

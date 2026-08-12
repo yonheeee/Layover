@@ -394,7 +394,7 @@ function scrollToTop() {
   opacity: 0.35;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
   .smart-course {
     grid-template-columns: 1fr;
     padding: 40px 22px;
@@ -405,9 +405,9 @@ function scrollToTop() {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .smart-course__visual {
-    min-height: 390px;
+    min-height: 420px;
   }
 
   .preview-card {
@@ -436,6 +436,38 @@ function scrollToTop() {
   .smart-course__button {
     left: 0;
     right: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .smart-course {
+    padding: 34px 18px;
+  }
+
+  .smart-course__visual {
+    min-height: 390px;
+  }
+}
+
+@media (max-width: 420px) {
+  .smart-course {
+    padding: 28px 14px;
+  }
+
+  .smart-course__visual {
+    min-height: 360px;
+  }
+
+  .laptop {
+    right: -48px;
+  }
+
+  .laptop__screen {
+    height: 210px;
+  }
+
+  .laptop__overlay {
+    width: 190px;
   }
 }
 </style>

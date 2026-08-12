@@ -146,6 +146,7 @@ onUnmounted(() => {
 
 <template>
   <div
+    class="place-page"
     style="
       background: linear-gradient(
         155deg,
@@ -156,7 +157,7 @@ onUnmounted(() => {
       min-height: calc(100vh - 64px);
     "
   >
-    <div class="max-w-5xl mx-auto px-4 py-6">
+    <div class="place-shell max-w-5xl mx-auto px-4 py-6">
       <div class="flex items-center justify-between mb-5">
         <button
           @click="router.back()"
@@ -170,7 +171,7 @@ onUnmounted(() => {
       <!-- 배너 슬라이더 -->
       <section
         v-if="recommendedPlaces.length > 0"
-        class="relative w-full h-[260px] md:h-[320px] rounded-2xl overflow-hidden shadow-sm mb-10 group"
+        class="place-hero-slider relative w-full h-[260px] md:h-[320px] rounded-2xl overflow-hidden shadow-sm mb-10 group"
       >
         <div
           v-for="(slide, index) in recommendedPlaces"
@@ -215,9 +216,9 @@ onUnmounted(() => {
       <!-- 결과 수 -->
       <section>
         <div
-          class="flex items-center justify-between border-b border-gray-100 pb-3 mb-6"
+          class="place-toolbar flex items-center justify-between border-b border-gray-100 pb-3 mb-6"
         >
-          <div class="flex items-center gap-2">
+          <div class="place-toolbar__controls flex items-center gap-2">
             <div class="relative district-filter-container">
               <button
                 @click.stop="showDistrictDropdown = !showDistrictDropdown"
@@ -235,7 +236,7 @@ onUnmounted(() => {
 
               <div
                 v-if="showDistrictDropdown"
-                class="absolute left-0 top-9 z-50 bg-white rounded-xl shadow-lg border border-gray-100 p-3"
+                class="place-filter-menu absolute left-0 top-9 z-50 bg-white rounded-xl shadow-lg border border-gray-100 p-3"
                 style="min-width: 280px"
               >
                 <!-- 지역 섹션 -->
@@ -287,7 +288,7 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <div class="relative w-64">
+            <div class="place-search relative w-64">
               <input
                 v-model="searchQuery"
                 type="text"
@@ -313,7 +314,7 @@ onUnmounted(() => {
         <!-- 카드 그리드 -->
         <div
           v-else-if="places.content.length > 0"
-          class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 justify-items-center"
+          class="place-card-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 justify-items-center"
         >
           <PlaceCard
             v-for="place in places.content"
@@ -389,7 +390,7 @@ onUnmounted(() => {
       @click="isDetailOpen = false"
     >
       <div
-        class="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative p-6 flex flex-col"
+        class="place-detail-modal bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative p-6 flex flex-col"
         @click.stop
       >
         <button

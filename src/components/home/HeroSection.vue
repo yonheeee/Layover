@@ -211,7 +211,7 @@ async function handleRecommendCourse(filters: {
   flex-direction: column;
   margin: 0;
   color: #132b29;
-  font-size: clamp(3rem, 5vw, 5.25rem);
+  font-size: 5rem;
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.08;
@@ -279,13 +279,18 @@ async function handleRecommendCourse(filters: {
   letter-spacing: 0;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1024px) {
   .home-hero {
-    padding-top: 44px;
+    padding: 44px 22px 36px;
   }
 
   .home-hero__inner {
-    grid-template-columns: minmax(300px, 0.9fr) minmax(390px, 1fr);
+    grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1fr);
+    gap: 32px;
+  }
+
+  .home-hero__title {
+    font-size: 4rem;
   }
 
   .home-hero__visual {
@@ -302,7 +307,7 @@ async function handleRecommendCourse(filters: {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 767px) {
   .home-hero {
     padding: 34px 18px 30px;
   }
@@ -310,6 +315,10 @@ async function handleRecommendCourse(filters: {
   .home-hero__inner {
     grid-template-columns: 1fr;
     gap: 28px;
+  }
+
+  .home-hero__title {
+    font-size: 3.2rem;
   }
 
   .home-hero__visual {
@@ -337,9 +346,13 @@ async function handleRecommendCourse(filters: {
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 640px) {
+  .home-hero {
+    padding: 30px 16px 26px;
+  }
+
   .home-hero__title {
-    font-size: 3rem;
+    font-size: 2.7rem;
   }
 
   .home-hero__description {
@@ -349,6 +362,30 @@ async function handleRecommendCourse(filters: {
 
   .home-hero__panel-heading {
     margin-bottom: 24px;
+  }
+}
+
+@media (max-width: 420px) {
+  .home-hero {
+    padding: 26px 12px 24px;
+  }
+
+  .home-hero__eyebrow {
+    margin-bottom: 16px;
+    padding: 7px 12px;
+    font-size: 0.78rem;
+  }
+
+  .home-hero__title {
+    font-size: 2.35rem;
+  }
+
+  .home-hero__description {
+    font-size: 0.92rem;
+  }
+
+  .home-hero__panel {
+    padding: 20px 14px 18px;
   }
 }
 </style>

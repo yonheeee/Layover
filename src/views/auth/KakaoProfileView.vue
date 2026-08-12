@@ -37,7 +37,7 @@ const handleSkip = () => {
 
 <template>
   <div
-    class="min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-12"
+    class="auth-page min-h-[calc(100vh-64px)] flex items-center justify-center px-4 py-12"
     style="
       background: linear-gradient(155deg, #e8f8f5 0%, #ffffff 60%, #f0faf8 100%);
     "

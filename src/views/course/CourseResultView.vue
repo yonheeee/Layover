@@ -150,10 +150,10 @@ async function confirmCourse() {
 
 <template>
   <div
-    class="w-full h-[calc(100vh-64px)] flex overflow-hidden font-sans bg-[#fbfefe]"
+    class="course-result-view w-full h-[calc(100vh-64px)] flex overflow-hidden font-sans bg-[#fbfefe]"
   >
     <div
-      class="w-[440px] h-full flex flex-col shrink-0 bg-white border-r border-teal-100/60 shadow-xl z-10 relative"
+      class="course-result-view__panel w-[440px] h-full flex flex-col shrink-0 bg-white border-r border-teal-100/60 shadow-xl z-10 relative"
     >
       <div class="p-6 pb-4 border-b border-gray-50">
         <p class="text-xs text-teal-500 font-bold tracking-wide uppercase mb-1">
@@ -388,7 +388,7 @@ async function confirmCourse() {
       </div>
     </div>
 
-    <div class="flex-1 h-full relative bg-[#e5e9f0]">
+    <div class="course-result-view__map flex-1 h-full relative bg-[#e5e9f0]">
       <div id="map" class="w-full h-full flex items-center justify-center">
         <div
           class="text-center bg-white/90 backdrop-blur-md px-8 py-6 rounded-3xl border border-teal-100 shadow-xl max-w-sm"
@@ -615,5 +615,68 @@ async function confirmCourse() {
 .toast-leave-to {
   opacity: 0;
   transform: translate(-50%, 25px);
+}
+
+@media (max-width: 1024px) {
+  .course-result-view__panel {
+    width: 400px;
+  }
+}
+
+@media (max-width: 767px) {
+  .course-result-view {
+    height: auto;
+    min-height: calc(100vh - 92px);
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .course-result-view__panel {
+    width: 100%;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(178, 228, 220, 0.35);
+  }
+
+  .course-result-view__map {
+    flex: 0 0 auto;
+    height: 46vh;
+    min-height: 340px;
+  }
+}
+
+@media (max-width: 640px) {
+  .course-result-view__panel :deep(.p-6) {
+    padding: 1rem;
+  }
+
+  .course-result-view__panel :deep(.px-6) {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .course-result-view__panel :deep(.py-4) {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .course-result-view__map {
+    min-height: 310px;
+  }
+}
+
+@media (max-width: 420px) {
+  .course-result-view__panel :deep(.p-6) {
+    padding: 0.875rem;
+  }
+
+  .course-result-view__panel :deep(.px-6) {
+    padding-right: 0.875rem;
+    padding-left: 0.875rem;
+  }
+
+  .course-result-view__map {
+    min-height: 290px;
+  }
 }
 </style>
