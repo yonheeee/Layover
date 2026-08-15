@@ -8,6 +8,7 @@ import AppHeader from './components/AppHeader.vue'
 
 const route = useRoute()
 const showFooter = computed(() => route.path === '/')
+const isCompactMobilePage = computed(() => route.path === '/login')
 
 const bookmarkStore = useBookmarkStore()
 const courseStore = useCourseStore()
@@ -23,23 +24,38 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-background flex flex-col" style="font-family: 'Noto Sans KR', 'Nunito', sans-serif">
     <AppHeader />
-    <main class="app-main flex-1">
+    <main class="app-main flex-1" :class="{ 'app-main--compact-mobile': isCompactMobilePage }">
       <router-view />
     </main>
-    <AppFooter v-if="showFooter" />
+    <AppFooter v-if="showFooter" class="app-footer" />
   </div>
 </template>
 
 <style scoped>
 @media (max-width: 767px) {
   .app-main {
-    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
+  }
+
+  .app-main--compact-mobile {
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
+    overflow: hidden;
+  }
+
+  .app-footer {
+    display: none;
   }
 }
 
 @media (max-width: 420px) {
   .app-main {
-    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
+  }
+
+  .app-main--compact-mobile {
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 }
 </style>

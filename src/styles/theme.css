@@ -135,6 +135,12 @@
 
   html {
     font-size: var(--font-size);
+    min-width: 360px;
+  }
+
+  body,
+  #root {
+    min-width: 360px;
   }
 
   h1 {

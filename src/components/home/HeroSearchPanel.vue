@@ -684,6 +684,10 @@ function handleRecommendCourse() {
 }
 
 @media (max-width: 767px) {
+  .course-finder {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
   .course-finder__grid {
     grid-template-columns: 1fr;
   }
@@ -694,6 +698,10 @@ function handleRecommendCourse() {
 }
 
 @media (max-width: 640px) {
+  .course-finder {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
   .course-finder__title {
     margin-bottom: 14px;
   }
@@ -714,6 +722,10 @@ function handleRecommendCourse() {
 }
 
 @media (max-width: 420px) {
+  .course-finder {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+
   .category-grid,
   .segmented {
     grid-template-columns: 1fr;

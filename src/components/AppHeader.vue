@@ -286,35 +286,38 @@ function handleLogout() {
 
   .mobile-bottom-nav {
     position: fixed;
-    right: 12px;
-    bottom: 12px;
-    left: 12px;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 60;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 4px;
-    min-height: 64px;
-    padding: 8px;
-    border: 1px solid rgba(178, 228, 220, 0.35);
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 12px 30px rgba(26, 46, 43, 0.16);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    gap: 0;
+    width: 100%;
+    min-width: 360px;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    min-height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding:
+      6px max(6px, env(safe-area-inset-right, 0px))
+      calc(6px + env(safe-area-inset-bottom, 0px))
+      max(6px, env(safe-area-inset-left, 0px));
+    border-top: 1px solid rgba(178, 228, 220, 0.45);
+    background: #ffffff;
   }
 
   .mobile-bottom-nav__item {
     display: flex;
     min-width: 0;
-    min-height: 48px;
+    min-height: 52px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    border-radius: 14px;
+    gap: 2px;
+    border-radius: 0;
     color: #6b8c87;
-    font-size: 0.68rem;
+    font-size: 0.66rem;
     font-weight: 800;
+    line-height: 1.1;
     text-decoration: none;
   }
 
@@ -337,17 +340,17 @@ function handleLogout() {
 
 @media (max-width: 420px) {
   .mobile-bottom-nav {
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    min-height: 60px;
-    padding: 6px;
-    border-radius: 18px;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    min-height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding:
+      5px max(4px, env(safe-area-inset-right, 0px))
+      calc(5px + env(safe-area-inset-bottom, 0px))
+      max(4px, env(safe-area-inset-left, 0px));
   }
 
   .mobile-bottom-nav__item {
-    min-height: 46px;
-    font-size: 0.62rem;
+    min-height: 52px;
+    font-size: 0.6rem;
   }
 }
 </style>

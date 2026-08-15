@@ -636,7 +636,7 @@ onUnmounted(() => {
         style="background:linear-gradient(145deg,#1a2e2b 0%,#163028 60%,#0e2320 100%)">
 
         <!-- 1행: 뒤로 + 레벨 + 타이틀 + 스탯 칩 + 이모지 -->
-        <div class="flex items-center gap-2 relative z-10">
+        <div class="stamp-tour-header-row flex items-center gap-2 relative z-10">
           <button @click="goBack" class="flex items-center transition-opacity hover:opacity-70 flex-shrink-0"
             style="color:rgba(178,228,220,0.7)">
             <ArrowLeft :size="14" />
@@ -647,8 +647,8 @@ onUnmounted(() => {
             <span style="font-size:0.6rem;color:rgba(178,228,220,0.5)">•</span>
             <span style="font-size:0.6rem;font-weight:700;color:#B2E4DC">{{ currentLevel.name }}</span>
           </div>
-          <span style="font-weight:800;font-size:0.92rem;color:#fff">꿈돌이 스탬프 투어</span>
-          <div class="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          <span class="stamp-tour-header-title" style="font-weight:800;font-size:0.92rem;color:#fff">꿈돌이 스탬프 투어</span>
+          <div class="stamp-tour-header-stats ml-auto flex items-center gap-1.5 flex-shrink-0">
             <span class="px-2 py-0.5 rounded-full font-bold"
               style="font-size:0.65rem;background:rgba(61,184,158,0.2);color:#3db89e">🌟 {{ completedCount }}</span>
             <span class="px-2 py-0.5 rounded-full font-bold"
@@ -989,6 +989,12 @@ onUnmounted(() => {
   height: calc(100dvh - 64px);
   min-height: 560px;
 }
+.stamp-tour-header-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .levelup-enter-active { animation: levelupIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
 .levelup-leave-active { animation: levelupOut 0.2s ease-in; }
 @keyframes levelupIn {
@@ -1002,15 +1008,47 @@ onUnmounted(() => {
 
 @media (max-width: 767px) {
   .stamp-tour-timeline {
-    height: calc(100dvh - 92px);
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
     min-height: 480px;
+  }
+
+  .stamp-tour-header-row {
+    gap: 6px;
+  }
+
+  .stamp-tour-header-title {
+    flex: 1 1 auto;
+    font-size: 0.84rem !important;
+  }
+
+  .stamp-tour-header-stats {
+    gap: 4px !important;
+  }
+
+  .stamp-tour-header-stats > span {
+    padding-right: 6px !important;
+    padding-left: 6px !important;
   }
 }
 
 @media (max-width: 420px) {
   .stamp-tour-timeline {
-    height: calc(100dvh - 84px);
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
     min-height: 440px;
+  }
+
+  .stamp-tour-header-title {
+    font-size: 0.78rem !important;
+  }
+
+  .stamp-tour-header-stats > span:nth-child(2) {
+    display: none;
+  }
+
+  .stamp-tour-header-stats > div {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    font-size: 1rem !important;
   }
 }
 </style>

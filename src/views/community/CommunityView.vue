@@ -410,42 +410,42 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
       <div v-if="activeTab === 'notices'" class="community-section-layout flex gap-8 items-start mt-1">
         <nav class="community-mobile-subnav md:hidden">
           <button
-            @click="activeNoticeCategory = '怨듭?/?대깽??'"
+            @click="activeNoticeCategory = '공지/이벤트'"
             :style="
-              activeNoticeCategory === '怨듭?/?대깽??'
+              activeNoticeCategory === '공지/이벤트'
                 ? 'background:#3db89e; color:#fff;'
                 : 'background:#ffffff; color:#6b8c87;'
             "
           >
-            怨듭?/?대깽??
+            공지/이벤트
           </button>
           <button
             @click="
-              activeNoticeCategory = '臾몄쓽?ы빆';
-              activeFaqSubCategory = '?먯＜ 臾삳뒗 吏덈Ц';
+              activeNoticeCategory = '문의사항';
+              activeFaqSubCategory = '자주 묻는 질문';
             "
             :style="
-              activeNoticeCategory === '臾몄쓽?ы빆' &&
-              activeFaqSubCategory === '?먯＜ 臾삳뒗 吏덈Ц'
+              activeNoticeCategory === '문의사항' &&
+              activeFaqSubCategory === '자주 묻는 질문'
                 ? 'background:#3db89e; color:#fff;'
                 : 'background:#ffffff; color:#6b8c87;'
             "
           >
-            ?먯＜ 臾삳뒗 吏덈Ц
+            자주 묻는 질문
           </button>
           <button
             @click="
-              activeNoticeCategory = '臾몄쓽?ы빆';
-              activeFaqSubCategory = '1:1 臾몄쓽?섍린';
+              activeNoticeCategory = '문의사항';
+              activeFaqSubCategory = '1:1 문의하기';
             "
             :style="
-              activeNoticeCategory === '臾몄쓽?ы빆' &&
-              activeFaqSubCategory === '1:1 臾몄쓽?섍린'
+              activeNoticeCategory === '문의사항' &&
+              activeFaqSubCategory === '1:1 문의하기'
                 ? 'background:#3db89e; color:#fff;'
                 : 'background:#ffffff; color:#6b8c87;'
             "
           >
-            1:1 臾몄쓽?섍린
+            1:1 문의하기
           </button>
         </nav>
         <!-- 좌측 메뉴 -->

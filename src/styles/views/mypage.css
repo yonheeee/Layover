@@ -219,11 +219,11 @@
 
 @media (max-width: 767px) {
   .mypage-page {
-    min-height: calc(100vh - 92px) !important;
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .mypage-shell {
-    padding: 20px 14px 28px;
+    padding: 20px 14px calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
   .mypage-layout {
@@ -320,13 +320,39 @@
   }
 }
 
+@media (max-width: 480px) {
+  .mypage-profile-card {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 14px !important;
+  }
+
+  .mypage-profile-card > .text-center {
+    width: 100%;
+  }
+
+  .mypage-profile-card > .text-center p,
+  .mypage-profile-card > .text-center div {
+    min-width: 0;
+  }
+
+  .mypage-profile-card > .text-center p {
+    overflow-wrap: anywhere;
+  }
+
+  .mypage-profile-card > .w-full {
+    margin-top: 0 !important;
+  }
+}
+
 @media (max-width: 420px) {
   .mypage-page {
-    min-height: calc(100vh - 84px) !important;
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .mypage-shell {
-    padding: 16px 10px 24px;
+    padding: 16px 10px calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   .mypage-profile-card {

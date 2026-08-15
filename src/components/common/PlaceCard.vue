@@ -124,15 +124,15 @@ function shortAddress(address?: string): string {
 
 @media (max-width: 640px) {
   .spot-card {
-    width: 222px;
+    width: 228px;
+  }
+
+  .spot-card-image {
+    aspect-ratio: 1 / 1;
   }
 
   .spot-card-body {
-    display: none;
-  }
-
-  .spot-img-badge {
-    display: none;
+    display: block;
   }
 }
 

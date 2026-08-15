@@ -105,9 +105,14 @@
 @media (max-width: 767px) {
   .auth-page,
   .auth-wrap {
-    min-height: calc(100vh - 92px) !important;
-    align-items: flex-start;
-    padding: 32px 14px;
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px)) !important;
+    align-items: center;
+    padding: 18px 14px;
+  }
+
+  .auth-page {
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    overflow: hidden;
   }
 
   .auth-card {
@@ -126,8 +131,12 @@
 @media (max-width: 420px) {
   .auth-page,
   .auth-wrap {
-    min-height: calc(100vh - 84px) !important;
-    padding: 24px 10px;
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px)) !important;
+    padding: 14px 10px;
+  }
+
+  .auth-page {
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
   }
 
   .auth-header {

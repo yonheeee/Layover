@@ -397,7 +397,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
             <button
               type="button"
               @click.stop="connectedCourse = null"
-              class="absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              class="community-course-remove absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 transition-opacity cursor-pointer"
             >
               <Trash2 :size="16" />
             </button>
@@ -456,7 +456,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
           <div
             v-for="(block, idx) in blocks"
             :key="block.id"
-            class="group relative border border-transparent hover:border-gray-100 rounded-sm transition-all p-3 pl-8"
+            class="community-editor-block group relative border border-transparent hover:border-gray-100 rounded-sm transition-all p-3 pl-8"
             :class="{
               'opacity-40': dragIndex === idx,
               'border-teal-200 bg-teal-50/10':
@@ -479,7 +479,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
 
             <!-- 삭제 버튼 -->
             <div
-              class="absolute right-2 top-2 hidden group-hover:flex items-center bg-white border rounded-md p-1 shadow-sm z-10"
+              class="community-block-delete absolute right-2 top-2 flex items-center bg-white border rounded-md p-1 shadow-sm z-10"
             >
               <button
                 v-if="blocks.length > 1"
@@ -518,7 +518,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
 
             <!-- 블록 추가 버튼 (하단) -->
             <div
-              class="absolute left-1/2 -bottom-3 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-20"
+              class="community-block-actions flex flex-wrap gap-2 z-20"
             >
               <button
                 type="button"

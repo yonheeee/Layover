@@ -979,10 +979,10 @@ async function confirmCourse() {
 
 @media (max-width: 767px) {
   .course-map-view {
-    height: auto;
-    min-height: calc(100vh - 92px);
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
     flex-direction: column;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .course-map-view__panel {
@@ -994,9 +994,9 @@ async function confirmCourse() {
   }
 
   .course-map-view__map {
-    flex: 0 0 auto;
-    height: 48vh;
-    min-height: 360px;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
   }
 }
 
@@ -1016,7 +1016,7 @@ async function confirmCourse() {
   }
 
   .course-map-view__map {
-    min-height: 320px;
+    min-height: 0;
   }
 }
 
@@ -1031,7 +1031,7 @@ async function confirmCourse() {
   }
 
   .course-map-view__map {
-    min-height: 300px;
+    min-height: 0;
   }
 }
 </style>

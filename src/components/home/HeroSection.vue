@@ -193,6 +193,11 @@ async function handleRecommendCourse(filters: {
   margin: 0 auto;
 }
 
+.home-hero__copy {
+  position: relative;
+  z-index: 2;
+}
+
 .home-hero__eyebrow {
   display: inline-flex;
   align-items: center;
@@ -309,12 +314,12 @@ async function handleRecommendCourse(filters: {
 
 @media (max-width: 767px) {
   .home-hero {
-    padding: 34px 18px 30px;
+    padding: 28px 18px calc(76px + env(safe-area-inset-bottom, 0px));
   }
 
   .home-hero__inner {
     grid-template-columns: 1fr;
-    gap: 28px;
+    gap: 18px;
   }
 
   .home-hero__title {
@@ -322,33 +327,40 @@ async function handleRecommendCourse(filters: {
   }
 
   .home-hero__visual {
-    position: relative;
-    right: auto;
-    order: 2;
-    width: 100%;
-    min-height: auto;
-    margin: -10px 0 -18px;
-    opacity: 0.9;
+    position: absolute;
+    inset: 78px -18px auto -18px;
+    z-index: 0;
+    width: auto;
+    height: 260px;
+    min-height: 0;
+    margin: 0;
+    opacity: 0.2;
+    pointer-events: none;
   }
 
   .home-hero__visual img {
     min-width: 0;
-    height: 220px;
-    border-radius: 18px;
-    mask-image: linear-gradient(90deg, transparent 0%, #000 12%, #000 88%, transparent 100%);
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    object-position: center;
+    mask-image: radial-gradient(ellipse at center, #000 0%, #000 48%, transparent 78%);
   }
 
   .home-hero__panel {
-    order: 3;
+    position: relative;
+    z-index: 2;
+    order: 2;
     grid-column: auto;
     padding: 24px 18px 22px;
     border-radius: 18px;
+    background: rgba(255, 255, 255, 0.86);
   }
 }
 
 @media (max-width: 640px) {
   .home-hero {
-    padding: 30px 16px 26px;
+    padding: 26px 16px calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
   .home-hero__title {
@@ -356,7 +368,7 @@ async function handleRecommendCourse(filters: {
   }
 
   .home-hero__description {
-    margin: 22px 0 24px;
+    margin: 18px 0 10px;
     font-size: 0.98rem;
   }
 
@@ -367,7 +379,7 @@ async function handleRecommendCourse(filters: {
 
 @media (max-width: 420px) {
   .home-hero {
-    padding: 26px 12px 24px;
+    padding: 22px 12px calc(68px + env(safe-area-inset-bottom, 0px));
   }
 
   .home-hero__eyebrow {
@@ -377,11 +389,16 @@ async function handleRecommendCourse(filters: {
   }
 
   .home-hero__title {
-    font-size: 2.35rem;
+    font-size: 2.25rem;
   }
 
   .home-hero__description {
     font-size: 0.92rem;
+  }
+
+  .home-hero__visual {
+    inset: 70px -12px auto -12px;
+    height: 236px;
   }
 
   .home-hero__panel {

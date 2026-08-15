@@ -165,6 +165,8 @@ onMounted(() => fetchSpots());
 
 <style scoped>
 .spots-scroll-container {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding: 12px 0;
@@ -182,6 +184,11 @@ onMounted(() => fetchSpots());
   gap: 16px;
   width: max-content;
 }
+
+.spots-scroll-inner :deep(.spot-card) {
+  width: 228px;
+  flex: 0 0 228px;
+}
 .scroll-smooth {
   scroll-behavior: smooth;
 }
@@ -196,7 +203,13 @@ onMounted(() => fetchSpots());
 .recommended-spots {
   width: min(100%, 1440px);
   margin: 0 auto;
+  overflow: hidden;
   padding: 1.5rem 2rem 4rem;
+}
+
+.recommended-spots__carousel {
+  min-width: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1024px) {
@@ -207,6 +220,22 @@ onMounted(() => fetchSpots());
   .recommended-spots__carousel {
     padding-right: 3.5rem;
     padding-left: 3.5rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .recommended-spots {
+    padding: 1.25rem 1.75rem 3rem;
+  }
+
+  .recommended-spots__carousel {
+    padding-right: 2.25rem;
+    padding-left: 2.25rem;
+  }
+
+  .recommended-spots__carousel > button {
+    width: 2.5rem;
+    height: 2.5rem;
   }
 }
 
@@ -233,6 +262,11 @@ onMounted(() => fetchSpots());
 @media (max-width: 420px) {
   .recommended-spots {
     padding: 0.75rem 0.75rem 2.5rem;
+  }
+
+  .spots-scroll-inner :deep(.spot-card) {
+    width: 204px;
+    flex-basis: 204px;
   }
 }
 </style>

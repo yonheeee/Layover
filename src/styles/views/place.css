@@ -93,16 +93,16 @@
 @media (max-width: 767px) {
   .place-page,
   .place-wrap {
-    min-height: calc(100vh - 92px) !important;
+    min-height: calc(100vh - 64px) !important;
   }
 
   .place-shell {
-    padding: 18px 14px 28px;
+    padding: 18px 14px calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   .place-hero-slider {
     height: 240px;
-    margin-bottom: 28px;
+    margin-bottom: 24px;
   }
 
   .place-toolbar {
@@ -126,7 +126,8 @@
 
   .place-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
+    gap: 16px;
+    justify-items: stretch;
   }
 
   .place-info-card,
@@ -137,6 +138,30 @@
   .place-detail-modal {
     max-height: calc(100dvh - 112px);
     padding: 18px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 767px) {
+  .place-shell {
+    max-width: 640px;
+    margin-right: auto;
+    margin-left: auto;
+  }
+
+  .place-card-grid {
+    grid-template-columns: repeat(2, 240px);
+    justify-content: center;
+    justify-items: stretch;
+    gap: 64px;
+  }
+
+  .place-card-grid .spot-card {
+    width: 240px !important;
+    min-width: 0;
+  }
+
+  .place-card-grid .spot-card-image {
+    aspect-ratio: 1 / 1;
   }
 }
 
@@ -159,27 +184,42 @@
   }
 
   .place-card-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-items: stretch;
+    gap: 14px;
   }
 
   .place-card-grid .spot-card {
-    width: 100%;
+    width: 100% !important;
+    min-width: 0;
+    flex-basis: auto;
+  }
+
+  .place-card-grid .spot-card-image {
+    aspect-ratio: 1 / 1;
+  }
+
+  .place-card-grid .spot-card-body {
+    display: block;
   }
 }
 
 @media (max-width: 420px) {
   .place-page,
   .place-wrap {
-    min-height: calc(100vh - 84px) !important;
+    min-height: calc(100vh - 64px) !important;
   }
 
   .place-shell {
-    padding: 16px 10px 24px;
+    padding: 16px 10px calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   .place-hero-slider {
     height: 200px;
+  }
+
+  .place-card-grid {
+    gap: 12px;
   }
 
   .place-info-card,
