@@ -326,7 +326,7 @@ async function handleStartStampTour() {
   opacity: 0.22;
 }
 
-@media (max-width: 1120px) {
+@media (max-width: 1024px) {
   .stamp-game-board {
     min-height: 720px;
   }
@@ -340,17 +340,58 @@ async function handleStartStampTour() {
     bottom: 108px;
     width: 310px;
   }
-
 }
 
-@media (max-width: 820px) {
+@media (min-width: 768px) and (max-width: 1024px) {
+  .stamp-game-section {
+    padding: 0 1.75rem 5rem;
+  }
+
+  .stamp-game-board {
+    min-height: 610px;
+    padding: 34px 40px 86px;
+  }
+
+  .stamp-game-board__header p {
+    max-width: 620px;
+  }
+
+  .stamp-route {
+    left: 48px;
+    right: 74px;
+    top: 168px;
+    height: 220px;
+  }
+
+  .quest-card {
+    width: 176px;
+    padding: 12px 14px;
+  }
+
+  .quest-card strong {
+    font-size: 0.86rem;
+  }
+
+  .dream-reward {
+    right: 54px;
+    bottom: 112px;
+    width: 280px;
+  }
+
+  .stamp-game-board__footer {
+    bottom: 38px;
+    left: 40px;
+  }
+}
+
+@media (max-width: 767px) {
   .stamp-game-section {
     padding: 0 1rem 4rem;
   }
 
   .stamp-game-board {
     min-height: auto;
-    padding: 28px 20px;
+    padding: 28px 20px 30px;
   }
 
   .stamp-game-board__header {
@@ -370,23 +411,57 @@ async function handleStartStampTour() {
     right: auto;
     top: auto;
     height: 190px;
-    margin: 18px 0;
+    margin: 18px 8px 8px;
   }
 
   .quest-card {
-    width: auto;
-    margin-top: 10px;
+    display: none;
   }
 
   .dream-reward {
-    width: min(100%, 360px);
-    margin: 22px auto 0;
+    width: min(92%, 320px);
+    margin: 10px auto 0;
   }
 
   .stamp-game-board__footer {
     flex-direction: column;
     align-items: stretch;
     margin-top: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .stamp-game-board {
+    padding: 24px 16px;
+  }
+
+  .stamp-route {
+    height: 160px;
+  }
+
+  .stamp-tour-button {
+    width: 100%;
+    min-height: 52px;
+  }
+}
+
+@media (max-width: 420px) {
+  .stamp-game-section {
+    padding: 0 0.75rem 3.5rem;
+  }
+
+  .stamp-game-board {
+    padding: 22px 14px;
+  }
+
+  .stamp-route {
+    height: 142px;
+    margin-right: 4px;
+    margin-left: 4px;
+  }
+
+  .dream-reward {
+    width: min(94%, 300px);
   }
 }
 </style>

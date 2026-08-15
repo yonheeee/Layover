@@ -11,6 +11,7 @@ import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
 import { useXp } from '@/composables/useXp'
 import GuidedTour from '@/components/tutorial/GuidedTour.vue'
+import { loadKakaoMaps } from '@/utils/kakaoMaps'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -90,7 +91,14 @@ const errorMsg = ref('')
 const guideCountdown = ref(2)
 const resultImageUrl = ref('')
 const stampAnimIdx = ref<number | null>(null)
-type StampRewardCharacter = DreamCharacter & { requiredStamps: number }
+type StampRewardCharacter = Pick<
+  DreamCharacter,
+  'id' | 'name' | 'description' | 'imageUrl'
+> & {
+  role?: string
+  imageAlt?: string
+  requiredStamps: number
+}
 const newCharacterPopup = ref<StampRewardCharacter | null>(null)
 const isSavingStamp = ref(false)
 const allowDevStampVerification = import.meta.env.DEV
@@ -101,6 +109,23 @@ function rewardCharacterForStampIndex(index: number): StampRewardCharacter {
   return {
     ...character,
     requiredStamps: index + 1,
+  }
+}
+
+function rewardCharacterFromApi(character: {
+  id: string
+  name: string
+  imageUrl: string
+  requiredStamps: number
+  description: string
+}): StampRewardCharacter {
+  return {
+    id: character.id,
+    name: character.name,
+    imageUrl: character.imageUrl,
+    imageAlt: character.name,
+    description: character.description,
+    requiredStamps: character.requiredStamps,
   }
 }
 
@@ -316,16 +341,11 @@ onMounted(async () => {
     places.value = toTourPlaces(diPlaces.slice(0, 4), null)
   }
 
-  if (!document.getElementById('kakao-map-script')) {
-    const script = document.createElement('script')
-    script.id = 'kakao-map-script'
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`
-    document.head.appendChild(script)
-    script.onload = () => {
-      ;(window as any).kakao.maps.load(() => initKakaoMap())
-    }
-  } else {
-    ;(window as any).kakao.maps.load(() => initKakaoMap())
+  try {
+    await loadKakaoMaps()
+    initKakaoMap()
+  } catch (error) {
+    console.error('Kakao Maps SDK load failed:', error)
   }
 })
 
@@ -487,6 +507,29 @@ async function confirmResult() {
   const idx = currentPlaceIdx.value
   const place = places.value[idx]
   const rewardCharacter = rewardCharacterForStampIndex(idx)
+  let apiRewardCharacter: StampRewardCharacter | null = null
+
+  isSavingStamp.value = true
+  try {
+    const res = await saveStamp(place.id)
+    if (res.newCharacter) {
+      apiRewardCharacter = rewardCharacterFromApi(res.newCharacter)
+    }
+  } catch (err: any) {
+    const status = err?.response?.status
+    if (status === 409) {
+      alert('이미 방문한 장소입니다.')
+      isSavingStamp.value = false
+      return
+    }
+    if (status && status !== 401) {
+      console.error('스탬프 저장 실패:', err)
+      isSavingStamp.value = false
+      return
+    }
+  } finally {
+    isSavingStamp.value = false
+  }
 
   // 로컬 저장
   stampStore.addPhoto({
@@ -511,30 +554,11 @@ async function confirmResult() {
   stampAnimIdx.value = idx
   returnToTimeline()
   currentPlaceIdx.value = null
-  newCharacterPopup.value = rewardCharacter
+  newCharacterPopup.value = apiRewardCharacter
   setTimeout(() => {
     places.value[idx].visited = true
     setTimeout(() => (stampAnimIdx.value = null), 800)
   }, 100)
-
-  // 백엔드 저장 (비동기 - UI 블로킹 없음)
-  isSavingStamp.value = true
-  try {
-    const res = await saveStamp(place.id)
-    if (res.newCharacter) {
-      newCharacterPopup.value = rewardCharacter
-    }
-  } catch (err: any) {
-    const status = err?.response?.status
-    if (status === 409) {
-      alert('이미 방문한 장소입니다.')
-    } else if (status && status !== 401) {
-      console.error('스탬프 저장 실패:', err)
-    }
-    // 401(미로그인)은 조용히 무시 — 로컬 저장은 이미 완료됨
-  } finally {
-    isSavingStamp.value = false
-  }
 }
 
 function goBack() {
@@ -605,15 +629,14 @@ onUnmounted(() => {
     <template v-else>
 
     <!-- ── 타임라인 뷰 ─────────────────────────────────────── -->
-    <div v-show="currentStep === 'timeline' || currentStep === 'verifying'" class="flex flex-col overflow-hidden"
-      style="height:calc(100dvh - 64px);min-height:560px">
+    <div v-show="currentStep === 'timeline' || currentStep === 'verifying'" class="stamp-tour-timeline flex flex-col overflow-hidden">
 
       <!-- ░░ 게이미피케이션 히어로 (컴팩트) ░░ -->
       <div class="relative overflow-hidden px-4 pt-2.5 pb-2.5 flex-shrink-0"
         style="background:linear-gradient(145deg,#1a2e2b 0%,#163028 60%,#0e2320 100%)">
 
         <!-- 1행: 뒤로 + 레벨 + 타이틀 + 스탯 칩 + 이모지 -->
-        <div class="flex items-center gap-2 relative z-10">
+        <div class="stamp-tour-header-row flex items-center gap-2 relative z-10">
           <button @click="goBack" class="flex items-center transition-opacity hover:opacity-70 flex-shrink-0"
             style="color:rgba(178,228,220,0.7)">
             <ArrowLeft :size="14" />
@@ -624,8 +647,8 @@ onUnmounted(() => {
             <span style="font-size:0.6rem;color:rgba(178,228,220,0.5)">•</span>
             <span style="font-size:0.6rem;font-weight:700;color:#B2E4DC">{{ currentLevel.name }}</span>
           </div>
-          <span style="font-weight:800;font-size:0.92rem;color:#fff">꿈돌이 스탬프 투어</span>
-          <div class="ml-auto flex items-center gap-1.5 flex-shrink-0">
+          <span class="stamp-tour-header-title" style="font-weight:800;font-size:0.92rem;color:#fff">꿈돌이 스탬프 투어</span>
+          <div class="stamp-tour-header-stats ml-auto flex items-center gap-1.5 flex-shrink-0">
             <span class="px-2 py-0.5 rounded-full font-bold"
               style="font-size:0.65rem;background:rgba(61,184,158,0.2);color:#3db89e">🌟 {{ completedCount }}</span>
             <span class="px-2 py-0.5 rounded-full font-bold"
@@ -962,6 +985,16 @@ onUnmounted(() => {
 .stamp-pop-enter-active {
   animation: stamp-pop 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+.stamp-tour-timeline {
+  height: calc(100dvh - 64px);
+  min-height: 560px;
+}
+.stamp-tour-header-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .levelup-enter-active { animation: levelupIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
 .levelup-leave-active { animation: levelupOut 0.2s ease-in; }
 @keyframes levelupIn {
@@ -971,5 +1004,51 @@ onUnmounted(() => {
 @keyframes levelupOut {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0; transform: scale(0.85); }
+}
+
+@media (max-width: 767px) {
+  .stamp-tour-timeline {
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    min-height: 480px;
+  }
+
+  .stamp-tour-header-row {
+    gap: 6px;
+  }
+
+  .stamp-tour-header-title {
+    flex: 1 1 auto;
+    font-size: 0.84rem !important;
+  }
+
+  .stamp-tour-header-stats {
+    gap: 4px !important;
+  }
+
+  .stamp-tour-header-stats > span {
+    padding-right: 6px !important;
+    padding-left: 6px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .stamp-tour-timeline {
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    min-height: 440px;
+  }
+
+  .stamp-tour-header-title {
+    font-size: 0.78rem !important;
+  }
+
+  .stamp-tour-header-stats > span:nth-child(2) {
+    display: none;
+  }
+
+  .stamp-tour-header-stats > div {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    font-size: 1rem !important;
+  }
 }
 </style>

@@ -4,6 +4,7 @@ import { useRoute } from "vue-router";
 import GuidedTour from "@/components/tutorial/GuidedTour.vue";
 import HeroSection from "@/components/home/HeroSection.vue";
 import RecommendedSpotsSection from "@/components/home/RecommendedSpotsSection.vue";
+import PopularCoursesSection from "@/components/home/PopularCoursesSection.vue";
 import CtaBannerSection from "@/components/home/CtaBannerSection.vue";
 import StampEventSection from "@/components/home/StampEventSection.vue";
 import PlaceDetailContent from "../place/PlaceDetailContents.vue";
@@ -58,6 +59,10 @@ function closeSpotModal() {
         @openSpotModal="openSpotModal"
         @toggleLike="bookmarkStore.toggleBookmark"
       />
+    </div>
+
+    <div class="home-page__section">
+      <PopularCoursesSection />
     </div>
 
     <div class="home-page__section">
@@ -142,7 +147,19 @@ function closeSpotModal() {
   animation: popupUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1024px) {
+  .home-page__section {
+    margin-top: 64px;
+    margin-bottom: 64px;
+  }
+
+  .home-page__section--after-hero {
+    margin-top: 40px;
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 640px) {
   .home-page__section {
     margin-top: 48px;
     margin-bottom: 48px;
@@ -150,7 +167,13 @@ function closeSpotModal() {
 
   .home-page__section--after-hero {
     margin-top: 32px;
-    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .home-page__section {
+    margin-top: 40px;
+    margin-bottom: 40px;
   }
 }
 </style>

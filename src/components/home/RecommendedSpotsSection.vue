@@ -70,8 +70,8 @@ onMounted(() => fetchSpots());
 </script>
 
 <template>
-  <section style="max-width: 1440px; margin: 0 auto; padding: 1.5rem 2rem 4rem">
-    <div class="flex items-end justify-between mb-4">
+  <section class="recommended-spots">
+    <div class="recommended-spots__header flex items-end justify-between mb-4">
       <div class="space-y-2">
         <div
           class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm"
@@ -124,7 +124,7 @@ onMounted(() => fetchSpots());
     </div>
 
     <!-- 카드 슬라이더 -->
-    <div v-else class="relative px-16">
+    <div v-else class="recommended-spots__carousel relative px-16">
       <button
         @click="scroll('left')"
         type="button"
@@ -165,6 +165,8 @@ onMounted(() => fetchSpots());
 
 <style scoped>
 .spots-scroll-container {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding: 12px 0;
@@ -182,6 +184,11 @@ onMounted(() => fetchSpots());
   gap: 16px;
   width: max-content;
 }
+
+.spots-scroll-inner :deep(.spot-card) {
+  width: 228px;
+  flex: 0 0 228px;
+}
 .scroll-smooth {
   scroll-behavior: smooth;
 }
@@ -191,5 +198,75 @@ onMounted(() => fetchSpots());
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+.recommended-spots {
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  overflow: hidden;
+  padding: 1.5rem 2rem 4rem;
+}
+
+.recommended-spots__carousel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .recommended-spots {
+    padding: 1.25rem 1.5rem 3.5rem;
+  }
+
+  .recommended-spots__carousel {
+    padding-right: 3.5rem;
+    padding-left: 3.5rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .recommended-spots {
+    padding: 1.25rem 1.75rem 3rem;
+  }
+
+  .recommended-spots__carousel {
+    padding-right: 2.25rem;
+    padding-left: 2.25rem;
+  }
+
+  .recommended-spots__carousel > button {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .recommended-spots {
+    padding: 1rem 1rem 3rem;
+  }
+
+  .recommended-spots__header {
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .recommended-spots__carousel {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .recommended-spots__carousel > button {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .recommended-spots {
+    padding: 0.75rem 0.75rem 2.5rem;
+  }
+
+  .spots-scroll-inner :deep(.spot-card) {
+    width: 204px;
+    flex-basis: 204px;
+  }
 }
 </style>

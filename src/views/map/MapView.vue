@@ -4,6 +4,7 @@ import { useCourseStore } from "@/stores/course";
 import { useStampStore } from "@/stores/stamp";
 import GuidedTour from "@/components/tutorial/GuidedTour.vue";
 import type { Course, CourseStop, DiPlace } from "@/types/course";
+import { loadKakaoMaps } from "@/utils/kakaoMaps";
 import {
   ArrowLeft,
   Bus,
@@ -404,18 +405,11 @@ onMounted(async () => {
   }
 
   allDiPlaces.value = await fetchDiPlaces();
-  if (!document.getElementById("kakao-map-script")) {
-    const script = document.createElement("script");
-    script.id = "kakao-map-script";
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
-    document.head.appendChild(script);
-    script.onload = () => {
-      (window as any).kakao.maps.load(() => {
-        initKakaoMap();
-      });
-    };
-  } else {
+  try {
+    await loadKakaoMaps();
     initKakaoMap();
+  } catch (error) {
+    console.error("Kakao Maps SDK load failed:", error);
   }
 });
 
@@ -532,10 +526,10 @@ async function confirmCourse() {
 
 <template>
   <div
-    class="w-full h-[calc(100vh-64px)] flex overflow-hidden font-sans bg-[#fbfefe]"
+    class="course-map-view w-full h-[calc(100vh-64px)] flex overflow-hidden font-sans bg-[#fbfefe]"
   >
     <div
-      class="w-[450px] h-full flex flex-col shrink-0 bg-white border-r border-teal-100 shadow-xl z-10 relative"
+      class="course-map-view__panel w-[450px] h-full flex flex-col shrink-0 bg-white border-r border-teal-100 shadow-xl z-10 relative"
     >
       <template v-if="panelMode === 'main'">
         <div class="bg-white">
@@ -940,7 +934,7 @@ async function confirmCourse() {
       </template>
     </div>
 
-    <div class="flex-1 h-full relative bg-[#e5e9f0]">
+    <div class="course-map-view__map flex-1 h-full relative bg-[#e5e9f0]">
       <div id="kakao-render-map" class="w-full h-full"></div>
     </div>
 
@@ -975,5 +969,69 @@ async function confirmCourse() {
 }
 .animate-fade-in {
   animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (max-width: 1024px) {
+  .course-map-view__panel {
+    width: 400px;
+  }
+}
+
+@media (max-width: 767px) {
+  .course-map-view {
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .course-map-view__panel {
+    width: 100%;
+    height: auto;
+    max-height: none;
+    border-right: 0;
+    border-bottom: 1px solid rgba(178, 228, 220, 0.35);
+  }
+
+  .course-map-view__map {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .course-map-view__panel :deep(.p-6) {
+    padding: 1rem;
+  }
+
+  .course-map-view__panel :deep(.px-6) {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .course-map-view__panel :deep(.py-5) {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .course-map-view__map {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .course-map-view__panel :deep(.p-6) {
+    padding: 0.875rem;
+  }
+
+  .course-map-view__panel :deep(.px-6) {
+    padding-right: 0.875rem;
+    padding-left: 0.875rem;
+  }
+
+  .course-map-view__map {
+    min-height: 0;
+  }
 }
 </style>

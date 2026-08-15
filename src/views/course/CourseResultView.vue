@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+﻿<script setup lang="ts">
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
@@ -23,6 +23,7 @@ import {
 import type { Course, CourseStop } from "@/types/course";
 import { regenerateCourse, searchPlaces, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
+import { loadKakaoMaps } from "@/utils/kakaoMaps";
 
 const courseStore = useCourseStore();
 
@@ -32,6 +33,7 @@ onMounted(async () => {
   courses.value = courseStore.generatedCourses;
   allMockSearch.value = await searchPlaces("");
   searchResults.value = allMockSearch.value;
+  await initResultMap();
 });
 
 // 현재 선택된 코스 탭 인덱스
@@ -44,6 +46,111 @@ const totalTime = computed(() => currentCourse.value.totalTime);
 const estimatedCost = computed(() => currentCourse.value.estimatedCost);
 // 현재 코스의 장소 리스트 단축 바인딩
 const currentPlaces = computed(() => currentCourse.value.places);
+
+const courseMapRef = ref<HTMLElement | null>(null);
+let resultMap: any = null;
+let resultOverlays: any[] = [];
+let resultPolylines: any[] = [];
+
+function clearResultMap() {
+  resultOverlays.forEach((overlay) => overlay.setMap(null));
+  resultPolylines.forEach((polyline) => polyline.setMap(null));
+  resultOverlays = [];
+  resultPolylines = [];
+}
+
+async function initResultMap() {
+  await nextTick();
+  if (!courseMapRef.value || courses.value.length === 0) return;
+
+  try {
+    const kakao = await loadKakaoMaps();
+    resultMap = new kakao.maps.Map(courseMapRef.value, {
+      center: new kakao.maps.LatLng(36.3325, 127.4348),
+      level: 5,
+    });
+    renderResultMap();
+  } catch (error) {
+    console.error("Kakao Maps SDK load failed:", error);
+  }
+}
+
+function renderResultMap() {
+  if (!resultMap || !currentPlaces.value) return;
+
+  const kakao = (window as any).kakao;
+  if (!kakao?.maps) return;
+
+  clearResultMap();
+
+  const places = currentPlaces.value.filter(
+    (place) => Number.isFinite(place.lat) && Number.isFinite(place.lng),
+  );
+  if (places.length === 0) return;
+
+  const bounds = new kakao.maps.LatLngBounds();
+  places.forEach((place, index) => {
+    const position = new kakao.maps.LatLng(place.lat, place.lng);
+    bounds.extend(position);
+
+    const markerContent = `
+      <div style="
+        width:32px;height:32px;border-radius:50%;
+        background:linear-gradient(135deg, #3db89e, #2fa38a);
+        border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);
+        display:flex;align-items:center;justify-content:center;
+        font-size:13px;font-weight:900;color:#fff;font-family:sans-serif;
+      ">${index + 1}</div>
+    `;
+    const overlay = new kakao.maps.CustomOverlay({
+      position,
+      content: markerContent,
+      yAnchor: 0.5,
+      xAnchor: 0.5,
+    });
+    overlay.setMap(resultMap);
+    resultOverlays.push(overlay);
+  });
+
+  for (let index = 0; index < places.length - 1; index++) {
+    const current = places[index];
+    const next = places[index + 1];
+    const routePath = current.nextTransport?.routePath;
+    const segmentPath =
+      routePath && routePath.length > 1
+        ? routePath.map(
+            ([lat, lng]) => new kakao.maps.LatLng(lat, lng),
+          )
+        : [
+            new kakao.maps.LatLng(current.lat, current.lng),
+            new kakao.maps.LatLng(next.lat, next.lng),
+          ];
+
+    const polyline = new kakao.maps.Polyline({
+      path: segmentPath,
+      strokeWeight: 5,
+      strokeColor: "#2fa38a",
+      strokeOpacity: 0.85,
+      strokeStyle: "solid",
+    });
+    polyline.setMap(resultMap);
+    resultPolylines.push(polyline);
+  }
+
+  resultMap.setBounds(bounds);
+}
+
+watch(
+  [activeTab, currentPlaces],
+  () => {
+    nextTick(() => renderResultMap());
+  },
+  { deep: true },
+);
+
+onUnmounted(() => {
+  clearResultMap();
+});
 
 // 상태 플래그들
 const isEditing = ref(false);
@@ -150,10 +257,10 @@ async function confirmCourse() {
 
 <template>
   <div
-    class="w-full h-[calc(100vh-64px)] flex overflow-hidden font-sans bg-[#fbfefe]"
+    class="course-result-view w-full h-[calc(100vh-64px)] flex overflow-hidden font-sans bg-[#fbfefe]"
   >
     <div
-      class="w-[440px] h-full flex flex-col shrink-0 bg-white border-r border-teal-100/60 shadow-xl z-10 relative"
+      class="course-result-view__panel w-[440px] h-full flex flex-col shrink-0 bg-white border-r border-teal-100/60 shadow-xl z-10 relative"
     >
       <div class="p-6 pb-4 border-b border-gray-50">
         <p class="text-xs text-teal-500 font-bold tracking-wide uppercase mb-1">
@@ -388,26 +495,8 @@ async function confirmCourse() {
       </div>
     </div>
 
-    <div class="flex-1 h-full relative bg-[#e5e9f0]">
-      <div id="map" class="w-full h-full flex items-center justify-center">
-        <div
-          class="text-center bg-white/90 backdrop-blur-md px-8 py-6 rounded-3xl border border-teal-100 shadow-xl max-w-sm"
-        >
-          <div
-            class="w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center mx-auto mb-3"
-          >
-            <MapPin :size="24" class="text-teal-500 animate-bounce" />
-          </div>
-          <h3 class="text-sm font-extrabold text-[#1a2e2b] mb-1">
-            Kakao Map API 연동 스팟
-          </h3>
-          <p class="text-xs text-gray-400 font-medium leading-relaxed">
-            현재 탭 코스 <strong>"{{ currentCourse.subTitle }}"</strong>에 속한
-            총 {{ currentPlaces.length }}개의 핀을 잇는 최적 동선
-            폴리라인(Polyline)이 렌더링될 구역입니다.
-          </p>
-        </div>
-      </div>
+    <div class="course-result-view__map flex-1 h-full relative bg-[#e5e9f0]">
+      <div ref="courseMapRef" id="map" class="w-full h-full"></div>
 
       <div
         class="absolute top-5 right-5 z-20 bg-white/90 backdrop-blur-md px-4 py-3 rounded-2xl shadow-lg border border-teal-50 flex items-center gap-3"
@@ -615,5 +704,68 @@ async function confirmCourse() {
 .toast-leave-to {
   opacity: 0;
   transform: translate(-50%, 25px);
+}
+
+@media (max-width: 1024px) {
+  .course-result-view__panel {
+    width: 400px;
+  }
+}
+
+@media (max-width: 767px) {
+  .course-result-view {
+    height: auto;
+    min-height: calc(100vh - 92px);
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .course-result-view__panel {
+    width: 100%;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgba(178, 228, 220, 0.35);
+  }
+
+  .course-result-view__map {
+    flex: 0 0 auto;
+    height: 46vh;
+    min-height: 340px;
+  }
+}
+
+@media (max-width: 640px) {
+  .course-result-view__panel :deep(.p-6) {
+    padding: 1rem;
+  }
+
+  .course-result-view__panel :deep(.px-6) {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .course-result-view__panel :deep(.py-4) {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .course-result-view__map {
+    min-height: 310px;
+  }
+}
+
+@media (max-width: 420px) {
+  .course-result-view__panel :deep(.p-6) {
+    padding: 0.875rem;
+  }
+
+  .course-result-view__panel :deep(.px-6) {
+    padding-right: 0.875rem;
+    padding-left: 0.875rem;
+  }
+
+  .course-result-view__map {
+    min-height: 290px;
+  }
 }
 </style>

@@ -55,3 +55,57 @@
 .bookmark-delete-btn:hover {
   background: #fef2f2;
 }
+
+@media (max-width: 1024px) {
+  .bookmark-shell {
+    max-width: 100%;
+  }
+
+  .bookmark-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .bookmark-page,
+  .bookmark-wrap {
+    min-height: calc(100vh - 92px) !important;
+  }
+
+  .bookmark-shell {
+    padding: 20px 14px 28px;
+  }
+
+  .bookmark-card-grid {
+    gap: 16px;
+  }
+
+  .bookmark-empty {
+    padding: 56px 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .bookmark-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bookmark-card-grid .spot-card {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .bookmark-page,
+  .bookmark-wrap {
+    min-height: calc(100vh - 84px) !important;
+  }
+
+  .bookmark-shell {
+    padding: 16px 10px 24px;
+  }
+
+  .bookmark-empty {
+    padding: 44px 0;
+  }
+}

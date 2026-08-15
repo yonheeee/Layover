@@ -3,6 +3,7 @@ import { nextTick, onUnmounted, ref, watch } from "vue";
 import { MapPin, Clock, Heart, Image as ImageIcon } from "lucide-vue-next";
 import { getPlaceById } from "@/api/places";
 import { useBookmarkStore } from "@/stores/bookmark";
+import { loadKakaoMaps } from "@/utils/kakaoMaps";
 
 const props = defineProps<{
   id?: string | null;
@@ -44,43 +45,7 @@ function formatHours(hours: string): string {
 }
 
 function ensureKakaoMaps() {
-  return new Promise<any>((resolve, reject) => {
-    const win = window as any;
-    const loadMaps = () => {
-      if (!win.kakao?.maps) {
-        reject(new Error("Kakao Maps SDK is not available."));
-        return;
-      }
-      win.kakao.maps.load(() => resolve(win.kakao));
-    };
-
-    if (win.kakao?.maps) {
-      loadMaps();
-      return;
-    }
-
-    const existingScript = document.getElementById(
-      "kakao-map-script",
-    ) as HTMLScriptElement | null;
-    if (existingScript) {
-      existingScript.addEventListener("load", loadMaps, { once: true });
-      existingScript.addEventListener(
-        "error",
-        () => reject(new Error("Kakao Maps SDK failed to load.")),
-        {
-          once: true,
-        },
-      );
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.id = "kakao-map-script";
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
-    script.onload = loadMaps;
-    script.onerror = () => reject(new Error("Kakao Maps SDK failed to load."));
-    document.head.appendChild(script);
-  });
+  return loadKakaoMaps();
 }
 
 async function renderPlaceMap() {

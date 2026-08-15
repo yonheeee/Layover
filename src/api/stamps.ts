@@ -7,7 +7,14 @@ export interface StampResponse {
   photoUrl: string
   visitedAt: string
   stampCount: number
-  newCharacter: { id: string; name: string; imageUrl: string; requiredStamps: number } | null
+  newCharacter: {
+    id: string
+    name: string
+    imageUrl: string
+    requiredStamps: number
+    description: string
+    obtained: boolean
+  } | null
 }
 
 export async function saveStamp(placeId: string): Promise<StampResponse> {

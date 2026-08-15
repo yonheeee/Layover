@@ -25,25 +25,3 @@ export interface MyCourse {
   }[]
 }
 
-export interface Character {
-  id: string
-  name: string
-  emoji: string
-  unlocked: boolean
-  description: string
-  poses: string[]
-}
-
-export interface MapPin {
-  id: string
-  location: string
-  journalTitle: string
-  visitDate: string
-  url: string
-}
-
-export interface UserPhoto {
-  id: string
-  url: string
-  location: string
-}

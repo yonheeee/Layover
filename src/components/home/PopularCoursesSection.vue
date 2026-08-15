@@ -1,235 +1,338 @@
 <script setup lang="ts">
-import { Star, Heart, ChevronRight } from "lucide-vue-next";
-import { useCheckLogin } from "@/utils/auth";
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import {
+  ChevronRight,
+  Clock,
+  Heart,
+  Loader2,
+  MessageCircle,
+  Route,
+} from "lucide-vue-next";
+import { getPopularCourseShares } from "@/api/community";
+import type { Post } from "@/types/community";
 
-const { checkLogin } = useCheckLogin();
+const router = useRouter();
+const posts = ref<Post[]>([]);
+const isLoading = ref(false);
 
-function handlePlanCourse(courseType: string) {
-  if (!checkLogin()) return;
-  alert(`${courseType} 기반으로 새 일정을 구성합니다.`);
+const hasPosts = computed(() => posts.value.length > 0);
+
+function formatDuration(minutes?: number) {
+  if (!minutes || minutes <= 0) return "소요시간 미정";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}분`;
+  if (m === 0) return `${h}시간`;
+  return `${h}시간 ${m}분`;
 }
+
+function formatTravelMode(mode?: string) {
+  if (mode === "WALK") return "도보";
+  if (mode === "TAXI") return "택시";
+  return "이동";
+}
+
+function getCoursePlaces(post: Post) {
+  return (post.courseSubTitle ?? "")
+    .split(" → ")
+    .map((place) => place.trim())
+    .filter(Boolean);
+}
+
+function getSnippet(content?: string) {
+  if (!content) return "";
+  try {
+    const blocks = JSON.parse(content);
+    if (Array.isArray(blocks)) {
+      return blocks
+        .filter((block) => block?.type === "text" && block?.value)
+        .map((block) => String(block.value).trim())
+        .filter(Boolean)
+        .join(" ")
+        .slice(0, 90);
+    }
+  } catch {
+    // Fall through to plain text cleanup.
+  }
+  return content.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 90);
+}
+
+function openPost(id: string) {
+  router.push(`/community/${id}`);
+}
+
+onMounted(async () => {
+  isLoading.value = true;
+  try {
+    posts.value = await getPopularCourseShares(2);
+  } catch {
+    posts.value = [];
+  } finally {
+    isLoading.value = false;
+  }
+});
 </script>
 
 <template>
-  <section style="max-width: 1440px; margin: 0 auto; padding: 0 2rem 6rem">
-    <div class="flex flex-col mb-8 space-y-2">
-      <div
-        class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm self-start"
-        style="background: #e8f8f5; color: #3db89e; font-weight: 600"
-      >
-        <Star :size="13" fill="#3db89e" /> 실시간 인기 코스
+  <section v-if="isLoading || hasPosts" class="popular-courses">
+    <div class="popular-courses__header">
+      <div>
+        <p class="popular-courses__eyebrow">인기 공유 코스</p>
+        <h2>좋아요를 많이 받은 공유 코스</h2>
       </div>
-      <h2
-        style="
-          font-weight: 700;
-          font-size: clamp(1.4rem, 2.5vw, 2rem);
-          color: &quot;#1a2e2b&quot;;
-          letter-spacing: &quot;-0.02em&quot;;
-        "
-      >
-        다른 여행자들이 가장 많이 선택한 일정
-      </h2>
+      <RouterLink to="/community?category=공유해요" class="popular-courses__link">
+        더보기
+        <ChevronRight :size="16" />
+      </RouterLink>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <div
-        class="p-8 rounded-3xl flex flex-col justify-between"
-        style="
-          background: #ffffff;
-          border: 1px solid rgba(178, 228, 220, 0.4);
-          box-shadow: 0 4px 24px rgba(178, 228, 220, 0.15);
-        "
-      >
-        <div>
-          <div class="flex items-center justify-between mb-6">
-            <h3
-              style="font-weight: 700; font-size: 1.15rem; color: #1a2e2b"
-              class="flex items-center gap-2"
-            >
-              🤖 AI 추천 최다 픽 코스
-            </h3>
-            <span
-              style="
-                font-size: 0.8rem;
-                color: #3db89e;
-                font-weight: 600;
-                background: #e8f8f5;
-              "
-              class="px-2.5 py-1 rounded-md"
-            >
-              이번 주 1,240회 생성
-            </span>
-          </div>
-          <div
-            class="space-y-4 relative pl-4 border-l-2 border-dashed mb-8"
-            style="border-color: rgba(61, 184, 158, 0.3)"
-          >
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="
-                  background: #3db89e;
-                  border: 2px solid #ffffff;
-                  box-shadow: 0 0 0 2px #3db89e;
-                "
-              ></span>
-              <div class="font-bold text-sm text-gray-800">대전역 출발</div>
-              <div class="text-xs text-gray-500">환승 대기 시작</div>
-            </div>
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="background: #3db89e"
-              ></span>
-              <div class="font-bold text-sm text-gray-800">
-                성심당 본점
-                <span style="color: #3db89e" class="text-xs ml-1"
-                  >🍞 도보 10분</span
-                >
-              </div>
-              <div class="text-xs text-gray-600">
-                명물 튀김소보로 구매 및 베이커리 투어 (40분 소요)
-              </div>
-            </div>
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="background: #3db89e"
-              ></span>
-              <div class="font-bold text-sm text-gray-800">
-                중앙시장 먹자골목
-                <span style="color: #3db89e" class="text-xs ml-1"
-                  >🍜 도보 5분</span
-                >
-              </div>
-              <div class="text-xs text-gray-600">
-                대전식 바비큐 떡볶이와 전통시장 주전부리 공략 (50분 소요)
-              </div>
-            </div>
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="
-                  background: #3db89e;
-                  border: 2px solid #ffffff;
-                  box-shadow: 0 0 0 2px #3db89e;
-                "
-              ></span>
-              <div class="font-bold text-sm text-gray-800">대전역 복귀</div>
-              <div class="text-xs text-gray-500">총 2시간 소요 컴팩트 코스</div>
-            </div>
-          </div>
-        </div>
-        <button
-          @click="handlePlanCourse('AI 최다 픽 코스')"
-          class="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 font-bold text-sm transition-all duration-200 border hover:bg-[#3db89e] hover:text-white group cursor-pointer"
-          style="border-color: #3db89e; color: #3db89e; background: #ffffff"
-        >
-          이 코스로 여행 계획 세우기
-          <ChevronRight
-            :size="15"
-            class="transition-transform duration-200 group-hover:translate-x-0.5"
-          />
-        </button>
-      </div>
+    <div v-if="isLoading" class="popular-courses__loading">
+      <Loader2 :size="20" class="popular-courses__spinner" />
+    </div>
 
-      <div
-        class="p-8 rounded-3xl flex flex-col justify-between"
-        style="
-          background: #ffffff;
-          border: 1px solid rgba(178, 228, 220, 0.4);
-          box-shadow: 0 4px 24px rgba(178, 228, 220, 0.15);
-        "
+    <div v-else class="popular-courses__grid">
+      <article
+        v-for="post in posts"
+        :key="post.id"
+        class="popular-course-card"
+        @click="openPost(post.id)"
       >
-        <div>
-          <div class="flex items-center justify-between mb-6">
-            <h3
-              style="font-weight: 700; font-size: 1.15rem; color: #1a2e2b"
-              class="flex items-center gap-2"
-            >
-              ❤️ 유저 선정 베스트 힐링 코스
-            </h3>
-            <div
-              class="flex items-center gap-1 text-xs font-bold text-rose-500 bg-rose-50 px-2.5 py-1 rounded-md"
-            >
-              <Heart :size="12" fill="#f43f5e" stroke="none" /> 3,450 찜
-            </div>
+        <div class="popular-course-card__top">
+          <div>
+            <p class="popular-course-card__author">{{ post.username }}</p>
+            <h3>{{ post.title }}</h3>
           </div>
-          <div
-            class="space-y-4 relative pl-4 border-l-2 border-dashed mb-8"
-            style="border-color: rgba(61, 184, 158, 0.3)"
-          >
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="
-                  background: #3db89e;
-                  border: 2px solid #ffffff;
-                  box-shadow: 0 0 0 2px #3db89e;
-                "
-              ></span>
-              <div class="font-bold text-sm text-gray-800">대전역 출발</div>
-              <div class="text-xs text-gray-500">
-                여유로운 3시간 레이오버전용
-              </div>
-            </div>
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="background: #3db89e"
-              ></span>
-              <div class="font-bold text-sm text-gray-800">
-                한밭수목원
-                <span style="color: #3db89e" class="text-xs ml-1"
-                  >🌿 버스 20분</span
-                >
-              </div>
-              <div class="text-xs text-gray-600">
-                도심 속 대형 수목원에서 힐링 산책 및 포토존 이용 (80분 소요)
-              </div>
-            </div>
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="background: #3db89e"
-              ></span>
-              <div class="font-bold text-sm text-gray-800">
-                둔산동 감성카페 거리
-                <span style="color: #3db89e" class="text-xs ml-1"
-                  >☕ 도보 10분</span
-                >
-              </div>
-              <div class="text-xs text-gray-600">
-                수목원 근처 로컬 로스터리 카페에서 시그니처 음료 타임 (40분
-                소요)
-              </div>
-            </div>
-            <div class="relative space-y-1">
-              <span
-                class="absolute -left-[23px] top-1.5 w-2.5 h-2.5 rounded-full"
-                style="
-                  background: #3db89e;
-                  border: 2px solid #ffffff;
-                  box-shadow: 0 0 0 2px #3db89e;
-                "
-              ></span>
-              <div class="font-bold text-sm text-gray-800">대전역 복귀</div>
-              <div class="text-xs text-gray-500">지하철/택시 연동 원활</div>
-            </div>
+          <div class="popular-course-card__likes">
+            <Heart :size="14" fill="currentColor" />
+            {{ post.likeCount }}
           </div>
         </div>
-        <button
-          @click="handlePlanCourse('유저 베스트 힐링 코스')"
-          class="w-full py-3.5 rounded-xl flex items-center justify-center gap-2 font-bold text-sm transition-all duration-200 border hover:bg-[#3db89e] hover:text-white group cursor-pointer"
-          style="border-color: #3db89e; color: #3db89e; background: #ffffff"
-        >
-          이 코스로 여행 계획 세우기
-          <ChevronRight
-            :size="15"
-            class="transition-transform duration-200 group-hover:translate-x-0.5"
-          />
-        </button>
-      </div>
+
+        <p v-if="getSnippet(post.content)" class="popular-course-card__snippet">
+          {{ getSnippet(post.content) }}
+        </p>
+
+        <div class="popular-course-card__route">
+          <Route :size="15" class="popular-course-card__route-icon" />
+          <div class="popular-course-card__places">
+            <template v-if="getCoursePlaces(post).length">
+              <span v-for="place in getCoursePlaces(post)" :key="place">
+                {{ place }}
+              </span>
+            </template>
+            <span v-else>연결된 코스</span>
+          </div>
+        </div>
+
+        <div class="popular-course-card__meta">
+          <span>
+            <Clock :size="14" />
+            {{ formatDuration(post.courseDurationMinutes) }}
+          </span>
+          <span>{{ formatTravelMode(post.courseTravelMode) }}</span>
+          <span>
+            <MessageCircle :size="14" />
+            {{ post.commentCount }}
+          </span>
+        </div>
+      </article>
     </div>
   </section>
 </template>
+
+<style scoped>
+.popular-courses {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.popular-courses__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.popular-courses__eyebrow {
+  margin: 0 0 0.35rem;
+  color: #16836f;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.popular-courses h2 {
+  margin: 0;
+  color: #1b2b29;
+  font-size: clamp(1.45rem, 2.4vw, 2rem);
+  font-weight: 800;
+}
+
+.popular-courses__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #16836f;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.popular-courses__loading {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  color: #16836f;
+}
+
+.popular-courses__spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+.popular-courses__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.popular-course-card {
+  display: flex;
+  min-height: 248px;
+  cursor: pointer;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #d5e8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 1.25rem;
+  box-shadow: 0 10px 28px rgba(27, 43, 41, 0.07);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.popular-course-card:hover {
+  border-color: #79cbbb;
+  box-shadow: 0 14px 34px rgba(27, 43, 41, 0.11);
+  transform: translateY(-2px);
+}
+
+.popular-course-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.popular-course-card__author {
+  margin: 0 0 0.35rem;
+  color: #6b7f7a;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.popular-course-card h3 {
+  margin: 0;
+  color: #1b2b29;
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.popular-course-card__likes {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  background: #fff1f3;
+  color: #d83f5b;
+  font-size: 0.84rem;
+  font-weight: 800;
+  padding: 0.35rem 0.55rem;
+}
+
+.popular-course-card__snippet {
+  margin: 0;
+  color: #52645f;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.popular-course-card__route {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  border-left: 2px solid #79cbbb;
+  padding-left: 0.75rem;
+}
+
+.popular-course-card__route-icon {
+  flex-shrink: 0;
+  color: #16836f;
+  margin-top: 0.12rem;
+}
+
+.popular-course-card__places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.popular-course-card__places span {
+  border-radius: 6px;
+  background: #eef8f5;
+  color: #265b51;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.28rem 0.48rem;
+  overflow-wrap: anywhere;
+}
+
+.popular-course-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  color: #6b7f7a;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.popular-course-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 767px) {
+  .popular-courses {
+    padding: 0 1rem;
+  }
+
+  .popular-courses__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .popular-courses__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .popular-course-card {
+    min-height: 0;
+  }
+}
+</style>

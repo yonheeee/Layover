@@ -332,6 +332,7 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
 
 <template>
   <div
+    class="community-page"
     style="
       background: linear-gradient(
         155deg,
@@ -342,10 +343,10 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
       min-height: calc(100vh - 64px);
     "
   >
-    <div class="max-w-6xl mx-auto px-4 py-8">
+    <div class="community-shell max-w-6xl mx-auto px-4 py-8">
       <!-- 탭 바 -->
       <div
-        class="flex items-center border-b mb-6"
+        class="community-topbar flex items-center border-b mb-6"
         style="border-color: rgba(178, 228, 220, 0.3)"
       >
         <button
@@ -367,7 +368,7 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
         </button>
 
         <div
-          class="ml-auto pb-1 flex items-center gap-4"
+          class="community-topbar__actions ml-auto pb-1 flex items-center gap-4"
           v-if="activeTab === 'reviews'"
         >
           <button
@@ -406,7 +407,47 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
       </div>
 
       <!-- ─── 공지사항 탭 ─── -->
-      <div v-if="activeTab === 'notices'" class="flex gap-8 items-start mt-1">
+      <div v-if="activeTab === 'notices'" class="community-section-layout flex gap-8 items-start mt-1">
+        <nav class="community-mobile-subnav md:hidden">
+          <button
+            @click="activeNoticeCategory = '공지/이벤트'"
+            :style="
+              activeNoticeCategory === '공지/이벤트'
+                ? 'background:#3db89e; color:#fff;'
+                : 'background:#ffffff; color:#6b8c87;'
+            "
+          >
+            공지/이벤트
+          </button>
+          <button
+            @click="
+              activeNoticeCategory = '문의사항';
+              activeFaqSubCategory = '자주 묻는 질문';
+            "
+            :style="
+              activeNoticeCategory === '문의사항' &&
+              activeFaqSubCategory === '자주 묻는 질문'
+                ? 'background:#3db89e; color:#fff;'
+                : 'background:#ffffff; color:#6b8c87;'
+            "
+          >
+            자주 묻는 질문
+          </button>
+          <button
+            @click="
+              activeNoticeCategory = '문의사항';
+              activeFaqSubCategory = '1:1 문의하기';
+            "
+            :style="
+              activeNoticeCategory === '문의사항' &&
+              activeFaqSubCategory === '1:1 문의하기'
+                ? 'background:#3db89e; color:#fff;'
+                : 'background:#ffffff; color:#6b8c87;'
+            "
+          >
+            1:1 문의하기
+          </button>
+        </nav>
         <!-- 좌측 메뉴 -->
         <nav
           class="hidden md:flex flex-col gap-1 w-44 flex-shrink-0 sticky top-20"
@@ -813,7 +854,21 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
       </div>
 
       <!-- ─── 커뮤니티 탭 ─── -->
-      <div v-else class="flex gap-8 items-start mt-1">
+      <div v-else class="community-section-layout flex gap-8 items-start mt-1">
+        <nav class="community-mobile-subnav md:hidden">
+          <button
+            v-for="cat in categories"
+            :key="cat"
+            @click="activeCategory = cat"
+            :style="
+              activeCategory === cat
+                ? 'background:#3db89e; color:#fff;'
+                : 'background:#ffffff; color:#6b8c87;'
+            "
+          >
+            {{ cat }}
+          </button>
+        </nav>
         <!-- 좌측 카테고리 메뉴 -->
         <nav
           class="hidden md:flex flex-col gap-1 w-40 flex-shrink-0 sticky top-20"

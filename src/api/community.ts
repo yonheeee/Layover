@@ -103,11 +103,13 @@ export async function createPost(
   category: string,
   title: string,
   content: string,
+  courseId?: string | null,
 ) {
   const res = await httpPost<PostDetail>("/api/posts", {
     category,
     title,
     content,
+    courseId,
   });
   return unwrapCommunityResponse(res, "게시글 등록에 실패했습니다.");
 }
@@ -117,11 +119,13 @@ export async function updatePost(
   title: string,
   content: string,
   category: string,
+  courseId?: string | null,
 ) {
   const res = await httpPut<PostDetail>(`/api/posts/${id}`, {
     title,
     content,
     category,
+    courseId,
   });
   return unwrapCommunityResponse(res, "게시글 수정에 실패했습니다.");
 }
@@ -160,6 +164,12 @@ export async function getLikeStatus(postId: string) {
     `/api/posts/${postId}/likes/status`,
   );
   return res.data;
+}
+
+export async function getPopularCourseShares(size = 2) {
+  const params = new URLSearchParams({ size: String(size) });
+  const res = await httpGet<Post[]>(`/api/posts/popular-shares?${params}`);
+  return unwrapCommunityResponse(res, "인기 공유 코스를 불러올 수 없습니다.");
 }
 
 // ─── 내가 쓴 글 ───

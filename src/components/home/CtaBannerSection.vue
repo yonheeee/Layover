@@ -394,7 +394,7 @@ function scrollToTop() {
   opacity: 0.35;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1024px) {
   .smart-course {
     grid-template-columns: 1fr;
     padding: 40px 22px;
@@ -405,9 +405,93 @@ function scrollToTop() {
   }
 }
 
-@media (max-width: 640px) {
+@media (min-width: 768px) and (max-width: 1024px) {
+  .smart-course {
+    gap: 30px;
+    padding: 40px 28px 48px;
+  }
+
+  .smart-course__description {
+    margin-bottom: 26px;
+  }
+
+  .smart-course__steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .smart-course__steps::before,
+  .step-card::before {
+    display: none;
+  }
+
+  .smart-course__steps li {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .step-card {
+    max-width: none;
+    min-height: 132px;
+    padding: 15px 16px 16px;
+  }
+
   .smart-course__visual {
-    min-height: 390px;
+    display: flex;
+    min-height: auto;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .preview-card {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: min(100%, 360px);
+  }
+
+  .laptop {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+  }
+
+  .laptop__screen {
+    height: 260px;
+    border-width: 10px;
+    border-bottom-width: 16px;
+  }
+
+  .laptop__overlay {
+    right: auto;
+    bottom: 22px;
+    left: 22px;
+    width: min(270px, calc(100% - 44px));
+  }
+
+  .laptop__base {
+    margin: 0 -12px;
+  }
+
+  .smart-course__button {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 767px) {
+  .smart-course__visual {
+    display: flex;
+    min-height: auto;
+    flex-direction: column;
+    gap: 16px;
   }
 
   .preview-card {
@@ -418,12 +502,20 @@ function scrollToTop() {
   }
 
   .laptop {
-    right: -60px;
-    width: 120%;
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
   }
 
   .laptop__screen {
+    border-width: 8px;
+    border-bottom-width: 14px;
     height: 240px;
+  }
+
+  .laptop__base {
+    margin: 0 -10px;
   }
 
   .laptop__overlay {
@@ -434,8 +526,43 @@ function scrollToTop() {
   }
 
   .smart-course__button {
-    left: 0;
+    position: relative;
+    left: auto;
     right: auto;
+    bottom: auto;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .smart-course {
+    padding: 34px 18px;
+  }
+
+  .smart-course__visual {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 420px) {
+  .smart-course {
+    padding: 28px 14px;
+  }
+
+  .smart-course__visual {
+    min-height: auto;
+  }
+
+  .laptop {
+    right: auto;
+  }
+
+  .laptop__screen {
+    height: 190px;
+  }
+
+  .laptop__overlay {
+    width: 190px;
   }
 }
 </style>

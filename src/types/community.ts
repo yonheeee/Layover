@@ -10,6 +10,10 @@ export interface Post {
   commentCount: number;
   createdAt: string;
   thumbnailUrl?: string;
+  courseId?: string;
+  courseSubTitle?: string;
+  courseTravelMode?: string;
+  courseDurationMinutes?: number;
 }
 
 export interface PostComment {

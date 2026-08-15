@@ -49,6 +49,18 @@ const connectedCourse = ref<SavedCourseResponse | null>(null);
 const mySavedCourses = ref<SavedCourseResponse[]>([]);
 const isLoadingCourses = ref(false);
 
+async function ensureSavedCoursesLoaded() {
+  if (mySavedCourses.value.length > 0 || isLoadingCourses.value) return;
+  isLoadingCourses.value = true;
+  try {
+    mySavedCourses.value = await getMyCourses();
+  } catch {
+    // Ignore load failures in the optional course picker.
+  } finally {
+    isLoadingCourses.value = false;
+  }
+}
+
 // ─── 블록 에디터 ───
 interface TextBlock {
   id: number;
@@ -207,6 +219,12 @@ onMounted(async () => {
       title.value = post.title;
       selectedCategory.value = CODE_TO_CATEGORY[post.category] ?? "공유해요";
       blocks.value = parseContentToBlocks(post.content);
+      if (post.courseId) {
+        await ensureSavedCoursesLoaded();
+        connectedCourse.value =
+          mySavedCourses.value.find((course) => course.id === post.courseId) ??
+          null;
+      }
     } catch {
       alert("게시글을 불러올 수 없습니다.");
       router.back();
@@ -267,14 +285,16 @@ async function handleRegister() {
       return;
     }
 
+    const courseId = connectedCourse.value?.id ?? null;
     if (isEditMode && editPostId) {
-      await updatePost(editPostId, title.value.trim(), content, apiCategory);
+      await updatePost(editPostId, title.value.trim(), content, apiCategory, courseId);
       router.replace(`/community/${editPostId}`);
     } else {
       const newPost = await createPost(
         apiCategory,
         title.value.trim(),
         content,
+        courseId,
       );
       router.replace(newPost?.id ? `/community/${newPost.id}` : "/community");
     }
@@ -377,7 +397,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
             <button
               type="button"
               @click.stop="connectedCourse = null"
-              class="absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              class="community-course-remove absolute top-2 right-2 p-1.5 rounded-full text-gray-400 hover:text-red-500 transition-opacity cursor-pointer"
             >
               <Trash2 :size="16" />
             </button>
@@ -436,7 +456,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
           <div
             v-for="(block, idx) in blocks"
             :key="block.id"
-            class="group relative border border-transparent hover:border-gray-100 rounded-sm transition-all p-3 pl-8"
+            class="community-editor-block group relative border border-transparent hover:border-gray-100 rounded-sm transition-all p-3 pl-8"
             :class="{
               'opacity-40': dragIndex === idx,
               'border-teal-200 bg-teal-50/10':
@@ -459,7 +479,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
 
             <!-- 삭제 버튼 -->
             <div
-              class="absolute right-2 top-2 hidden group-hover:flex items-center bg-white border rounded-md p-1 shadow-sm z-10"
+              class="community-block-delete absolute right-2 top-2 flex items-center bg-white border rounded-md p-1 shadow-sm z-10"
             >
               <button
                 v-if="blocks.length > 1"
@@ -498,7 +518,7 @@ const categoryMeta: Record<string, { icon: any; color: string }> = {
 
             <!-- 블록 추가 버튼 (하단) -->
             <div
-              class="absolute left-1/2 -bottom-3 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-20"
+              class="community-block-actions flex flex-wrap gap-2 z-20"
             >
               <button
                 type="button"

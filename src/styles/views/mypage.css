@@ -198,3 +198,182 @@
   background: #f5f5f5;
   border: 1.5px solid rgba(220, 220, 220, 0.5);
 }
+
+@media (max-width: 1024px) {
+  .mypage-shell {
+    max-width: 100%;
+  }
+
+  .mypage-sidebar {
+    width: 224px;
+  }
+
+  .mypage-main {
+    padding: 20px;
+  }
+
+  .mypage-saved-course-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .mypage-page {
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .mypage-shell {
+    padding: 20px 14px calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mypage-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .mypage-sidebar {
+    position: relative;
+    top: auto;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .mypage-profile-card {
+    aspect-ratio: auto !important;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 16px;
+  }
+
+  .mypage-tab-list {
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    text-align: left;
+    scrollbar-width: none;
+  }
+
+  .mypage-tab-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mypage-tab-list button {
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 0 14px !important;
+    border-right: 0 !important;
+    border-bottom: 3px solid transparent;
+    border-radius: 12px;
+    font-size: 0.9rem !important;
+    white-space: nowrap;
+  }
+
+  .mypage-main {
+    width: 100%;
+    padding: 18px;
+  }
+
+  .mypage-info-grid,
+  .mypage-character-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mypage-postcard-map {
+    height: 300px;
+  }
+
+  .mypage-dialog {
+    width: min(calc(100vw - 28px), 100%) !important;
+    max-height: calc(100dvh - 112px);
+  }
+
+  .mypage-dialog--sm {
+    max-width: 360px;
+  }
+
+  .mypage-dialog--lg {
+    max-width: 520px;
+  }
+}
+
+@media (max-width: 640px) {
+  .mypage-profile-card {
+    align-items: flex-start;
+  }
+
+  .mypage-main {
+    padding: 16px;
+  }
+
+  .mypage-postcard-map {
+    height: 260px;
+  }
+
+  .mypage-photo-grid,
+  .mypage-character-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .mypage-profile-card {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 14px !important;
+  }
+
+  .mypage-profile-card > .text-center {
+    width: 100%;
+  }
+
+  .mypage-profile-card > .text-center p,
+  .mypage-profile-card > .text-center div {
+    min-width: 0;
+  }
+
+  .mypage-profile-card > .text-center p {
+    overflow-wrap: anywhere;
+  }
+
+  .mypage-profile-card > .w-full {
+    margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .mypage-page {
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .mypage-shell {
+    padding: 16px 10px calc(70px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mypage-profile-card {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .mypage-main {
+    padding: 14px;
+  }
+
+  .mypage-photo-grid,
+  .mypage-character-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-postcard-map {
+    height: 230px;
+  }
+
+  .mypage-dialog {
+    width: min(calc(100vw - 20px), 100%) !important;
+  }
+}
