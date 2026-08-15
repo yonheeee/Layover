@@ -4,6 +4,7 @@ import { useCourseStore } from "@/stores/course";
 import { useStampStore } from "@/stores/stamp";
 import GuidedTour from "@/components/tutorial/GuidedTour.vue";
 import type { Course, CourseStop, DiPlace } from "@/types/course";
+import { loadKakaoMaps } from "@/utils/kakaoMaps";
 import {
   ArrowLeft,
   Bus,
@@ -404,18 +405,11 @@ onMounted(async () => {
   }
 
   allDiPlaces.value = await fetchDiPlaces();
-  if (!document.getElementById("kakao-map-script")) {
-    const script = document.createElement("script");
-    script.id = "kakao-map-script";
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
-    document.head.appendChild(script);
-    script.onload = () => {
-      (window as any).kakao.maps.load(() => {
-        initKakaoMap();
-      });
-    };
-  } else {
+  try {
+    await loadKakaoMaps();
     initKakaoMap();
+  } catch (error) {
+    console.error("Kakao Maps SDK load failed:", error);
   }
 });
 

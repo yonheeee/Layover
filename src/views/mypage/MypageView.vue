@@ -15,6 +15,7 @@ import type { Place } from "@/types/place";
 import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
+import { loadKakaoMaps } from "@/utils/kakaoMaps";
 import {
   Activity,
   Award,
@@ -227,17 +228,11 @@ watch(
     if (tab === "postcard") {
       await nextTick();
       if (!postcardMap) {
-        if (!(window as any).kakao?.maps) {
-          if (!document.getElementById("kakao-map-script")) {
-            const script = document.createElement("script");
-            script.id = "kakao-map-script";
-            script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`;
-            document.head.appendChild(script);
-            script.onload = () =>
-              (window as any).kakao.maps.load(() => initPostcardMap());
-          }
-        } else {
+        try {
+          await loadKakaoMaps();
           initPostcardMap();
+        } catch (error) {
+          console.error("Kakao Maps SDK load failed:", error);
         }
       } else {
         renderPostcardPins();

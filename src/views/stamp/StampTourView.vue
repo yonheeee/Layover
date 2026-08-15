@@ -11,6 +11,7 @@ import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
 import { useXp } from '@/composables/useXp'
 import GuidedTour from '@/components/tutorial/GuidedTour.vue'
+import { loadKakaoMaps } from '@/utils/kakaoMaps'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
@@ -340,16 +341,11 @@ onMounted(async () => {
     places.value = toTourPlaces(diPlaces.slice(0, 4), null)
   }
 
-  if (!document.getElementById('kakao-map-script')) {
-    const script = document.createElement('script')
-    script.id = 'kakao-map-script'
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_KEY}&autoload=false`
-    document.head.appendChild(script)
-    script.onload = () => {
-      ;(window as any).kakao.maps.load(() => initKakaoMap())
-    }
-  } else {
-    ;(window as any).kakao.maps.load(() => initKakaoMap())
+  try {
+    await loadKakaoMaps()
+    initKakaoMap()
+  } catch (error) {
+    console.error('Kakao Maps SDK load failed:', error)
   }
 })
 
