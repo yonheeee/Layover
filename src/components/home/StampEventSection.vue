@@ -35,10 +35,18 @@ function dotStyle(pos: { x: number; y: number }) {
 function cardStyle(dotIndex: number) {
   const pos = dotPositions.value[dotIndex];
   if (!pos) return {};
-  const above = dotIndex % 2 === 0;
+  const offsets = [
+    { x: -14, y: -86 },
+    { x: -54, y: 42 },
+    { x: 34, y: -70 },
+    { x: -28, y: 42 },
+    { x: -78, y: -76 },
+    { x: -86, y: 42 },
+  ];
+  const offset = offsets[dotIndex] ?? { x: -64, y: 36 };
   return {
-    left: `calc(${(pos.x / 980) * 100}% - 102px)`,
-    top: above ? `${pos.y - 101}px` : `${pos.y + 26}px`,
+    left: `calc(${(pos.x / 980) * 100}% + ${offset.x}px)`,
+    top: `${pos.y + offset.y}px`,
   };
 }
 
@@ -51,9 +59,14 @@ const text = {
 
 const questCards = [
   {
-    className: "quest-card--station",
-    title: "\ub300\uc804\uc5ed \ub3c4\ucc29",
-    body: "\uccab \uc2a4\ud0ec\ud504 \ud68d\ub4dd",
+    className: "quest-card--course",
+    title: "AI\uc640 \ud568\uaed8 \uc5ec\ud589 \ucf54\uc2a4 \uad6c\uc131\ud558\uae30",
+    body: "\ub9de\ucda4 \ucf54\uc2a4 \uc0dd\uc131",
+  },
+  {
+    className: "quest-card--start",
+    title: "\uc5ec\ud589 \uc2dc\uc791",
+    body: "\ub300\uc804\uc5ed \ub3c4\ucc29",
   },
   {
     className: "quest-card--bakery",
@@ -66,9 +79,14 @@ const questCards = [
     body: "\uc0ac\uc9c4 \uc778\uc99d \uc644\ub8cc",
   },
   {
-    className: "quest-card--reward",
-    title: "\uafc8\ub3cc\uc774 \ubcf4\uc0c1",
-    body: "\ub79c\ub364 \uc5fd\uc11c \uc624\ud508",
+    className: "quest-card--community",
+    title: "\ucee4\ubba4\ub2c8\ud2f0\ub85c \ub300\uc804 \uafc0\ud301 \uacf5\uc720\ud558\uae30",
+    body: "\uc5ec\ud589 \ud301 \uc791\uc131",
+  },
+  {
+    className: "quest-card--postcard",
+    title: "\uafc8\ub3cc\uc774 \uc5fd\uc11c \uc624\ud508",
+    body: "\ub79c\ub364 \ubcf4\uc0c1 \ud68d\ub4dd",
   },
 ];
 
@@ -122,6 +140,7 @@ async function handleStartStampTour() {
           :class="card.className"
           :style="cardStyle(i)"
         >
+          <span class="quest-card__number">{{ i + 1 }}</span>
           <strong>{{ card.title }}</strong>
           <span>{{ card.body }}</span>
         </article>
@@ -155,7 +174,7 @@ async function handleStartStampTour() {
 .stamp-game-board {
   position: relative;
   width: min(100%, 1440px);
-  min-height: 580px;
+  min-height: 590px;
   margin: 0 auto;
   overflow: hidden;
   border: 0;
@@ -178,7 +197,7 @@ async function handleStartStampTour() {
 .stamp-game-board__header h2 {
   margin: 0;
   color: #112725;
-  font-size: clamp(1.8rem, 3vw, 2.35rem);
+  font-size: clamp(1.65rem, 2.5vw, 2.1rem);
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.25;
@@ -188,7 +207,7 @@ async function handleStartStampTour() {
   max-width: 720px;
   margin: 12px 0 0;
   color: #55716d;
-  font-size: 1rem;
+  font-size: 0.94rem;
   font-weight: 800;
   line-height: 1.7;
 }
@@ -196,9 +215,9 @@ async function handleStartStampTour() {
 .stamp-route {
   position: absolute;
   left: 78px;
-  right: 310px;
+  right: 410px;
   top: 156px;
-  z-index: 1;
+  z-index: 3;
   height: 250px;
 }
 
@@ -218,6 +237,7 @@ async function handleStartStampTour() {
 
 .route-dot {
   position: absolute;
+  z-index: 5;
   display: grid;
   width: 36px;
   height: 36px;
@@ -238,12 +258,17 @@ async function handleStartStampTour() {
 
 .quest-card {
   position: absolute;
-  z-index: 2;
-  width: 205px;
-  border: 1px solid #d9efec;
-  border-radius: 15px;
-  padding: 14px 18px;
-  box-shadow: 0 10px 24px rgba(26, 46, 43, 0.07);
+  z-index: 4;
+  display: grid;
+  width: 188px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  align-items: start;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
 
 .quest-card strong,
@@ -252,29 +277,43 @@ async function handleStartStampTour() {
 }
 
 .quest-card strong {
+  display: -webkit-box;
+  overflow: hidden;
   color: #173430;
-  font-size: 0.94rem;
+  font-size: 0.78rem;
   font-weight: 900;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .quest-card span {
-  margin-top: 6px;
+  margin-top: 0;
   color: #64817c;
-  font-size: 0.78rem;
+  font-size: 0.64rem;
   font-weight: 800;
 }
 
-.quest-card--station { background: #e8f8f5; }
-.quest-card--bakery  { background: #fff7dd; }
-.quest-card--market  { background: #f0fbf8; }
-.quest-card--reward  { background: #f4efff; }
+.quest-card__number {
+  display: none !important;
+  color: #23887d;
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.quest-card span:not(.quest-card__number) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .dream-reward {
   position: absolute;
   right: 66px;
-  bottom: 28px;
-  z-index: 2;
-  width: 600px;
+  bottom: 42px;
+  z-index: 1;
+  width: min(38vw, 470px);
 }
 
 .dream-reward img {
@@ -328,17 +367,31 @@ async function handleStartStampTour() {
 
 @media (max-width: 1024px) {
   .stamp-game-board {
-    min-height: 720px;
+    min-height: 620px;
+    padding-bottom: 104px;
   }
 
   .stamp-route {
-    right: 120px;
+    left: 48px;
+    right: 54px;
+    top: 166px;
+    height: 240px;
+  }
+
+  .quest-card strong {
+    font-size: 0.74rem;
+  }
+
+  .quest-card span:not(.quest-card__number) {
+    font-size: 0.62rem;
   }
 
   .dream-reward {
-    right: 44px;
-    bottom: 108px;
-    width: 310px;
+    right: 24px;
+    bottom: 84px;
+    z-index: 0;
+    width: min(78vw, 520px);
+    opacity: 0.18;
   }
 }
 
@@ -348,34 +401,11 @@ async function handleStartStampTour() {
   }
 
   .stamp-game-board {
-    min-height: 610px;
-    padding: 34px 40px 86px;
+    padding: 34px 40px 104px;
   }
 
   .stamp-game-board__header p {
     max-width: 620px;
-  }
-
-  .stamp-route {
-    left: 48px;
-    right: 74px;
-    top: 168px;
-    height: 220px;
-  }
-
-  .quest-card {
-    width: 176px;
-    padding: 12px 14px;
-  }
-
-  .quest-card strong {
-    font-size: 0.86rem;
-  }
-
-  .dream-reward {
-    right: 54px;
-    bottom: 112px;
-    width: 280px;
   }
 
   .stamp-game-board__footer {
@@ -400,27 +430,67 @@ async function handleStartStampTour() {
 
   .stamp-route,
   .quest-card,
-  .dream-reward,
   .stamp-game-board__footer {
     position: relative;
     inset: auto;
   }
 
   .stamp-route {
-    left: auto;
-    right: auto;
-    top: auto;
-    height: 190px;
-    margin: 18px 8px 8px;
+    display: flex;
+    width: 100%;
+    height: auto;
+    flex-direction: column;
+    gap: 12px;
+    margin: 26px 0 18px;
+    overflow: visible;
   }
 
-  .quest-card {
+  .stamp-route svg,
+  .route-dot {
     display: none;
   }
 
+  .quest-card {
+    box-sizing: border-box;
+    width: 100%;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 4px 8px;
+    align-items: center;
+    padding: 6px 0;
+    transform: none !important;
+  }
+
+  .quest-card__number {
+    grid-row: span 2;
+    display: block !important;
+    color: #23887d;
+    font-weight: 900;
+    line-height: 1.35;
+  }
+
+  .quest-card__number {
+    font-size: 0.76rem;
+  }
+
+  .quest-card strong {
+    font-size: 0.88rem;
+  }
+
+  .quest-card span:not(.quest-card__number) {
+    margin-top: 0;
+    font-size: 0.76rem;
+  }
+
   .dream-reward {
-    width: min(92%, 320px);
-    margin: 10px auto 0;
+    position: absolute;
+    right: 0;
+    bottom: 96px;
+    width: min(96%, 420px);
+    opacity: 0.14;
   }
 
   .stamp-game-board__footer {
@@ -436,7 +506,7 @@ async function handleStartStampTour() {
   }
 
   .stamp-route {
-    height: 160px;
+    height: auto;
   }
 
   .stamp-tour-button {
@@ -455,13 +525,13 @@ async function handleStartStampTour() {
   }
 
   .stamp-route {
-    height: 142px;
+    height: auto;
     margin-right: 4px;
     margin-left: 4px;
   }
 
   .dream-reward {
-    width: min(94%, 300px);
+    width: min(96%, 360px);
   }
 }
 </style>

@@ -12,6 +12,7 @@ import type {
 import axios from "axios";
 import { http, httpGet, httpPost, httpPut, httpDelete } from "./http";
 import type { ApiResponse } from "./http";
+import { resolveMediaUrl } from "@/utils/media";
 
 function unwrapCommunityResponse<T>(
   res: ApiResponse<T>,
@@ -58,7 +59,7 @@ async function uploadToServer(file: File, endpoint: string, errorLabel: string):
     formData,
     { headers: token ? { Authorization: `Bearer ${token}` } : {} },
   );
-  return unwrapCommunityResponse(res.data, errorLabel);
+  return resolveMediaUrl(unwrapCommunityResponse(res.data, errorLabel));
 }
 
 export async function uploadPostImage(file: File): Promise<string> {

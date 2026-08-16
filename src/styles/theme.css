@@ -2,6 +2,14 @@
 
 :root {
   --font-size: 16px;
+  --mobile-bottom-nav-height: calc(64px + env(safe-area-inset-bottom, 0px));
+  --mobile-floating-bottom: calc(var(--mobile-bottom-nav-height) + 18px);
+  --mobile-floating-info-bottom: calc(var(--mobile-bottom-nav-height) + 82px);
+  --layout-content-max-width: 1440px;
+  --floating-content-right: max(
+    18px,
+    calc((100vw - var(--layout-content-max-width)) / 2 + 24px)
+  );
   --background: #ffffff;
   --foreground: #1a2e2b;
   --card: #ffffff;

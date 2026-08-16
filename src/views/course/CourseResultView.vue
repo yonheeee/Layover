@@ -643,7 +643,7 @@ async function confirmCourse() {
     <Transition name="toast">
       <div
         v-if="showShareToast"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1a2e2b] text-white px-5 py-4 rounded-2xl shadow-2xl z-50 flex flex-col gap-3 min-w-[340px] border border-teal-900"
+        class="course-share-toast fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1a2e2b] text-white px-5 py-4 rounded-2xl shadow-2xl z-50 flex flex-col gap-3 min-w-[340px] border border-teal-900"
       >
         <div class="flex items-center gap-2.5">
           <div class="text-xl">✉️</div>
@@ -735,6 +735,13 @@ async function confirmCourse() {
 }
 
 @media (max-width: 640px) {
+  .course-share-toast {
+    bottom: var(--mobile-floating-bottom);
+    z-index: 70;
+    width: min(340px, calc(100vw - 28px));
+    min-width: 0;
+  }
+
   .course-result-view__panel :deep(.p-6) {
     padding: 1rem;
   }

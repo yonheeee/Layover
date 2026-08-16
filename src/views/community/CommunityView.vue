@@ -10,6 +10,7 @@ import {
   Paperclip,
   X,
   Heart,
+  Flag,
 } from "lucide-vue-next";
 import type {
   Post,
@@ -33,6 +34,7 @@ import {
   CATEGORY_TO_CODE,
   CODE_TO_CATEGORY,
 } from "@/api/community";
+import GuidedTour from "@/components/tutorial/GuidedTour.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -44,6 +46,31 @@ const activeTab = ref<"reviews" | "notices">("reviews");
 // ─── 커뮤니티 카테고리 ───
 const activeCategory = ref("전체");
 const categories = ["전체", "공유해요", "궁금해요", "함께해요", "자유"];
+const forceCommunityTour = computed(() =>
+  route.query.tour === "community" ? String(route.query.run ?? "community") : false,
+);
+const communityTourSteps = [
+  {
+    selector: '[data-tour="community-tabs"]',
+    title: "커뮤니티와 공지사항을 전환해요",
+    description: "커뮤니티 글과 공지/문의 영역을 탭으로 오가며 확인할 수 있어요.",
+  },
+  {
+    selector: '[data-tour="community-categories"]',
+    title: "관심 있는 주제를 고르세요",
+    description: "공유, 질문, 동행, 자유 이야기 중 원하는 주제만 모아볼 수 있어요.",
+  },
+  {
+    selector: '[data-tour="community-write"]',
+    title: "새 글을 작성할 수 있어요",
+    description: "로그인 상태라면 현재 선택한 카테고리로 바로 글을 작성할 수 있어요.",
+  },
+  {
+    selector: '[data-tour="community-feed"]',
+    title: "대화를 확인하고 참여해요",
+    description: "글을 누르면 상세 화면으로 이동하고 댓글로 이야기를 이어갈 수 있어요.",
+  },
+];
 
 // ─── 공지사항 메뉴 ───
 const activeNoticeCategory = ref("공지/이벤트");
@@ -51,6 +78,14 @@ const isMunyeeOpen = ref(true);
 const activeFaqSubCategory = ref("자주 묻는 질문");
 
 const isMyPostsOnly = ref(false);
+
+type UserActionTarget = {
+  key: string;
+  userId: string;
+  username: string;
+};
+
+const activeUserAction = ref<UserActionTarget | null>(null);
 
 // ─── 파일 첨부 ───
 const attachedFiles = ref<File[]>([]);
@@ -102,6 +137,38 @@ function formatDate(isoStr: string): string {
     })
     .replace(/\. /g, ".")
     .replace(/\.$/, "");
+}
+
+function canOpenUserAction(userId?: string | null) {
+  return Boolean(isLoggedIn.value && userId && userId !== auth.userId);
+}
+
+function toggleUserAction(key: string, userId?: string | null, username?: string) {
+  if (!userId || !username || userId === auth.userId) return;
+  if (!isLoggedIn.value) {
+    alert("로그인이 필요합니다.");
+    return;
+  }
+  activeUserAction.value =
+    activeUserAction.value?.key === key ? null : { key, userId, username };
+}
+
+function startChat(target: UserActionTarget) {
+  window.dispatchEvent(
+    new CustomEvent("layover:open-chat", {
+      detail: { userId: target.userId, username: target.username },
+    }),
+  );
+  activeUserAction.value = null;
+}
+
+function reportUser(target: UserActionTarget) {
+  window.dispatchEvent(
+    new CustomEvent("layover:open-report", {
+      detail: { userId: target.userId, username: target.username },
+    }),
+  );
+  activeUserAction.value = null;
 }
 
 // ─── NEW 체크 ───
@@ -278,6 +345,11 @@ async function submitInquiry() {
 
 // 쿼리 파라미터 감지 (onMounted + watch 둘 다)
 function applyRouteQuery() {
+  if (route.query.tour === "community") {
+    activeTab.value = "reviews";
+    activeCategory.value = "전체";
+    return;
+  }
   if (route.query.tab === "notices") {
     activeTab.value = "notices";
     if (route.query.sub) {
@@ -347,6 +419,7 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
       <!-- 탭 바 -->
       <div
         class="community-topbar flex items-center border-b mb-6"
+        data-tour="community-tabs"
         style="border-color: rgba(178, 228, 220, 0.3)"
       >
         <button
@@ -385,6 +458,7 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
           </button>
           <button
             v-if="isLoggedIn"
+            data-tour="community-write"
             @click="
               router.push(
                 activeCategory === '전체'
@@ -903,6 +977,7 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
           <!-- 카테고리 설명 박스 -->
           <div
             class="rounded-xl p-5 mb-4 transition-all"
+            data-tour="community-categories"
             :style="`background: ${activeCategory === '전체' ? 'linear-gradient(135deg, #e8f8f5, #f0faf8)' : categoryStyle[activeCategory]?.bg}; border: 1.5px solid ${activeCategory === '전체' ? 'rgba(126, 207, 192, 0.35)' : categoryStyle[activeCategory]?.border};`"
           >
             <div class="flex flex-col gap-1">
@@ -944,7 +1019,7 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
           </div>
 
           <!-- 게시글 피드 (단일 컬럼) -->
-          <div v-else class="flex flex-col w-full">
+          <div v-else class="flex flex-col w-full" data-tour="community-feed">
             <div
               v-for="(post, idx) in filteredPosts"
               :key="post.id"
@@ -953,16 +1028,34 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
             >
               <!-- 카드 상단: 작성자 + 날짜 / 카테고리 배지 -->
               <div class="flex items-center justify-between px-4 pt-4 pb-2">
-                <div class="flex items-center gap-2">
-                  <div
-                    class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-[11px]"
-                    style="background: linear-gradient(135deg, #b2e4dc, #3db89e); color: #fff;"
+                <div class="relative">
+                  <button
+                    type="button"
+                    class="flex items-center gap-2"
+                    :style="canOpenUserAction(post.userId) ? 'cursor:pointer' : 'cursor:default'"
+                    @click.stop="toggleUserAction(`post-${post.id}`, post.userId, post.username)"
                   >
-                    {{ post.username.charAt(0) }}
-                  </div>
-                  <div class="flex flex-col leading-tight">
-                    <span style="font-size: 0.8rem; font-weight: 700; color: #1a2e2b;">{{ post.username }}</span>
-                    <span style="font-size: 0.7rem; color: #9ca3af;">{{ formatDate(post.createdAt) }}</span>
+                    <div
+                      class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-[11px]"
+                      style="background: linear-gradient(135deg, #b2e4dc, #3db89e); color: #fff;"
+                    >
+                      {{ post.username.charAt(0) }}
+                    </div>
+                    <div class="flex flex-col leading-tight text-left">
+                      <span style="font-size: 0.8rem; font-weight: 700; color: #1a2e2b;">{{ post.username }}</span>
+                      <span style="font-size: 0.7rem; color: #9ca3af;">{{ formatDate(post.createdAt) }}</span>
+                    </div>
+                  </button>
+                  <div
+                    v-if="activeUserAction?.key === `post-${post.id}`"
+                    class="community-user-menu"
+                  >
+                    <button type="button" @click.stop="startChat(activeUserAction)">
+                      <MessageCircle :size="13" /> 채팅하기
+                    </button>
+                    <button type="button" @click.stop="reportUser(activeUserAction)">
+                      <Flag :size="13" /> 신고하기
+                    </button>
                   </div>
                 </div>
                 <span
@@ -1043,14 +1136,33 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
                     :key="comment.id"
                     class="flex gap-2"
                   >
-                    <div
+                    <button
+                      type="button"
                       class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
                       style="background: linear-gradient(135deg, #b2e4dc, #3db89e);"
+                      @click.stop="toggleUserAction(`comment-${comment.id}`, comment.userId, comment.username)"
                     >
                       {{ comment.username.charAt(0) }}
-                    </div>
+                    </button>
                     <div class="flex flex-col gap-0.5">
-                      <span class="text-[11px] font-bold text-gray-700">{{ comment.username }}</span>
+                      <div
+                        class="relative text-left"
+                        :style="canOpenUserAction(comment.userId) ? 'cursor:pointer' : 'cursor:default'"
+                        @click.stop="toggleUserAction(`comment-${comment.id}`, comment.userId, comment.username)"
+                      >
+                        <span class="text-[11px] font-bold text-gray-700">{{ comment.username }}</span>
+                        <div
+                          v-if="activeUserAction?.key === `comment-${comment.id}`"
+                          class="community-user-menu community-user-menu--comment"
+                        >
+                          <button type="button" @click.stop="startChat(activeUserAction)">
+                            <MessageCircle :size="13" /> 채팅하기
+                          </button>
+                          <button type="button" @click.stop="reportUser(activeUserAction)">
+                            <Flag :size="13" /> 신고하기
+                          </button>
+                        </div>
+                      </div>
                       <p class="text-xs text-gray-600 leading-relaxed" style="white-space: pre-line;">{{ comment.content }}</p>
                     </div>
                   </div>
@@ -1088,6 +1200,12 @@ watch(() => route.query, applyRouteQuery, { immediate: true });
       </div>
     </div>
   </div>
+
+  <GuidedTour
+    storage-key="layover-tour-community-v1"
+    :steps="communityTourSteps"
+    :force="forceCommunityTour"
+  />
 </template>
 
 <style scoped>

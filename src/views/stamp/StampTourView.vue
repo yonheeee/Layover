@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Camera, Loader2, MapPin, X } from 'lucide-vue-next'
 import { fetchDiPlaces } from '@/api/courses'
 import { httpGet } from '@/api/http'
@@ -35,6 +35,10 @@ interface TourPlace {
 }
 
 const router = useRouter()
+const route = useRoute()
+const forceStampTour = computed(() =>
+  route.query.tour === 'stamp' ? String(route.query.run ?? 'stamp') : false,
+)
 
 const places = ref<TourPlace[]>([])
 
@@ -914,6 +918,7 @@ onUnmounted(() => {
       v-if="courseStore.hasConfirmedCourse"
       storage-key="layover-tour-stamp-v1"
       :steps="stampTourSteps"
+      :force="forceStampTour"
     />
 
     <!-- ── 레벨업 축하 팝업 ────────────────────────────────── -->

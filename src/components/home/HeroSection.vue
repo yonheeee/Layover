@@ -107,9 +107,9 @@ async function handleRecommendCourse(filters: {
         </div>
 
         <h1 class="home-hero__title">
-          {{ t.title1 }}
-          <span>{{ t.title2 }}</span>
-          {{ t.title3 }}
+          <span class="home-hero__title-line">{{ t.title1 }}</span>
+          <span class="home-hero__title-line home-hero__title-line--accent">{{ t.title2 }}</span>
+          <span class="home-hero__title-line">{{ t.title3 }}</span>
         </h1>
 
         <p class="home-hero__description">
@@ -216,13 +216,19 @@ async function handleRecommendCourse(filters: {
   flex-direction: column;
   margin: 0;
   color: #132b29;
-  font-size: 5rem;
+  font-size: clamp(3.5rem, 4.8vw, 4.45rem);
   font-weight: 900;
   letter-spacing: 0;
   line-height: 1.08;
+  word-break: keep-all;
 }
 
-.home-hero__title span {
+.home-hero__title-line {
+  display: block;
+  white-space: nowrap;
+}
+
+.home-hero__title-line--accent {
   color: #2f877c;
 }
 
@@ -286,29 +292,86 @@ async function handleRecommendCourse(filters: {
 
 @media (max-width: 1024px) {
   .home-hero {
-    padding: 44px 22px 36px;
+    padding: 42px 22px 34px;
   }
 
   .home-hero__inner {
-    grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1fr);
-    gap: 32px;
+    grid-template-columns: minmax(380px, 0.92fr) minmax(360px, 1fr);
+    align-items: start;
+    gap: 28px;
   }
 
   .home-hero__title {
-    font-size: 4rem;
+    max-width: 560px;
+    font-size: clamp(3rem, 5.1vw, 3.7rem);
+    line-height: 1.12;
   }
 
   .home-hero__visual {
     position: absolute;
-    right: 35%;
-    width: 42%;
+    right: 30%;
+    top: 92px;
+    width: 48%;
     min-height: 320px;
-    opacity: 0.42;
+    opacity: 0.3;
     margin: 0;
   }
 
   .home-hero__panel {
     grid-column: 2;
+    align-self: start;
+    margin-top: 10px;
+    padding: 24px 24px 22px;
+  }
+
+  .home-hero__panel-heading {
+    margin-bottom: 24px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px) {
+  .home-hero {
+    padding-top: 34px;
+  }
+
+  .home-hero__inner {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .home-hero__copy {
+    max-width: 100%;
+  }
+
+  .home-hero__eyebrow {
+    margin-bottom: 18px;
+  }
+
+  .home-hero__title {
+    max-width: 760px;
+    font-size: clamp(2.55rem, 5.6vw, 3.1rem);
+  }
+
+  .home-hero__description {
+    max-width: 760px;
+    margin: 18px 0 4px;
+    font-size: 1rem;
+    line-height: 1.72;
+  }
+
+  .home-hero__visual {
+    inset: 88px -22px auto auto;
+    width: 62%;
+    height: 330px;
+    min-height: 0;
+    opacity: 0.18;
+    pointer-events: none;
+  }
+
+  .home-hero__panel {
+    grid-column: auto;
+    max-width: none;
+    margin-top: 8px;
   }
 }
 
@@ -323,7 +386,19 @@ async function handleRecommendCourse(filters: {
   }
 
   .home-hero__title {
-    font-size: 3.2rem;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0.18em;
+    max-width: 100%;
+    font-size: clamp(1.85rem, 5.8vw, 2.45rem);
+    line-height: 1.16;
+    white-space: nowrap;
+  }
+
+  .home-hero__title-line {
+    display: inline;
+    white-space: nowrap;
   }
 
   .home-hero__visual {
@@ -364,7 +439,7 @@ async function handleRecommendCourse(filters: {
   }
 
   .home-hero__title {
-    font-size: 2.7rem;
+    font-size: clamp(1.7rem, 5.6vw, 2.25rem);
   }
 
   .home-hero__description {
@@ -389,7 +464,7 @@ async function handleRecommendCourse(filters: {
   }
 
   .home-hero__title {
-    font-size: 2.25rem;
+    font-size: clamp(1.45rem, 6.2vw, 1.72rem);
   }
 
   .home-hero__description {

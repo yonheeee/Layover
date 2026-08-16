@@ -683,9 +683,42 @@ function handleRecommendCourse() {
   }
 }
 
+@media (min-width: 768px) and (max-width: 900px) {
+  .course-finder__title {
+    margin-bottom: 12px;
+  }
+
+  .course-finder__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 14px;
+  }
+
+  .selected-summary {
+    min-height: 68px;
+    margin-bottom: 10px;
+  }
+
+  .field-block {
+    margin-bottom: 10px;
+  }
+
+  .train-list__body {
+    max-height: 178px;
+  }
+
+  .recommend-button {
+    min-height: 44px;
+    margin-top: 14px;
+  }
+
+  .course-finder__note {
+    margin-top: 8px;
+  }
+}
+
 @media (max-width: 767px) {
   .course-finder {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 
   .course-finder__grid {
@@ -699,7 +732,7 @@ function handleRecommendCourse() {
 
 @media (max-width: 640px) {
   .course-finder {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 
   .course-finder__title {
@@ -723,7 +756,7 @@ function handleRecommendCourse() {
 
 @media (max-width: 420px) {
   .course-finder {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 
   .category-grid,

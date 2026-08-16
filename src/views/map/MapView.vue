@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-vue-next";
 import { computed, onMounted, ref, watch } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 
 // 카카오 지도 객체 타입 정의
 declare global {
@@ -34,7 +34,11 @@ declare global {
 const courseStore = useCourseStore();
 const stampStore = useStampStore();
 const router = useRouter();
+const route = useRoute();
 const courses = ref<Course[]>([]);
+const forceCourseTour = computed(() =>
+  route.query.tour === "course" ? String(route.query.run ?? "course") : false,
+);
 
 const courseTourSteps = [
   {
@@ -938,7 +942,11 @@ async function confirmCourse() {
       <div id="kakao-render-map" class="w-full h-full"></div>
     </div>
 
-    <GuidedTour storage-key="layover-tour-course-v1" :steps="courseTourSteps" />
+    <GuidedTour
+      storage-key="layover-tour-course-v1"
+      :steps="courseTourSteps"
+      :force="forceCourseTour"
+    />
   </div>
 </template>
 

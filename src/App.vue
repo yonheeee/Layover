@@ -5,6 +5,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppFooter from './components/AppFooter.vue'
 import AppHeader from './components/AppHeader.vue'
+import ChatDock from './components/chat/ChatDock.vue'
 
 const route = useRoute()
 const showFooter = computed(() => route.path === '/')
@@ -27,20 +28,21 @@ onMounted(() => {
     <main class="app-main flex-1" :class="{ 'app-main--compact-mobile': isCompactMobilePage }">
       <router-view />
     </main>
+    <ChatDock />
     <AppFooter v-if="showFooter" class="app-footer" />
   </div>
 </template>
 
 <style scoped>
-@media (max-width: 767px) {
+@media (max-width: 640px) {
   .app-main {
-    padding-bottom: 0;
+    box-sizing: border-box;
+    padding-bottom: var(--mobile-bottom-nav-height);
   }
 
   .app-main--compact-mobile {
-    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
-    padding-bottom: 0;
-    overflow: hidden;
+    min-height: calc(100dvh - var(--mobile-bottom-nav-height));
+    overflow: auto;
   }
 
   .app-footer {
@@ -50,12 +52,11 @@ onMounted(() => {
 
 @media (max-width: 420px) {
   .app-main {
-    padding-bottom: 0;
+    padding-bottom: var(--mobile-bottom-nav-height);
   }
 
   .app-main--compact-mobile {
-    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
-    padding-bottom: 0;
+    min-height: calc(100dvh - var(--mobile-bottom-nav-height));
   }
 }
 </style>

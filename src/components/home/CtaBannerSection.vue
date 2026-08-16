@@ -121,13 +121,14 @@ function scrollToTop() {
 }
 
 .smart-course h2 {
-  max-width: 560px;
+  max-width: none;
   margin: 0;
   color: #102927;
-  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  font-size: clamp(1.45rem, 2.05vw, 1.85rem);
   font-weight: 900;
   letter-spacing: 0;
-  line-height: 1.35;
+  line-height: 1.32;
+  white-space: nowrap;
 }
 
 .smart-course__description {
@@ -400,6 +401,10 @@ function scrollToTop() {
     padding: 40px 22px;
   }
 
+  .smart-course h2 {
+    font-size: clamp(1.35rem, 3.2vw, 1.8rem);
+  }
+
   .smart-course__visual {
     min-height: 460px;
   }
@@ -487,6 +492,10 @@ function scrollToTop() {
 }
 
 @media (max-width: 767px) {
+  .smart-course h2 {
+    font-size: clamp(1.08rem, 4vw, 1.45rem);
+  }
+
   .smart-course__visual {
     display: flex;
     min-height: auto;
@@ -547,6 +556,10 @@ function scrollToTop() {
 @media (max-width: 420px) {
   .smart-course {
     padding: 28px 14px;
+  }
+
+  .smart-course h2 {
+    font-size: clamp(0.98rem, 4vw, 1.08rem);
   }
 
   .smart-course__visual {

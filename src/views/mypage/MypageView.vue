@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { CODE_TO_CATEGORY, getMyPosts } from "@/api/community";
 import { httpDelete, httpPut } from "@/api/http";
 import { fetchUser, fetchUserActivity } from "@/api/user";
+import { getMyReports } from "@/api/reports";
 import PlaceCard from "@/components/common/PlaceCard.vue";
 import { deleteCourse } from "@/api/courses";
 import { useAuthStore } from "@/stores/auth";
@@ -11,6 +12,7 @@ import { useBookmarkStore } from "@/stores/bookmark";
 import { useStampStore, type StampPhoto } from "@/stores/stamp";
 import { useXp, XP_LEVELS } from "@/composables/useXp";
 import type { MyPost } from "@/types/community";
+import type { ReportItem } from "@/types/chat";
 import type { Place } from "@/types/place";
 import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
@@ -24,6 +26,7 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Flag,
   Heart,
   MapPin,
   MessageCircle,
@@ -67,6 +70,7 @@ onMounted(async () => {
     fetchUser(),
     fetchUserActivity(),
     getMyPosts(),
+    getMyReports(),
   ]);
 
   if (results[0].status === "fulfilled") {
@@ -81,8 +85,14 @@ onMounted(async () => {
     console.error("코스 로딩 실패:", results[1].reason);
   }
   if (results[2].status === "fulfilled") myPosts.value = results[2].value;
+  if (results[3].status === "fulfilled") myReports.value = results[3].value;
 
   await bookmarkStore.fetchBookmarks();
+  window.addEventListener("layover:reports-updated", fetchReports);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("layover:reports-updated", fetchReports);
 });
 
 // ─── 내 정보 탭 ───
@@ -244,8 +254,31 @@ watch(
 // ─── 활동 탭 데이터 ───
 const myCourses = ref<MyCourse[]>([]);
 const myPosts = ref<MyPost[]>([]);
+const myReports = ref<ReportItem[]>([]);
+const isReportsLoading = ref(false);
 const selectedCourse = ref<MyCourse | null>(null);
 const deletingCourseId = ref<string | null>(null);
+
+async function fetchReports() {
+  isReportsLoading.value = true;
+  try {
+    myReports.value = await getMyReports();
+  } catch {
+    myReports.value = [];
+  } finally {
+    isReportsLoading.value = false;
+  }
+}
+
+function reportStatusLabel(status: string): string {
+  return (
+    {
+      RECEIVED: "접수완료",
+      REVIEWING: "검토중",
+      COMPLETED: "조치완료",
+    } as Record<string, string>
+  )[status] ?? status;
+}
 
 async function handleDeleteCourse(courseId: string) {
   if (!confirm("이 코스를 삭제하시겠어요?")) return;
@@ -1191,6 +1224,75 @@ function formatDate(dateStr: string): string {
               >
                 1:1 문의하기
               </button>
+            </div>
+
+            <div class="pb-6 border-t border-gray-100 pt-6">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="flex items-center gap-2" style="font-size:0.95rem; font-weight:900; color:#1a2e2b">
+                  <Flag :size="15" color="#3db89e" />
+                  신고한 목록
+                </h3>
+                <button
+                  type="button"
+                  @click="fetchReports"
+                  class="px-3 py-1.5 rounded-[4px] text-xs font-bold"
+                  style="background:#e8f8f5; color:#3db89e"
+                >
+                  새로고침
+                </button>
+              </div>
+              <div
+                v-if="isReportsLoading"
+                class="text-center py-8 rounded-[4px] text-xs font-bold text-gray-400"
+                style="background:#f8fbfa; border:1px solid rgba(178,228,220,0.35)"
+              >
+                불러오는 중...
+              </div>
+              <div
+                v-else-if="myReports.length === 0"
+                class="text-center py-8 rounded-[4px] text-xs font-bold text-gray-400"
+                style="background:#f8fbfa; border:1px solid rgba(178,228,220,0.35)"
+              >
+                신고한 내역이 없습니다.
+              </div>
+              <div v-else class="overflow-x-auto rounded-[4px]" style="border:1px solid rgba(178,228,220,0.35)">
+                <table class="w-full min-w-[560px] text-left">
+                  <thead style="background:#f0faf8">
+                    <tr>
+                      <th class="px-3 py-2 text-[11px] font-black text-[#6b8c87]">신고한 유저</th>
+                      <th class="px-3 py-2 text-[11px] font-black text-[#6b8c87]">내용</th>
+                      <th class="px-3 py-2 text-[11px] font-black text-[#6b8c87]">신고 날짜</th>
+                      <th class="px-3 py-2 text-[11px] font-black text-[#6b8c87]">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="report in myReports"
+                      :key="report.id"
+                      class="border-t"
+                      style="border-color:rgba(178,228,220,0.24)"
+                    >
+                      <td class="px-3 py-3 text-xs font-bold text-[#1a2e2b]">
+                        {{ report.reportedUsername }}
+                      </td>
+                      <td class="px-3 py-3 text-xs text-gray-600 max-w-[260px]">
+                        <p class="truncate">{{ report.content }}</p>
+                      </td>
+                      <td class="px-3 py-3 text-xs text-gray-400 font-semibold">
+                        {{ formatDate(report.createdAt) }}
+                      </td>
+                      <td class="px-3 py-3">
+                        <span
+                          class="inline-flex px-2 py-1 rounded-full text-[11px] font-black"
+                          style="background:#e8f8f5; color:#3db89e"
+                        >
+                          {{ reportStatusLabel(report.status) }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <!-- 로그아웃 | 회원탈퇴 -->

@@ -225,8 +225,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .guided-tour { position: fixed; inset: 0; z-index: 9990; pointer-events: none; font-family: "Noto Sans KR", sans-serif; }
 .shade { position: fixed; z-index: 9990; pointer-events: auto; background: rgba(8, 20, 18, 0.76); backdrop-filter: blur(1.5px); }
-.focus-ring { position: fixed; z-index: 9991; padding: 0; border: 3px solid #7ee3cf; border-radius: 15px; background: transparent; box-shadow: 0 0 0 4px rgba(126,227,207,.2), 0 0 28px rgba(84,220,193,.55); pointer-events: auto; cursor: pointer; transition: top .22s ease,left .22s ease,width .22s ease,height .22s ease; }
-.focus-ring::after { position: absolute; inset: -7px; border: 1px dashed rgba(255,255,255,.8); border-radius: 18px; content: ""; animation: ring-pulse 1.5s ease-in-out infinite; }
+.focus-ring { position: fixed; z-index: 9991; padding: 0; border: 3px solid #7ee3cf; border-radius: 15px; background: rgba(255,255,255,.2); box-shadow: 0 0 0 5px rgba(126,227,207,.28), 0 0 34px rgba(84,220,193,.72), inset 0 0 0 999px rgba(255,255,255,.08); pointer-events: auto; cursor: pointer; transition: top .22s ease,left .22s ease,width .22s ease,height .22s ease; backdrop-filter: brightness(1.35) saturate(1.15); }
+.focus-ring::after { position: absolute; inset: -8px; border: 2px dashed rgba(255,255,255,.92); border-radius: 19px; content: ""; animation: ring-pulse 1.5s ease-in-out infinite; }
 .tour-tip { position: fixed; z-index: 9993; width: min(350px, calc(100vw - 24px)); padding: 18px 19px 15px; border: 1px solid rgba(126,227,207,.45); border-radius: 20px; pointer-events: auto; background: #fff; box-shadow: 0 24px 65px rgba(0,0,0,.34); color: #17332e; transition: top .22s ease,left .22s ease; }
 .tour-tip__top { display: flex; align-items: center; justify-content: space-between; }
 .tour-tip__top > span { padding: 4px 9px; border-radius: 999px; background: #e8f8f5; color: #278a78; font-size: .68rem; font-weight: 900; }
