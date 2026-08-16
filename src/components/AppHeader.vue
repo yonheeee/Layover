@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from "@/stores/auth";
 import {
-  HelpCircle,
   Home,
   LogIn,
   MapPinned,
@@ -25,12 +24,6 @@ const ui = {
   signup: "\ubb34\ub8cc \uc2dc\uc791",
 };
 
-const TOUR_STORAGE_KEYS = [
-  "layover-tour-home-v1",
-  "layover-tour-course-v1",
-  "layover-tour-stamp-v1",
-];
-
 function onScroll() {
   scrolled.value = window.scrollY > 10;
 }
@@ -40,7 +33,6 @@ onUnmounted(() => window.removeEventListener("scroll", onScroll));
 
 const ALL_NAV_LINKS = [
   { label: "\ud648", to: "/", icon: Home },
-  { label: "\ud29c\ud1a0\ub9ac\uc5bc", to: "/", icon: HelpCircle, tutorial: true },
   { label: "\uad00\uad11\uc9c0", to: "/place", icon: MapPinned },
   { label: "\ucee4\ubba4\ub2c8\ud2f0", to: "/community", icon: MessageSquareText },
   { label: "\uc2a4\ud0ec\ud504", to: "/stamp-tour", icon: Stamp },
@@ -63,22 +55,7 @@ const MOBILE_NAV_LINKS = computed(() => {
 });
 
 function isActiveLink(link: (typeof ALL_NAV_LINKS)[number]) {
-  if (link.tutorial) return route.query.tour === "home";
-  return route.path === link.to && route.query.tour !== "home";
-}
-
-function handleNavClick(
-  event: MouseEvent,
-  link: (typeof ALL_NAV_LINKS)[number],
-) {
-  if (!link.tutorial) return;
-
-  event.preventDefault();
-  TOUR_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
-  router.push({
-    path: "/",
-    query: { tour: "home", run: Date.now().toString() },
-  });
+  return route.path === link.to;
 }
 
 function handleLogout() {
@@ -105,7 +82,6 @@ function handleLogout() {
           :to="link.to"
           class="app-header__nav-link"
           :class="{ 'app-header__nav-link--active': isActiveLink(link) }"
-          @click="handleNavClick($event, link)"
         >
           {{ link.label }}
         </router-link>
@@ -140,7 +116,6 @@ function handleLogout() {
       :to="link.to"
       class="mobile-bottom-nav__item"
       :class="{ 'mobile-bottom-nav__item--active': isActiveLink(link) }"
-      @click="handleNavClick($event, link)"
     >
       <component :is="link.icon" :size="20" stroke-width="2.15" />
       <span>{{ link.label }}</span>
@@ -279,7 +254,7 @@ function handleLogout() {
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 640px) {
   .app-header {
     display: none;
   }
@@ -289,14 +264,14 @@ function handleLogout() {
     right: 0;
     bottom: 0;
     left: 0;
-    z-index: 60;
+    z-index: 50;
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0;
     width: 100%;
     min-width: 360px;
-    height: calc(64px + env(safe-area-inset-bottom, 0px));
-    min-height: calc(64px + env(safe-area-inset-bottom, 0px));
+    height: var(--mobile-bottom-nav-height);
+    min-height: var(--mobile-bottom-nav-height);
     padding:
       6px max(6px, env(safe-area-inset-right, 0px))
       calc(6px + env(safe-area-inset-bottom, 0px))
@@ -340,8 +315,8 @@ function handleLogout() {
 
 @media (max-width: 420px) {
   .mobile-bottom-nav {
-    height: calc(64px + env(safe-area-inset-bottom, 0px));
-    min-height: calc(64px + env(safe-area-inset-bottom, 0px));
+    height: var(--mobile-bottom-nav-height);
+    min-height: var(--mobile-bottom-nav-height);
     padding:
       5px max(4px, env(safe-area-inset-right, 0px))
       calc(5px + env(safe-area-inset-bottom, 0px))

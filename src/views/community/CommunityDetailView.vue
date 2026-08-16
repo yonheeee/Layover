@@ -12,6 +12,7 @@ import { useAuthStore } from "@/stores/auth";
 import type { PostComment, PostDetail } from "@/types/community";
 import {
   Eye,
+  Flag,
   Heart,
   MessageCircle,
   Pencil,
@@ -31,6 +32,12 @@ const isLoading = ref(true);
 const isLiked = ref(false);
 const commentText = ref("");
 const isSubmittingComment = ref(false);
+type UserActionTarget = {
+  key: string;
+  userId: string;
+  username: string;
+};
+const activeUserAction = ref<UserActionTarget | null>(null);
 
 // ─── content 블록 파싱 ───
 interface ContentBlock {
@@ -67,6 +74,38 @@ function isMyComment(comment: PostComment): boolean {
   if (comment.userId && auth.userId) return comment.userId === auth.userId;
   if (auth.nickname) return comment.username === auth.nickname;
   return false;
+}
+
+function canOpenUserAction(userId?: string | null) {
+  return Boolean(isLoggedIn.value && userId && userId !== auth.userId);
+}
+
+function toggleUserAction(key: string, userId?: string | null, username?: string) {
+  if (!userId || !username || userId === auth.userId) return;
+  if (!isLoggedIn.value) {
+    alert("로그인이 필요합니다.");
+    return;
+  }
+  activeUserAction.value =
+    activeUserAction.value?.key === key ? null : { key, userId, username };
+}
+
+function startChat(target: UserActionTarget) {
+  window.dispatchEvent(
+    new CustomEvent("layover:open-chat", {
+      detail: { userId: target.userId, username: target.username },
+    }),
+  );
+  activeUserAction.value = null;
+}
+
+function reportUser(target: UserActionTarget) {
+  window.dispatchEvent(
+    new CustomEvent("layover:open-report", {
+      detail: { userId: target.userId, username: target.username },
+    }),
+  );
+  activeUserAction.value = null;
 }
 
 // ─── 날짜 포맷 ───
@@ -248,17 +287,35 @@ onMounted(async () => {
 
             <!-- 작성자 + 날짜 + 수정/삭제 -->
             <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
+              <div class="relative">
+                <button
+                  type="button"
+                  class="flex items-center gap-2"
+                  :style="canOpenUserAction(post.userId) ? 'cursor:pointer' : 'cursor:default'"
+                  @click.stop="toggleUserAction(`post-${post.id}`, post.userId, post.username)"
+                >
+                  <div
+                    class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white"
+                    style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
+                  >
+                    {{ post.username.charAt(0) }}
+                  </div>
+                  <span
+                    style="font-weight: 700; font-size: 0.85rem; color: #1a2e2b"
+                    >{{ post.username }}</span
+                  >
+                </button>
                 <div
-                  class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white"
-                  style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
+                  v-if="activeUserAction?.key === `post-${post.id}`"
+                  class="community-user-menu"
                 >
-                  {{ post.username.charAt(0) }}
+                  <button type="button" @click.stop="startChat(activeUserAction)">
+                    <MessageCircle :size="13" /> 채팅하기
+                  </button>
+                  <button type="button" @click.stop="reportUser(activeUserAction)">
+                    <Flag :size="13" /> 신고하기
+                  </button>
                 </div>
-                <span
-                  style="font-weight: 700; font-size: 0.85rem; color: #1a2e2b"
-                  >{{ post.username }}</span
-                >
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-[0.8rem] text-gray-400 font-medium">
@@ -378,16 +435,35 @@ onMounted(async () => {
                 :key="comment.id"
                 class="flex gap-3"
               >
-                <div
+                <button
+                  type="button"
                   class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-teal-600 bg-teal-50 flex-shrink-0"
+                  @click.stop="toggleUserAction(`comment-${comment.id}`, comment.userId, comment.username)"
                 >
                   {{ comment.username.charAt(0) }}
-                </div>
+                </button>
                 <div class="flex-1">
                   <div class="flex items-center gap-2 mb-1">
-                    <span class="font-bold text-sm text-gray-800">{{
-                      comment.username
-                    }}</span>
+                    <div
+                      class="relative"
+                      :style="canOpenUserAction(comment.userId) ? 'cursor:pointer' : 'cursor:default'"
+                      @click.stop="toggleUserAction(`comment-${comment.id}`, comment.userId, comment.username)"
+                    >
+                      <span class="font-bold text-sm text-gray-800">{{
+                        comment.username
+                      }}</span>
+                      <div
+                        v-if="activeUserAction?.key === `comment-${comment.id}`"
+                        class="community-user-menu community-user-menu--comment"
+                      >
+                        <button type="button" @click.stop="startChat(activeUserAction)">
+                          <MessageCircle :size="13" /> 채팅하기
+                        </button>
+                        <button type="button" @click.stop="reportUser(activeUserAction)">
+                          <Flag :size="13" /> 신고하기
+                        </button>
+                      </div>
+                    </div>
                     <span
                       v-if="comment.userId === post.userId"
                       style="
