@@ -26,6 +26,10 @@ export interface TransportInfo {
   taxiTime: string
   taxiFare: number
   routePath?: [number, number][]
+  walkSource?: string
+  busSource?: string
+  taxiSource?: string
+  routePathSource?: string
 }
 
 /** 코스 경유지. MapView·CourseResultView 양쪽 필드를 모두 포함한 superset. */

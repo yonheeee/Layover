@@ -195,6 +195,27 @@ const courseBudgetText = computed(() => {
   return `가능 ${budget}분${buffer ? ` · 역 복귀 ${buffer}분 권장` : ""}`;
 });
 
+function transportSourceLabel(source?: string) {
+  switch (source) {
+    case "KAKAO_MOBILITY":
+      return "카카오모빌리티";
+    case "KAKAO":
+      return "카카오";
+    case "BUS_STOP_ESTIMATE":
+      return "정류장 추정";
+    case "ESTIMATED":
+      return "거리 추정";
+    case "UNAVAILABLE":
+      return "미지원";
+    default:
+      return "";
+  }
+}
+
+function isUnavailableTransport(source?: string, time?: string) {
+  return source === "UNAVAILABLE" || !time || time === "정보 없음";
+}
+
 const isEditing = ref(false);
 const isSaving = ref(false);
 const isRecalculating = ref(false);
@@ -863,7 +884,7 @@ async function confirmCourse() {
               >
                 <div class="w-[2px] h-10 bg-teal-200/70" />
                 <div
-                  class="flex-1 flex items-center justify-between pr-4 pl-1 text-[0.7rem] font-bold"
+                  class="course-leg-options flex-1 flex flex-wrap items-center justify-between gap-2 pr-4 pl-1 text-[0.7rem] font-bold"
                 >
                   <div class="flex items-center gap-1 text-gray-500">
                     <Footprints :size="12" class="text-gray-400" />
@@ -871,16 +892,41 @@ async function confirmCourse() {
                       >도보
                       <span class="text-gray-700 font-extrabold">{{
                         place.nextTransport.walkTime
-                      }}</span></span
+                      }}</span>
+                      <small class="ml-1 text-[0.58rem] text-gray-400">{{
+                        transportSourceLabel(place.nextTransport.walkSource)
+                      }}</small></span
                     >
                   </div>
-                  <div class="flex items-center gap-1 text-blue-600">
+                  <div
+                    class="flex items-center gap-1"
+                    :class="
+                      isUnavailableTransport(
+                        place.nextTransport.busSource,
+                        place.nextTransport.busTime,
+                      )
+                        ? 'text-gray-400'
+                        : 'text-blue-600'
+                    "
+                  >
                     <Bus :size="12" class="text-blue-400" />
                     <span
                       >버스
-                      <span class="text-blue-800 font-extrabold">{{
-                        place.nextTransport.busTime
-                      }}</span></span
+                      <span
+                        class="font-extrabold"
+                        :class="
+                          isUnavailableTransport(
+                            place.nextTransport.busSource,
+                            place.nextTransport.busTime,
+                          )
+                            ? 'text-gray-500'
+                            : 'text-blue-800'
+                        "
+                        >{{ place.nextTransport.busTime }}</span
+                      >
+                      <small class="ml-1 text-[0.58rem] text-gray-400">{{
+                        transportSourceLabel(place.nextTransport.busSource)
+                      }}</small></span
                     >
                   </div>
                   <div class="flex items-center gap-1 text-teal-600">
@@ -889,9 +935,14 @@ async function confirmCourse() {
                       >택시
                       <span class="text-teal-800 font-black">{{
                         place.nextTransport.taxiTime
-                      }}</span></span
+                      }}</span>
+                      <small class="ml-1 text-[0.58rem] text-teal-600/70">{{
+                        transportSourceLabel(place.nextTransport.taxiSource)
+                      }}</small></span
                     >
-                    <span class="text-[0.65rem] text-teal-600/80 font-medium"
+                    <span
+                      v-if="place.nextTransport.taxiFare > 0"
+                      class="text-[0.65rem] text-teal-600/80 font-medium"
                       >({{
                         place.nextTransport.taxiFare.toLocaleString()
                       }}원)</span

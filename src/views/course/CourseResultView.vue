@@ -71,6 +71,32 @@ const courseBudgetText = computed(() => {
   return `가능 ${budget}분${buffer ? ` · 역 복귀 ${buffer}분 권장` : ""}`;
 });
 
+function transportSourceLabel(source?: string) {
+  switch (source) {
+    case "KAKAO_MOBILITY":
+      return "카카오모빌리티";
+    case "KAKAO":
+      return "카카오";
+    case "BUS_STOP_ESTIMATE":
+      return "정류장 추정";
+    case "ESTIMATED":
+      return "거리 추정";
+    case "UNAVAILABLE":
+      return "미지원";
+    default:
+      return "";
+  }
+}
+
+function legSourceLabel(place: CourseStop) {
+  if (!place.nextTransport) return "";
+  const source =
+    place.transport === "walk"
+      ? place.nextTransport.walkSource
+      : place.nextTransport.taxiSource;
+  return transportSourceLabel(source);
+}
+
 const courseMapRef = ref<HTMLElement | null>(null);
 let resultMap: any = null;
 let resultOverlays: any[] = [];
@@ -510,6 +536,12 @@ async function confirmCourse() {
                 <span class="text-[0.7rem] text-gray-500 font-semibold">
                   {{ place.transport === "walk" ? "도보" : "택시" }}
                   {{ place.transportTime }}
+                  <small
+                    v-if="legSourceLabel(place)"
+                    class="ml-1 text-[0.58rem] text-teal-600/70 font-bold"
+                  >
+                    {{ legSourceLabel(place) }}
+                  </small>
                   <span v-if="place.taxiFare" class="text-teal-600 ml-1"
                     >({{ place.taxiFare }})</span
                   >
