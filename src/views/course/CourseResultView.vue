@@ -47,6 +47,30 @@ const estimatedCost = computed(() => currentCourse.value.estimatedCost);
 // 현재 코스의 장소 리스트 단축 바인딩
 const currentPlaces = computed(() => currentCourse.value.places);
 
+const hasCourseEvidence = computed(() => {
+  const course = currentCourse.value;
+  return Boolean(
+    course?.recommendationReason ||
+      course?.timeBudgetMinutes ||
+      course?.estimatedTotalMinutes ||
+      course?.dataSources?.length,
+  );
+});
+
+const courseBudgetText = computed(() => {
+  const course = currentCourse.value;
+  const budget = course?.timeBudgetMinutes ?? 0;
+  const estimated = course?.estimatedTotalMinutes ?? 0;
+  const buffer = course?.returnBufferMinutes ?? 0;
+
+  if (!budget && !estimated) return "";
+  if (budget && estimated) {
+    return `예상 ${estimated}분 / 가능 ${budget}분`;
+  }
+  if (estimated) return `예상 ${estimated}분`;
+  return `가능 ${budget}분${buffer ? ` · 역 복귀 ${buffer}분 권장` : ""}`;
+});
+
 const courseMapRef = ref<HTMLElement | null>(null);
 let resultMap: any = null;
 let resultOverlays: any[] = [];
@@ -344,6 +368,50 @@ async function confirmCourse() {
                 {{ estimatedCost }}
               </p>
             </div>
+          </div>
+        </div>
+
+        <div
+          v-if="hasCourseEvidence"
+          class="rounded-2xl border border-teal-100 bg-[#f4fbf9] px-4 py-3 shadow-3xs"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-[0.68rem] font-black text-teal-700">추천 근거</p>
+              <p
+                v-if="currentCourse?.recommendationReason"
+                class="mt-1 text-[0.76rem] leading-relaxed text-[#1a2e2b] font-semibold"
+              >
+                {{ currentCourse.recommendationReason }}
+              </p>
+            </div>
+            <span
+              class="shrink-0 rounded-full px-2 py-1 text-[0.62rem] font-black"
+              :class="
+                currentCourse?.fallbackUsed
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                  : 'bg-white text-teal-700 border border-teal-100'
+              "
+            >
+              {{ currentCourse?.fallbackUsed ? "규칙 보정" : "AI 검증" }}
+            </span>
+          </div>
+          <div
+            class="mt-2 flex flex-wrap items-center gap-1.5 text-[0.66rem] font-bold"
+          >
+            <span
+              v-if="courseBudgetText"
+              class="rounded-full bg-white px-2 py-1 text-teal-700 border border-teal-100"
+            >
+              {{ courseBudgetText }}
+            </span>
+            <span
+              v-for="source in currentCourse?.dataSources ?? []"
+              :key="source"
+              class="rounded-full bg-white px-2 py-1 text-gray-500 border border-gray-100"
+            >
+              {{ source }}
+            </span>
           </div>
         </div>
 
