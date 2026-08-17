@@ -15,7 +15,14 @@ import { deleteCourse } from "@/api/courses";
 import { useAuthStore } from "@/stores/auth";
 import { useBookmarkStore } from "@/stores/bookmark";
 import { useStampStore, type StampPhoto } from "@/stores/stamp";
-import { useXp, XP_LEVELS } from "@/composables/useXp";
+import {
+  useXp,
+  XP_LEVELS,
+  XP_PER_BOOKMARK,
+  XP_PER_COURSE,
+  XP_PER_POST,
+  XP_PER_STAMP,
+} from "@/composables/useXp";
 import type { MyPost } from "@/types/community";
 import type { ReportItem } from "@/types/chat";
 import type { Place } from "@/types/place";
@@ -34,6 +41,7 @@ import {
   EyeOff,
   Flag,
   Heart,
+  Info,
   MapPin,
   MessageCircle,
   Trash2,
@@ -404,6 +412,7 @@ const xpCourseCount = computed(() => myCourses.value.length);
 const xpPostCount = computed(() => myPosts.value.length);
 const { totalXp, currentLevel: currentXpLevel, nextLevel: nextXpLevel, xpProgress, levelUpModal } = useXp(xpCourseCount, xpPostCount);
 const xpLevels = XP_LEVELS;
+const showXpGuide = ref(false);
 const roadmapProgressRatio = computed(() => {
   if (xpLevels.length <= 1) return 1;
 
@@ -424,11 +433,6 @@ const roadmapProgressRatio = computed(() => {
 
   return Math.min(1, Math.max(0, (index + segmentProgress) / (xpLevels.length - 1)));
 });
-const XP_PER_STAMP = 100;
-const XP_PER_COURSE = 200;
-const XP_PER_POST = 50;
-const XP_PER_BOOKMARK = 10;
-
 const xpMissionCards = computed(() => [
   {
     label: "스탬프 인증",
@@ -467,6 +471,13 @@ const xpMissionCards = computed(() => [
     accent: "#ef476f",
   },
 ]);
+
+const xpGuideItems = [
+  { label: "스탬프 인증", xp: XP_PER_STAMP, detail: "스탬프 투어에서 인증 사진을 남길 때" },
+  { label: "코스 저장", xp: XP_PER_COURSE, detail: "추천받은 코스를 내 코스로 저장할 때" },
+  { label: "커뮤니티 글", xp: XP_PER_POST, detail: "대전 여행 팁이나 후기를 작성할 때" },
+  { label: "장소 찜하기", xp: XP_PER_BOOKMARK, detail: "가보고 싶은 관광지를 북마크할 때" },
+];
 
 const xpRoadmapBenefits = [
   ["지역 상권 5% 할인", "비밀 코스 지도 잠금 해제", "지역 굿즈 해제"],
@@ -584,6 +595,37 @@ function formatDate(dateStr: string): string {
                 <span class="shrink-0" style="font-size:0.72rem; font-weight:700; color:#3db89e">
                   {{ totalXp.toLocaleString() }} XP
                 </span>
+              </div>
+              <div class="relative mb-2 flex justify-end">
+                <button
+                  type="button"
+                  class="flex items-center gap-1 rounded-full px-2 py-1 transition"
+                  style="font-size:0.66rem; font-weight:800; color:#3db89e; background:#eefaf7"
+                  :aria-expanded="showXpGuide"
+                  aria-label="경험치 기준 보기"
+                  @click.stop="showXpGuide = !showXpGuide"
+                >
+                  <Info :size="12" />
+                  기준
+                </button>
+                <div
+                  v-if="showXpGuide"
+                  class="absolute right-0 top-8 z-20 w-64 rounded-2xl p-3 text-left shadow-xl"
+                  style="background:white; border:1px solid rgba(178,228,220,0.7); color:#1a2e2b"
+                >
+                  <p style="font-size:0.76rem; font-weight:900; color:#123d35">XP 적립 기준</p>
+                  <ul class="mt-2 space-y-1.5">
+                    <li
+                      v-for="item in xpGuideItems"
+                      :key="item.label"
+                      class="flex justify-between gap-3"
+                      style="font-size:0.7rem; color:#6b8c87"
+                    >
+                      <span>{{ item.label }}</span>
+                      <strong style="color:#3db89e">+{{ item.xp }} XP</strong>
+                    </li>
+                  </ul>
+                </div>
               </div>
               <div class="h-2 rounded-full overflow-hidden" style="background:#e6f7f4">
                 <div
@@ -885,6 +927,30 @@ function formatDate(dateStr: string): string {
                       <p v-else style="font-size: 0.78rem; color: #3db89e; font-weight: 900">
                         최고 레벨 달성 🎉
                       </p>
+                    </div>
+
+                    <div
+                      class="mb-5 rounded-[22px] p-4"
+                      style="background:#f8fbfa; border:1px solid rgba(178,228,220,0.72)"
+                    >
+                      <div class="flex items-center gap-2 mb-3">
+                        <Info :size="17" color="#3db89e" />
+                        <p style="font-size:0.9rem; font-weight:950; color:#123d35">XP는 이렇게 쌓여요</p>
+                      </div>
+                      <div class="grid grid-cols-2 gap-2.5">
+                        <div
+                          v-for="item in xpGuideItems"
+                          :key="item.label"
+                          class="rounded-2xl px-3 py-2"
+                          style="background:white; border:1px solid rgba(226,232,240,0.9)"
+                        >
+                          <div class="flex items-center justify-between gap-2">
+                            <p style="font-size:0.78rem; font-weight:900; color:#123d35">{{ item.label }}</p>
+                            <strong style="font-size:0.76rem; color:#3db89e">+{{ item.xp }} XP</strong>
+                          </div>
+                          <p class="mt-1" style="font-size:0.68rem; color:#7b8f8b">{{ item.detail }}</p>
+                        </div>
+                      </div>
                     </div>
 
                     <h3 class="mb-3" style="font-size: 0.92rem; font-weight: 900; color: #123d35">
