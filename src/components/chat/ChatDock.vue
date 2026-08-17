@@ -643,11 +643,15 @@ onBeforeUnmount(() => {
     </button>
 
     <button
-      v-if="isLoggedIn && !isOpen"
+      v-if="!isOpen"
       class="chat-dock-button"
-      :class="{ 'chat-dock-button--pulse': shouldPulseDockButton }"
+      :class="{
+        'chat-dock-button--pulse': shouldPulseDockButton,
+        'chat-dock-button--locked': !isLoggedIn,
+      }"
       type="button"
       aria-label="채팅"
+      :title="isLoggedIn ? '채팅' : '로그인 후 채팅을 사용할 수 있습니다'"
       @click="openDock"
     >
       <MessageCircle :size="22" />
@@ -931,6 +935,10 @@ onBeforeUnmount(() => {
 
 .chat-dock-button--pulse {
   animation: chat-dock-pulse 1.2s ease-in-out infinite;
+}
+
+.chat-dock-button--locked {
+  opacity: 0.92;
 }
 
 .chat-dock-dot {

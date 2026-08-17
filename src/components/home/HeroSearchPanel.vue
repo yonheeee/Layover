@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import {
+  ChevronDown,
   Landmark,
   Navigation,
   ShoppingBag,
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   recommend: [
     filters: {
       station: string;
+      destination: string;
       trainId: string;
       searchMode: "train" | "stay";
       stayDuration: number | string;
@@ -33,6 +35,7 @@ const text = {
   emptySelection: "\uc5ec\ud589\uc744 \uc120\ud0dd\ud574\uc8fc\uc138\uc694",
   travelDate: "\uc5ec\ud589 \ub0a0\uc9dc",
   station: "\ucd9c\ubc1c\uc5ed",
+  destination: "\ub3c4\ucc29\uc5ed",
   category: "\uad00\uc2ec \uce74\ud14c\uace0\ub9ac",
   multiSelect: "\ubcf5\uc218 \uc120\ud0dd",
   timeSelect: "\uc2dc\uac04 \uc120\ud0dd",
@@ -67,6 +70,17 @@ const CATEGORY_FILTERS = [
 const STATION_OPTIONS = [
   { value: "daejeon", label: "\ub300\uc804\uc5ed" },
   { value: "seo-daejeon", label: "\uc11c\ub300\uc804\uc5ed" },
+  { value: "sintanjin", label: "\uc2e0\ud0c4\uc9c4\uc5ed" },
+];
+
+const DESTINATION_OPTIONS = [
+  { value: "seoul", label: "\uc11c\uc6b8\uc5ed" },
+  { value: "yongsan", label: "\uc6a9\uc0b0\uc5ed" },
+  { value: "busan", label: "\ubd80\uc0b0\uc5ed" },
+  { value: "dongdaegu", label: "\ub3d9\ub300\uad6c\uc5ed" },
+  { value: "gwangju-songjeong", label: "\uad11\uc8fc\uc1a1\uc815\uc5ed" },
+  { value: "iksan", label: "\uc775\uc0b0\uc5ed" },
+  { value: "mokpo", label: "\ubaa9\ud3ec\uc5ed" },
 ];
 
 const DAYS = [
@@ -83,6 +97,7 @@ const trains = ref<TrainType[]>([]);
 const isTrainsLoading = ref(false);
 const trainLoadFailed = ref(false);
 const selectedStation = ref("daejeon");
+const selectedDestination = ref("busan");
 const selectedTrain = ref("");
 const selectedFilters = ref<string[]>([]);
 const searchMode = ref<"train" | "stay">("train");
@@ -102,17 +117,26 @@ const todayLabel = computed(() => {
   return `${yyyy}\ub144 ${mm}\uc6d4 ${dd}\uc77c ${DAYS[d.getDay()]}\uc694\uc77c`;
 });
 
+const selectedStationLabel = computed(
+  () =>
+    STATION_OPTIONS.find((station) => station.value === selectedStation.value)
+      ?.label ?? "",
+);
+
+const selectedDestinationLabel = computed(
+  () =>
+    DESTINATION_OPTIONS.find(
+      (destination) => destination.value === selectedDestination.value,
+    )?.label ?? "",
+);
+
 const selectedTrainDetail = computed(() => {
   if (!selectedTrain.value) return null;
   const train = trains.value.find((item) => item.trainNo === selectedTrain.value);
   if (!train) return null;
 
-  const stationLabel =
-    STATION_OPTIONS.find((station) => station.value === selectedStation.value)
-      ?.label ?? "";
-
   return {
-    station: stationLabel,
+    station: selectedStationLabel.value,
     name: formatTrainName(train),
     depart: train.departTime,
     remaining: calcRemaining(travelDate.value, train.departTime),
@@ -151,6 +175,11 @@ watch(travelDate, () => {
   loadTrains();
 });
 
+watch(selectedDestination, () => {
+  selectedTrain.value = "";
+  loadTrains();
+});
+
 function selectStation(value: string) {
   selectedStation.value = value;
   selectedTrain.value = "";
@@ -158,13 +187,13 @@ function selectStation(value: string) {
 }
 
 async function loadTrains() {
-  if (!travelDate.value || !selectedStation.value) return;
+  if (!travelDate.value || !selectedStation.value || !selectedDestination.value) return;
   isTrainsLoading.value = true;
   trainLoadFailed.value = false;
 
   try {
     const date = travelDate.value.replace(/-/g, "");
-    const all = await fetchTrains(selectedStation.value, date);
+    const all = await fetchTrains(selectedStation.value, selectedDestination.value, date);
     const now = new Date();
     const todayStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
 
@@ -237,6 +266,7 @@ function handleRecommendCourse() {
   const remaining = selectedTrainDetail.value?.travelMinutes ?? 0;
   emit("recommend", {
     station: selectedStation.value,
+    destination: selectedDestination.value,
     trainId: selectedTrain.value,
     searchMode: searchMode.value,
     stayDuration: stayDuration.value,
@@ -250,35 +280,46 @@ function handleRecommendCourse() {
 
 <template>
   <div class="course-finder">
-    <h3 class="course-finder__title">{{ text.title }}</h3>
+    <div
+      v-if="
+        (searchMode === 'train' && selectedTrainDetail) ||
+        (searchMode === 'stay' && stayDuration)
+      "
+      class="selected-summary"
+    >
+      <template v-if="searchMode === 'train' && selectedTrainDetail">
+        <div class="selected-summary__cell selected-summary__route">
+          <strong>{{ selectedTrainDetail.station }}</strong>
+          <span>-></span>
+          <strong>{{ selectedDestinationLabel }}행</strong>
+        </div>
+        <div class="selected-summary__cell">
+          <span>{{ text.depart }} {{ selectedTrainDetail.depart }}</span>
+          <strong>{{ selectedTrainDetail.name }}</strong>
+        </div>
+        <div class="selected-summary__cell selected-summary__time">
+          <span>잔여시간</span>
+          <strong>{{ selectedTrainDetail.remaining }}</strong>
+        </div>
+      </template>
+      <template v-else-if="searchMode === 'stay' && stayDuration">
+        <div class="selected-summary__cell selected-summary__route">
+          <strong>{{ selectedStationLabel }}</strong>
+          <span>기준</span>
+        </div>
+        <div class="selected-summary__cell">
+          <span>직접 입력</span>
+          <strong>{{ stayDuration }}{{ text.hour }}</strong>
+        </div>
+        <div class="selected-summary__cell selected-summary__time">
+          <span>체류시간</span>
+          <strong>{{ stayDuration }}{{ text.hour }}</strong>
+        </div>
+      </template>
+    </div>
 
     <div class="course-finder__grid">
       <section class="course-finder__left" :aria-label="text.courseConditions">
-        <div class="selected-summary">
-          <template v-if="searchMode === 'train' && selectedTrainDetail">
-            <span>{{ selectedTrainDetail.station }}</span>
-            <strong>{{ selectedTrainDetail.name }}</strong>
-            <em>{{ text.depart }} {{ selectedTrainDetail.depart }}</em>
-            <b>{{ selectedTrainDetail.remaining }}</b>
-            <small>
-              {{ text.availableTravelTime }} {{ selectedTravelTimeLabel }} ·
-              {{ text.safetyBuffer }}
-            </small>
-          </template>
-          <template v-else-if="searchMode === 'stay' && stayDuration">
-            <span>
-              {{
-                STATION_OPTIONS.find((station) => station.value === selectedStation)
-                  ?.label
-              }}
-            </span>
-            <strong>{{ stayDuration }}{{ text.hour }}</strong>
-          </template>
-          <template v-else>
-            <span class="selected-summary__empty">{{ text.emptySelection }}</span>
-          </template>
-        </div>
-
         <div class="field-block">
           <span class="field-label">{{ text.travelDate }}</span>
           <input
@@ -290,18 +331,44 @@ function handleRecommendCourse() {
           <strong class="date-label">{{ todayLabel }}</strong>
         </div>
 
-        <div class="field-block">
-          <span class="field-label">{{ text.station }}</span>
-          <div class="segmented" data-tour="home-station">
-            <button
-              v-for="station in STATION_OPTIONS"
-              :key="station.value"
-              type="button"
-              :class="{ active: selectedStation === station.value }"
-              @click="selectStation(station.value)"
-            >
-              {{ station.label }}
-            </button>
+        <div class="route-row">
+          <div class="field-block">
+            <span class="field-label">{{ text.station }}</span>
+            <label class="select-field" data-tour="home-station">
+              <select
+                v-model="selectedStation"
+                :aria-label="text.station"
+                @change="selectStation(selectedStation)"
+              >
+                <option
+                  v-for="station in STATION_OPTIONS"
+                  :key="station.value"
+                  :value="station.value"
+                >
+                  {{ station.label }}
+                </option>
+              </select>
+              <ChevronDown :size="14" stroke-width="2.2" />
+            </label>
+          </div>
+
+          <div class="field-block">
+            <span class="field-label">{{ text.destination }}</span>
+            <label class="select-field">
+              <select
+                v-model="selectedDestination"
+                :aria-label="text.destination"
+              >
+                <option
+                  v-for="destination in DESTINATION_OPTIONS"
+                  :key="destination.value"
+                  :value="destination.value"
+                >
+                  {{ destination.label }}
+                </option>
+              </select>
+              <ChevronDown :size="14" stroke-width="2.2" />
+            </label>
           </div>
         </div>
 
@@ -346,8 +413,9 @@ function handleRecommendCourse() {
 
         <div v-if="searchMode === 'train'" class="train-list">
           <div class="train-list__head">
-            <span>{{ text.train }}</span>
-            <span>{{ text.depart }}</span>
+            <span>열차이름</span>
+            <span>시간</span>
+            <span>목적지</span>
           </div>
 
           <div v-if="isTrainsLoading" class="train-list__message">
@@ -369,6 +437,7 @@ function handleRecommendCourse() {
             >
               <strong>{{ formatTrainName(train) }}</strong>
               <span>{{ train.departTime }}</span>
+              <em>{{ train.destination }}</em>
             </button>
           </div>
         </div>
@@ -410,10 +479,13 @@ function handleRecommendCourse() {
 <style scoped>
 .course-finder {
   width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .course-finder__title {
-  margin: 0 0 18px;
+  margin: 0 0 12px;
   color: #1b332f;
   font-size: 1rem;
   font-weight: 900;
@@ -423,8 +495,9 @@ function handleRecommendCourse() {
 .course-finder__grid {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
-  gap: 16px;
+  gap: 20px;
   align-items: start;
+  flex: 1;
 }
 
 .course-finder__left,
@@ -433,66 +506,78 @@ function handleRecommendCourse() {
 }
 
 .selected-summary {
-  display: flex;
-  min-height: 82px;
-  flex-direction: column;
-  justify-content: center;
-  gap: 3px;
-  margin-bottom: 14px;
-  padding: 13px 14px;
-  border: 1px solid #e2efec;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.48);
-  box-shadow: 0 12px 24px rgba(40, 78, 72, 0.08);
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(76px, 0.48fr);
+  align-items: center;
+  column-gap: 20px;
+  margin-bottom: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.selected-summary span {
+.selected-summary__cell {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.selected-summary__cell span {
   color: #667c79;
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 700;
+  line-height: 1.2;
 }
 
-.selected-summary strong {
+.selected-summary__cell strong {
+  min-width: 0;
+  overflow: hidden;
   color: #14302c;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.selected-summary em {
-  color: #57716d;
-  font-size: 0.72rem;
-  font-style: normal;
-  font-weight: 700;
+.selected-summary__route {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
 }
 
-.selected-summary b {
+.selected-summary__route span {
   color: #23796f;
-  font-size: 1.12rem;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.selected-summary small {
-  color: #7b928e;
-  font-size: 0.66rem;
-  font-weight: 800;
-  line-height: 1.35;
-}
-
-.selected-summary__empty {
-  display: block;
   text-align: center;
 }
 
+.selected-summary__time {
+  border-left: 1px solid rgba(35, 121, 111, 0.24);
+  padding-left: 20px;
+  text-align: right;
+}
+
+.selected-summary__time strong {
+  color: #23796f;
+  font-size: 1.08rem;
+}
+
 .field-block {
-  margin-bottom: 13px;
+  margin-bottom: 16px;
+}
+
+.route-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .field-label {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 8px;
   color: #5d7470;
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 900;
 }
 
@@ -504,31 +589,45 @@ function handleRecommendCourse() {
 
 .date-label {
   display: block;
-  margin-top: 6px;
+  margin-top: 8px;
   color: #23796f;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 900;
 }
 
-.date-input {
+.date-input,
+.select-field select {
   width: 100%;
-  min-height: 34px;
+  min-height: 40px;
   border: 1px solid #dcece9;
-  border-radius: 7px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.66);
   color: #14302c;
-  padding: 0 10px;
-  font-size: 0.76rem;
+  padding: 0 12px;
+  font-size: 0.8rem;
   font-weight: 800;
 }
 
-.segmented {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+.select-field {
+  position: relative;
+  display: block;
 }
 
-.segmented button,
+.select-field select {
+  appearance: none;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+.select-field svg {
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  color: #23796f;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
 .category-grid button,
 .mode-tabs button {
   min-width: 0;
@@ -544,13 +643,6 @@ function handleRecommendCourse() {
     transform 0.18s ease;
 }
 
-.segmented button {
-  min-height: 32px;
-  border-radius: 6px;
-  font-size: 0.72rem;
-}
-
-.segmented button.active,
 .category-grid button.active {
   border-color: #2f877c;
   background: #e9f8f5;
@@ -559,34 +651,36 @@ function handleRecommendCourse() {
 
 .category-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .category-grid button {
   display: inline-flex;
-  min-height: 30px;
+  min-height: 36px;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  border-radius: 6px;
-  font-size: 0.7rem;
+  gap: 6px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  white-space: nowrap;
 }
 
 .mode-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   border-bottom: 2px solid #edf5f3;
 }
 
 .mode-tabs button {
-  min-height: 34px;
+  min-height: 40px;
   border-color: transparent;
   border-radius: 7px 7px 0 0;
   background: transparent;
   color: #748884;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .mode-tabs button.active {
@@ -598,41 +692,48 @@ function handleRecommendCourse() {
 
 .train-list {
   border: 1px solid #e5f0ed;
-  border-radius: 7px;
+  border-radius: 8px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.5);
 }
 
 .train-list__head,
 .train-list__body button {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(58px, 0.52fr) minmax(60px, 0.62fr);
   align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
+  column-gap: 8px;
 }
 
 .train-list__head {
-  padding: 7px 10px;
+  padding: 11px 12px;
   background: #f5fbfa;
   color: #6a807c;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 900;
 }
 
+.train-list__head span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .train-list__body {
-  max-height: 208px;
+  max-height: min(260px, 32vh);
   overflow-y: auto;
 }
 
 .train-list__body button {
   width: 100%;
-  min-height: 34px;
+  min-height: 42px;
   border: 0;
   border-top: 1px solid #f0f6f5;
   background: rgba(255, 255, 255, 0.08);
   color: #14302c;
   cursor: pointer;
-  padding: 7px 10px;
+  padding: 8px 12px;
   text-align: left;
 }
 
@@ -641,8 +742,13 @@ function handleRecommendCourse() {
 }
 
 .train-list__body strong,
-.train-list__body span {
-  font-size: 0.72rem;
+.train-list__body span,
+.train-list__body em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
 }
 
 .train-list__body strong {
@@ -659,11 +765,17 @@ function handleRecommendCourse() {
   font-weight: 800;
 }
 
+.train-list__body em {
+  color: #57716d;
+  font-style: normal;
+  font-weight: 800;
+}
+
 .train-list__message {
-  padding: 32px 10px;
+  padding: 42px 16px;
   color: #91a29f;
   text-align: center;
-  font-size: 0.74rem;
+  font-size: 0.8rem;
   font-weight: 800;
 }
 
@@ -688,10 +800,10 @@ function handleRecommendCourse() {
 .stay-input {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 14px;
+  padding: 20px;
   border: 1px solid #e5f0ed;
-  border-radius: 8px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.5);
 }
 
@@ -723,18 +835,18 @@ function handleRecommendCourse() {
 .recommend-button {
   display: flex;
   width: 100%;
-  min-height: 48px;
+  min-height: 54px;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 18px;
+  margin-top: 24px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 10px;
   background: linear-gradient(180deg, #23887c 0%, #176a63 100%);
   box-shadow: 0 12px 24px rgba(23, 106, 99, 0.28);
   color: #ffffff;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 900;
   transition:
     transform 0.18s ease,
@@ -751,20 +863,73 @@ function handleRecommendCourse() {
 }
 
 .course-finder__note {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
   color: #78908c;
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   font-weight: 700;
 }
 
 @media (max-width: 1024px) {
   .course-finder__grid {
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.9fr);
+    gap: 18px;
   }
 
   .category-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+}
+
+@media (max-width: 940px) {
+  .course-finder__grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .route-row,
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .train-list__body {
+    max-height: 220px;
+  }
+}
+
+@media (min-width: 901px) and (max-height: 820px) {
+  .course-finder__title {
+    margin-bottom: 8px;
+  }
+
+  .field-block {
+    margin-bottom: 8px;
+  }
+
+  .selected-summary {
+    margin-bottom: 10px;
+  }
+
+  .selected-summary__cell strong {
+    font-size: 0.76rem;
+  }
+
+  .date-label {
+    font-size: 0.72rem;
+  }
+
+  .train-list__body {
+    max-height: 150px;
+  }
+
+  .recommend-button {
+    min-height: 42px;
+    margin-top: 10px;
+  }
+
+  .course-finder__note {
+    margin-top: 6px;
   }
 }
 
@@ -774,13 +939,8 @@ function handleRecommendCourse() {
   }
 
   .course-finder__grid {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    gap: 14px;
-  }
-
-  .selected-summary {
-    min-height: 68px;
-    margin-bottom: 10px;
+    grid-template-columns: 1fr;
+    gap: 18px;
   }
 
   .field-block {
@@ -810,6 +970,19 @@ function handleRecommendCourse() {
     grid-template-columns: 1fr;
   }
 
+  .selected-summary {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+
+  .selected-summary__time {
+    border-left: 0;
+    border-top: 1px solid rgba(35, 121, 111, 0.18);
+    padding-top: 8px;
+    padding-left: 0;
+    text-align: left;
+  }
+
   .train-list__body {
     max-height: 170px;
   }
@@ -825,18 +998,11 @@ function handleRecommendCourse() {
     font-size: 0.95rem;
   }
 
-  .selected-summary {
-    min-height: 66px;
-    margin-bottom: 12px;
-    padding: 11px 12px;
-  }
-
   .field-block {
     margin-bottom: 11px;
   }
 
   .mode-tabs button,
-  .segmented button,
   .category-grid button {
     min-height: 34px;
   }
@@ -853,10 +1019,6 @@ function handleRecommendCourse() {
   }
 
   .category-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .segmented {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

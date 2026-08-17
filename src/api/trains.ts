@@ -3,10 +3,11 @@ import type { Train, StationOption } from "@/types/train";
 
 export async function fetchTrains(
   station: string,
+  destination: string,
   date: string,
 ): Promise<Train[]> {
   const res = await http.get<Train[]>("/api/trains", {
-    params: { station, date },
+    params: { station, destination, date },
   });
   return (res.data ?? [])
     .map(normalizeTrain)
