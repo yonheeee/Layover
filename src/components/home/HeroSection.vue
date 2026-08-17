@@ -377,12 +377,16 @@ async function handleRecommendCourse(filters: {
 
 @media (max-width: 767px) {
   .home-hero {
-    padding: 28px 18px calc(76px + env(safe-area-inset-bottom, 0px));
+    padding: 18px 16px calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
   .home-hero__inner {
     grid-template-columns: 1fr;
-    gap: 18px;
+    gap: 16px;
+  }
+
+  .home-hero__copy {
+    order: 2;
   }
 
   .home-hero__title {
@@ -403,13 +407,13 @@ async function handleRecommendCourse(filters: {
 
   .home-hero__visual {
     position: absolute;
-    inset: 78px -18px auto -18px;
+    inset: 56px -16px auto -16px;
     z-index: 0;
     width: auto;
-    height: 260px;
+    height: 220px;
     min-height: 0;
     margin: 0;
-    opacity: 0.2;
+    opacity: 0.14;
     pointer-events: none;
   }
 
@@ -425,17 +429,21 @@ async function handleRecommendCourse(filters: {
   .home-hero__panel {
     position: relative;
     z-index: 2;
-    order: 2;
+    order: 1;
     grid-column: auto;
-    padding: 24px 18px 22px;
+    padding: 18px 16px 18px;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.86);
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .home-hero__panel-heading {
+    display: none;
   }
 }
 
 @media (max-width: 640px) {
   .home-hero {
-    padding: 26px 16px calc(72px + env(safe-area-inset-bottom, 0px));
+    padding: 16px 14px calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   .home-hero__title {
@@ -454,11 +462,11 @@ async function handleRecommendCourse(filters: {
 
 @media (max-width: 420px) {
   .home-hero {
-    padding: 22px 12px calc(68px + env(safe-area-inset-bottom, 0px));
+    padding: 12px 10px calc(66px + env(safe-area-inset-bottom, 0px));
   }
 
   .home-hero__eyebrow {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     padding: 7px 12px;
     font-size: 0.78rem;
   }
@@ -468,16 +476,17 @@ async function handleRecommendCourse(filters: {
   }
 
   .home-hero__description {
+    margin-top: 14px;
     font-size: 0.92rem;
   }
 
   .home-hero__visual {
-    inset: 70px -12px auto -12px;
-    height: 236px;
+    inset: 44px -10px auto -10px;
+    height: 210px;
   }
 
   .home-hero__panel {
-    padding: 20px 14px 18px;
+    padding: 16px 12px;
   }
 }
 </style>

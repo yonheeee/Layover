@@ -782,23 +782,28 @@ async function confirmCourse() {
 
 @media (max-width: 767px) {
   .course-result-view {
-    height: auto;
-    min-height: calc(100vh - 92px);
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
     flex-direction: column;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .course-result-view__panel {
+    order: 2;
+    flex: 1 1 auto;
     width: 100%;
-    height: auto;
+    height: 58%;
+    min-height: 0;
     border-right: 0;
-    border-bottom: 1px solid rgba(178, 228, 220, 0.35);
+    border-top: 1px solid rgba(178, 228, 220, 0.35);
+    box-shadow: 0 -10px 28px rgba(26, 46, 43, 0.08);
   }
 
   .course-result-view__map {
-    flex: 0 0 auto;
-    height: 46vh;
-    min-height: 340px;
+    order: 1;
+    flex: 0 0 42%;
+    height: 42%;
+    min-height: 0;
   }
 }
 
@@ -825,7 +830,13 @@ async function confirmCourse() {
   }
 
   .course-result-view__map {
-    min-height: 310px;
+    flex-basis: 38%;
+    height: 38%;
+    min-height: 230px;
+  }
+
+  .course-result-view__panel {
+    height: 62%;
   }
 }
 
@@ -840,7 +851,13 @@ async function confirmCourse() {
   }
 
   .course-result-view__map {
-    min-height: 290px;
+    flex-basis: 36%;
+    height: 36%;
+    min-height: 210px;
+  }
+
+  .course-result-view__panel {
+    height: 64%;
   }
 }
 </style>

@@ -821,21 +821,29 @@ function handleRecommendCourse() {
   }
 
   .course-finder__title {
-    margin-bottom: 14px;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
   }
 
   .selected-summary {
-    min-height: 74px;
+    min-height: 66px;
+    margin-bottom: 12px;
+    padding: 11px 12px;
+  }
+
+  .field-block {
+    margin-bottom: 11px;
   }
 
   .mode-tabs button,
   .segmented button,
   .category-grid button {
-    min-height: 36px;
+    min-height: 34px;
   }
 
   .recommend-button {
-    min-height: 46px;
+    min-height: 44px;
+    margin-top: 14px;
   }
 }
 
@@ -844,14 +852,21 @@ function handleRecommendCourse() {
     padding-bottom: 0;
   }
 
-  .category-grid,
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .segmented {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .train-list__head,
   .train-list__body button {
     gap: 8px;
+  }
+
+  .train-list__body {
+    max-height: 150px;
   }
 
   .stay-input {

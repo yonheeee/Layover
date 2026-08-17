@@ -1064,16 +1064,22 @@ async function confirmCourse() {
   }
 
   .course-map-view__panel {
+    order: 2;
+    flex: 1 1 auto;
     width: 100%;
-    height: auto;
+    height: 58%;
+    min-height: 0;
     max-height: none;
     border-right: 0;
+    border-top: 1px solid rgba(178, 228, 220, 0.35);
     border-bottom: 1px solid rgba(178, 228, 220, 0.35);
+    box-shadow: 0 -10px 28px rgba(26, 46, 43, 0.08);
   }
 
   .course-map-view__map {
-    flex: 1 1 auto;
-    height: auto;
+    order: 1;
+    flex: 0 0 42%;
+    height: 42%;
     min-height: 0;
   }
 }
@@ -1094,7 +1100,13 @@ async function confirmCourse() {
   }
 
   .course-map-view__map {
-    min-height: 0;
+    flex-basis: 38%;
+    height: 38%;
+    min-height: 230px;
+  }
+
+  .course-map-view__panel {
+    height: 62%;
   }
 }
 
@@ -1109,7 +1121,13 @@ async function confirmCourse() {
   }
 
   .course-map-view__map {
-    min-height: 0;
+    flex-basis: 36%;
+    height: 36%;
+    min-height: 210px;
+  }
+
+  .course-map-view__panel {
+    height: 64%;
   }
 }
 </style>
