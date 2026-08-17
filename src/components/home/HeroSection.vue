@@ -385,10 +385,6 @@ async function handleRecommendCourse(filters: {
     gap: 16px;
   }
 
-  .home-hero__copy {
-    order: 2;
-  }
-
   .home-hero__title {
     display: flex;
     flex-direction: row;
@@ -429,7 +425,6 @@ async function handleRecommendCourse(filters: {
   .home-hero__panel {
     position: relative;
     z-index: 2;
-    order: 1;
     grid-column: auto;
     padding: 18px 16px 18px;
     border-radius: 18px;
