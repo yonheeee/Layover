@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   Landmark,
   Navigation,
@@ -42,6 +42,9 @@ const text = {
   depart: "\ucd9c\ubc1c",
   loading: "\ubd88\ub7ec\uc624\ub294 \uc911...",
   noTrains: "\uc5f4\ucc28 \uc815\ubcf4\uac00 \uc5c6\uc2b5\ub2c8\ub2e4",
+  trainFallback:
+    "\ud604\uc7ac \uc5f4\ucc28 \uc815\ubcf4\ub97c \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc5b4\uc694. \uc9c1\uc811 \uc785\ub825\uc73c\ub85c \uccb4\ub958 \uc2dc\uac04\uc744 \uc124\uc815\ud560 \uc218 \uc788\uc5b4\uc694.",
+  useStayMode: "\uc9c1\uc811 \uc785\ub825\ud558\uae30",
   stayTime: "\uccb4\ub958 \uc608\uc815 \uc2dc\uac04",
   hour: "\uc2dc\uac04",
   stayHint: "\ucd5c\ub300 6\uc2dc\uac04\uae4c\uc9c0 \ucd94\ucc9c\ud560 \uc218 \uc788\uc5b4\uc694.",
@@ -50,6 +53,8 @@ const text = {
   note: "AI\uac00 \ud658\uc2b9 \ub300\uae30\uc2dc\uac04\uc5d0 \ub9de\ub294 \ucd5c\uc801 \ucf54\uc2a4\ub97c \ucd94\ucc9c\ud569\ub2c8\ub2e4.",
   alreadyDeparted: "\uc774\ubbf8 \ucd9c\ubc1c",
   minute: "\ubd84",
+  safetyBuffer: "\ucd9c\ubc1c 30\ubd84 \uc804 \uc5ed \ubcf5\uadc0 \ubc84\ud37c \ubc18\uc601",
+  availableTravelTime: "\ucd94\ucc9c \uac00\ub2a5",
 };
 
 const CATEGORY_FILTERS = [
@@ -76,6 +81,7 @@ const DAYS = [
 
 const trains = ref<TrainType[]>([]);
 const isTrainsLoading = ref(false);
+const trainLoadFailed = ref(false);
 const selectedStation = ref("daejeon");
 const selectedTrain = ref("");
 const selectedFilters = ref<string[]>([]);
@@ -85,9 +91,11 @@ const today = new Date();
 const travelDate = ref(
   `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`,
 );
+const SAFETY_BUFFER_MINUTES = 30;
 
 const todayLabel = computed(() => {
-  const d = new Date();
+  const d = new Date(`${travelDate.value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
@@ -109,7 +117,17 @@ const selectedTrainDetail = computed(() => {
     depart: train.departTime,
     remaining: calcRemaining(travelDate.value, train.departTime),
     remainingMinutes: calcRemainingMinutes(travelDate.value, train.departTime),
+    travelMinutes: Math.max(
+      0,
+      calcRemainingMinutes(travelDate.value, train.departTime) -
+        SAFETY_BUFFER_MINUTES,
+    ),
   };
+});
+
+const selectedTravelTimeLabel = computed(() => {
+  const minutes = selectedTrainDetail.value?.travelMinutes ?? 0;
+  return formatDuration(minutes);
 });
 
 function formatTrainName(train: TrainType) {
@@ -128,6 +146,11 @@ onMounted(() => {
   loadTrains();
 });
 
+watch(travelDate, () => {
+  selectedTrain.value = "";
+  loadTrains();
+});
+
 function selectStation(value: string) {
   selectedStation.value = value;
   selectedTrain.value = "";
@@ -137,6 +160,7 @@ function selectStation(value: string) {
 async function loadTrains() {
   if (!travelDate.value || !selectedStation.value) return;
   isTrainsLoading.value = true;
+  trainLoadFailed.value = false;
 
   try {
     const date = travelDate.value.replace(/-/g, "");
@@ -156,6 +180,7 @@ async function loadTrains() {
 
     trains.value = all;
   } catch {
+    trainLoadFailed.value = true;
     trains.value = [];
   } finally {
     isTrainsLoading.value = false;
@@ -199,8 +224,17 @@ function calcRemainingMinutes(date: string, departHhmm: string) {
   return diffMs <= 0 ? 0 : Math.floor(diffMs / 60000);
 }
 
+function formatDuration(minutes: number) {
+  if (minutes <= 0) return `0${text.minute}`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}${text.minute}`;
+  if (m === 0) return `${h}${text.hour}`;
+  return `${h}${text.hour} ${m}${text.minute}`;
+}
+
 function handleRecommendCourse() {
-  const remaining = selectedTrainDetail.value?.remainingMinutes ?? 0;
+  const remaining = selectedTrainDetail.value?.travelMinutes ?? 0;
   emit("recommend", {
     station: selectedStation.value,
     trainId: selectedTrain.value,
@@ -226,6 +260,10 @@ function handleRecommendCourse() {
             <strong>{{ selectedTrainDetail.name }}</strong>
             <em>{{ text.depart }} {{ selectedTrainDetail.depart }}</em>
             <b>{{ selectedTrainDetail.remaining }}</b>
+            <small>
+              {{ text.availableTravelTime }} {{ selectedTravelTimeLabel }} ·
+              {{ text.safetyBuffer }}
+            </small>
           </template>
           <template v-else-if="searchMode === 'stay' && stayDuration">
             <span>
@@ -243,6 +281,12 @@ function handleRecommendCourse() {
 
         <div class="field-block">
           <span class="field-label">{{ text.travelDate }}</span>
+          <input
+            v-model="travelDate"
+            class="date-input"
+            type="date"
+            :aria-label="text.travelDate"
+          />
           <strong class="date-label">{{ todayLabel }}</strong>
         </div>
 
@@ -310,7 +354,10 @@ function handleRecommendCourse() {
             {{ text.loading }}
           </div>
           <div v-else-if="trains.length === 0" class="train-list__message">
-            {{ text.noTrains }}
+            <p>{{ trainLoadFailed ? text.trainFallback : text.noTrains }}</p>
+            <button type="button" @click="searchMode = 'stay'">
+              {{ text.useStayMode }}
+            </button>
           </div>
           <div v-else class="train-list__body">
             <button
@@ -425,6 +472,13 @@ function handleRecommendCourse() {
   line-height: 1;
 }
 
+.selected-summary small {
+  color: #7b928e;
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
 .selected-summary__empty {
   display: block;
   text-align: center;
@@ -450,9 +504,22 @@ function handleRecommendCourse() {
 
 .date-label {
   display: block;
+  margin-top: 6px;
   color: #23796f;
   font-size: 0.78rem;
   font-weight: 900;
+}
+
+.date-input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid #dcece9;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.66);
+  color: #14302c;
+  padding: 0 10px;
+  font-size: 0.76rem;
+  font-weight: 800;
 }
 
 .segmented {
@@ -598,6 +665,24 @@ function handleRecommendCourse() {
   text-align: center;
   font-size: 0.74rem;
   font-weight: 800;
+}
+
+.train-list__message p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.train-list__message button {
+  margin-top: 12px;
+  min-height: 32px;
+  border: 1px solid #bfe4dd;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #23796f;
+  cursor: pointer;
+  padding: 0 12px;
+  font-size: 0.72rem;
+  font-weight: 900;
 }
 
 .stay-input {

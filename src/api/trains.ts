@@ -5,9 +5,9 @@ export async function fetchTrains(
   station: string,
   date: string,
 ): Promise<Train[]> {
-  const res = await http.get<Train[]>(
-    `/api/trains?station=${station}&date=${date}`,
-  );
+  const res = await http.get<Train[]>("/api/trains", {
+    params: { station, date },
+  });
   return (res.data ?? [])
     .map(normalizeTrain)
     .sort((a, b) => toTimeValue(a.departTime) - toTimeValue(b.departTime));
