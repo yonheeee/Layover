@@ -3,7 +3,12 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue"
 import { useRouter } from "vue-router";
 import { CODE_TO_CATEGORY, getMyPosts } from "@/api/community";
 import { httpDelete, httpPut } from "@/api/http";
-import { fetchUser, fetchUserActivity } from "@/api/user";
+import {
+  fetchUser,
+  fetchUserActivity,
+  updateProfileImage,
+  uploadProfileImage,
+} from "@/api/user";
 import { getMyReports } from "@/api/reports";
 import PlaceCard from "@/components/common/PlaceCard.vue";
 import { deleteCourse } from "@/api/courses";
@@ -18,6 +23,7 @@ import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
 import { loadKakaoMaps } from "@/utils/kakaoMaps";
+import { resolveMediaUrl } from "@/utils/media";
 import {
   Activity,
   Award,
@@ -56,12 +62,41 @@ const user = ref<UserType>({
 });
 
 // ─── 프로필 이미지 ───
-function handleImageUpload(e: any) {
-  const file = e.target.files[0];
-  if (file) user.value.profileImage = URL.createObjectURL(file);
+const savingProfileImage = ref(false);
+const profileImageSrc = computed(
+  () => resolveMediaUrl(user.value.profileImage) || dreamCharacterImg,
+);
+
+async function handleImageUpload(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  savingProfileImage.value = true;
+  try {
+    const profileImage = await uploadProfileImage(file);
+    await updateProfileImage(profileImage);
+    user.value.profileImage = profileImage;
+  } catch (error) {
+    console.error("프로필 사진 저장 실패:", error);
+    alert("프로필 사진 저장에 실패했습니다. 다시 시도해주세요.");
+  } finally {
+    savingProfileImage.value = false;
+    input.value = "";
+  }
 }
-function removeProfileImage() {
-  user.value.profileImage = null;
+
+async function removeProfileImage() {
+  savingProfileImage.value = true;
+  try {
+    await updateProfileImage(null);
+    user.value.profileImage = null;
+  } catch (error) {
+    console.error("프로필 사진 삭제 실패:", error);
+    alert("프로필 사진 삭제에 실패했습니다. 다시 시도해주세요.");
+  } finally {
+    savingProfileImage.value = false;
+  }
 }
 
 // ─── 데이터 로드 ───
@@ -496,7 +531,7 @@ function formatDate(dateStr: string): string {
                 style="background: linear-gradient(135deg, #b2e4dc, #3db89e)"
               >
                 <img
-                  :src="user.profileImage ?? dreamCharacterImg"
+                  :src="profileImageSrc"
                   class="w-full h-full object-cover"
                 />
               </div>
@@ -508,12 +543,14 @@ function formatDate(dateStr: string): string {
                   type="file"
                   accept="image/*"
                   class="hidden"
+                  :disabled="savingProfileImage"
                   @change="handleImageUpload"
                 />
               </label>
               <button
                 v-if="user.profileImage"
                 @click="removeProfileImage"
+                :disabled="savingProfileImage"
                 class="absolute top-0 right-0 w-6 h-6 rounded-full bg-red-100 flex items-center justify-center"
               >
                 <Trash2 :size="12" color="#e07070" />
