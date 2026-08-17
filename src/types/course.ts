@@ -26,6 +26,10 @@ export interface TransportInfo {
   taxiTime: string
   taxiFare: number
   routePath?: [number, number][]
+  walkSource?: string
+  busSource?: string
+  taxiSource?: string
+  routePathSource?: string
 }
 
 /** 코스 경유지. MapView·CourseResultView 양쪽 필드를 모두 포함한 superset. */
@@ -54,6 +58,12 @@ export interface Course {
   totalTime?: string
   estimatedCost?: string
   places: CourseStop[]
+  recommendationReason?: string
+  timeBudgetMinutes?: number
+  estimatedTotalMinutes?: number
+  returnBufferMinutes?: number
+  dataSources?: string[]
+  fallbackUsed?: boolean
 }
 
 /** 지도 검색 패널에서 코스에 추가할 수 있는 장소 (MapView 전용). */

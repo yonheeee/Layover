@@ -47,6 +47,56 @@ const estimatedCost = computed(() => currentCourse.value.estimatedCost);
 // 현재 코스의 장소 리스트 단축 바인딩
 const currentPlaces = computed(() => currentCourse.value.places);
 
+const hasCourseEvidence = computed(() => {
+  const course = currentCourse.value;
+  return Boolean(
+    course?.recommendationReason ||
+      course?.timeBudgetMinutes ||
+      course?.estimatedTotalMinutes ||
+      course?.dataSources?.length,
+  );
+});
+
+const courseBudgetText = computed(() => {
+  const course = currentCourse.value;
+  const budget = course?.timeBudgetMinutes ?? 0;
+  const estimated = course?.estimatedTotalMinutes ?? 0;
+  const buffer = course?.returnBufferMinutes ?? 0;
+
+  if (!budget && !estimated) return "";
+  if (budget && estimated) {
+    return `예상 ${estimated}분 / 가능 ${budget}분`;
+  }
+  if (estimated) return `예상 ${estimated}분`;
+  return `가능 ${budget}분${buffer ? ` · 역 복귀 ${buffer}분 권장` : ""}`;
+});
+
+function transportSourceLabel(source?: string) {
+  switch (source) {
+    case "KAKAO_MOBILITY":
+      return "카카오모빌리티";
+    case "KAKAO":
+      return "카카오";
+    case "BUS_STOP_ESTIMATE":
+      return "정류장 추정";
+    case "ESTIMATED":
+      return "거리 추정";
+    case "UNAVAILABLE":
+      return "미지원";
+    default:
+      return "";
+  }
+}
+
+function legSourceLabel(place: CourseStop) {
+  if (!place.nextTransport) return "";
+  const source =
+    place.transport === "walk"
+      ? place.nextTransport.walkSource
+      : place.nextTransport.taxiSource;
+  return transportSourceLabel(source);
+}
+
 const courseMapRef = ref<HTMLElement | null>(null);
 let resultMap: any = null;
 let resultOverlays: any[] = [];
@@ -347,6 +397,50 @@ async function confirmCourse() {
           </div>
         </div>
 
+        <div
+          v-if="hasCourseEvidence"
+          class="rounded-2xl border border-teal-100 bg-[#f4fbf9] px-4 py-3 shadow-3xs"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-[0.68rem] font-black text-teal-700">추천 근거</p>
+              <p
+                v-if="currentCourse?.recommendationReason"
+                class="mt-1 text-[0.76rem] leading-relaxed text-[#1a2e2b] font-semibold"
+              >
+                {{ currentCourse.recommendationReason }}
+              </p>
+            </div>
+            <span
+              class="shrink-0 rounded-full px-2 py-1 text-[0.62rem] font-black"
+              :class="
+                currentCourse?.fallbackUsed
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                  : 'bg-white text-teal-700 border border-teal-100'
+              "
+            >
+              {{ currentCourse?.fallbackUsed ? "규칙 보정" : "AI 검증" }}
+            </span>
+          </div>
+          <div
+            class="mt-2 flex flex-wrap items-center gap-1.5 text-[0.66rem] font-bold"
+          >
+            <span
+              v-if="courseBudgetText"
+              class="rounded-full bg-white px-2 py-1 text-teal-700 border border-teal-100"
+            >
+              {{ courseBudgetText }}
+            </span>
+            <span
+              v-for="source in currentCourse?.dataSources ?? []"
+              :key="source"
+              class="rounded-full bg-white px-2 py-1 text-gray-500 border border-gray-100"
+            >
+              {{ source }}
+            </span>
+          </div>
+        </div>
+
         <div class="relative pl-1 space-y-1">
           <div
             v-if="isRegenerating"
@@ -442,6 +536,12 @@ async function confirmCourse() {
                 <span class="text-[0.7rem] text-gray-500 font-semibold">
                   {{ place.transport === "walk" ? "도보" : "택시" }}
                   {{ place.transportTime }}
+                  <small
+                    v-if="legSourceLabel(place)"
+                    class="ml-1 text-[0.58rem] text-teal-600/70 font-bold"
+                  >
+                    {{ legSourceLabel(place) }}
+                  </small>
                   <span v-if="place.taxiFare" class="text-teal-600 ml-1"
                     >({{ place.taxiFare }})</span
                   >
@@ -714,23 +814,28 @@ async function confirmCourse() {
 
 @media (max-width: 767px) {
   .course-result-view {
-    height: auto;
-    min-height: calc(100vh - 92px);
+    height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
     flex-direction: column;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .course-result-view__panel {
+    order: 2;
+    flex: 1 1 auto;
     width: 100%;
-    height: auto;
+    height: 58%;
+    min-height: 0;
     border-right: 0;
-    border-bottom: 1px solid rgba(178, 228, 220, 0.35);
+    border-top: 1px solid rgba(178, 228, 220, 0.35);
+    box-shadow: 0 -10px 28px rgba(26, 46, 43, 0.08);
   }
 
   .course-result-view__map {
-    flex: 0 0 auto;
-    height: 46vh;
-    min-height: 340px;
+    order: 1;
+    flex: 0 0 42%;
+    height: 42%;
+    min-height: 0;
   }
 }
 
@@ -757,7 +862,13 @@ async function confirmCourse() {
   }
 
   .course-result-view__map {
-    min-height: 310px;
+    flex-basis: 38%;
+    height: 38%;
+    min-height: 230px;
+  }
+
+  .course-result-view__panel {
+    height: 62%;
   }
 }
 
@@ -772,7 +883,13 @@ async function confirmCourse() {
   }
 
   .course-result-view__map {
-    min-height: 290px;
+    flex-basis: 36%;
+    height: 36%;
+    min-height: 210px;
+  }
+
+  .course-result-view__panel {
+    height: 64%;
   }
 }
 </style>

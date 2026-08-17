@@ -256,6 +256,27 @@ function handleLogout() {
 
 @media (max-width: 640px) {
   .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 55;
+    display: block;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .app-header__inner {
+    height: 56px;
+    justify-content: flex-start;
+    padding: 0 16px;
+  }
+
+  .app-header__logo img {
+    height: 32px;
+  }
+
+  .app-header__nav-links,
+  .app-header__actions {
     display: none;
   }
 
