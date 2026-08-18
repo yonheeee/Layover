@@ -6,6 +6,7 @@ import { useRoute } from 'vue-router'
 import AppFooter from './components/AppFooter.vue'
 import AppHeader from './components/AppHeader.vue'
 import ChatDock from './components/chat/ChatDock.vue'
+import ToastHost from './components/common/ToastHost.vue'
 
 const route = useRoute()
 const showFooter = computed(() => route.path === '/')
@@ -29,6 +30,7 @@ onMounted(() => {
       <router-view />
     </main>
     <ChatDock />
+    <ToastHost />
     <AppFooter v-if="showFooter" class="app-footer" />
   </div>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Camera, Loader2, MapPin, X } from 'lucide-vue-next'
@@ -525,13 +526,13 @@ async function confirmResult() {
   } catch (err: any) {
     const status = err?.response?.status
     if (status === 409) {
-      alert('이미 방문한 장소입니다.')
+      toast.info('이미 방문한 장소입니다.')
       isSavingStamp.value = false
       return
     }
     if (status === 400) {
       // 서버 위치 검증 실패 (반경 밖이거나 좌표 누락)
-      alert(err?.response?.data?.message ?? '위치를 확인할 수 없습니다. 장소 근처에서 다시 시도해주세요.')
+      toast.error(err?.response?.data?.message ?? '위치를 확인할 수 없습니다. 장소 근처에서 다시 시도해주세요.')
       isSavingStamp.value = false
       return
     }

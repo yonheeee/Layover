@@ -1,4 +1,5 @@
 ﻿<script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 
@@ -305,7 +306,7 @@ function toggleLock(idx: number) {
 // 고정된 장소 유지하고 서버 AI 재추천
 async function handleAiRegenerate() {
   if (!courseStore.lastRequest) {
-    alert("이전 추천 조건을 찾을 수 없습니다. 홈에서 다시 코스를 추천받아 주세요.");
+    toast.error("이전 추천 조건을 찾을 수 없습니다. 홈에서 다시 코스를 추천받아 주세요.");
     return;
   }
 
@@ -323,7 +324,7 @@ async function handleAiRegenerate() {
     courseStore.setCourses(courses.value, courseStore.lastRequest);
   } catch (error) {
     console.error("AI 재추천 실패:", error);
-    alert("AI 재추천에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    toast.error("AI 재추천에 실패했습니다. 잠시 후 다시 시도해주세요.");
   } finally {
     isRegenerating.value = false;
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import {
   Navigation,
   TrainFront,
@@ -69,7 +70,7 @@ async function handleRecommendCourse(filters: {
   remainingMinutes: number;
 }) {
   if (!auth.isLoggedIn) {
-    alert(t.loginRequired);
+    toast.info(t.loginRequired);
     router.push("/login");
     return;
   }
@@ -96,7 +97,7 @@ async function handleRecommendCourse(filters: {
     courseStore.setCourses(courses, request);
     router.push("/map");
   } catch {
-    alert(t.generateFailed);
+    toast.error(t.generateFailed);
   } finally {
     isLoading.value = false;
   }

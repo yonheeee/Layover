@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
+import PhotoModal from "@/components/mypage/PhotoModal.vue";
+import CharacterDetailModal from "@/components/mypage/CharacterDetailModal.vue";
+import type { CharacterDetail } from "@/components/mypage/CharacterDetailModal.vue";
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { CODE_TO_CATEGORY, getMyPosts } from "@/api/community";
@@ -29,7 +33,7 @@ import type { Place } from "@/types/place";
 import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
-import { loadKakaoMaps } from "@/utils/kakaoMaps";
+import { useKakaoMap } from "@/composables/useKakaoMap";
 import { resolveMediaUrl } from "@/utils/media";
 import {
   Activity,
@@ -87,7 +91,7 @@ async function handleImageUpload(e: Event) {
     user.value.profileImage = profileImage;
   } catch (error) {
     console.error("프로필 사진 저장 실패:", error);
-    alert("프로필 사진 저장에 실패했습니다. 다시 시도해주세요.");
+    toast.error("프로필 사진 저장에 실패했습니다. 다시 시도해주세요.");
   } finally {
     savingProfileImage.value = false;
     input.value = "";
@@ -101,7 +105,7 @@ async function removeProfileImage() {
     user.value.profileImage = null;
   } catch (error) {
     console.error("프로필 사진 삭제 실패:", error);
-    alert("프로필 사진 삭제에 실패했습니다. 다시 시도해주세요.");
+    toast.error("프로필 사진 삭제에 실패했습니다. 다시 시도해주세요.");
   } finally {
     savingProfileImage.value = false;
   }
@@ -195,10 +199,10 @@ async function savePhone() {
   try {
     await httpPut("/api/user/me/phone", { phone: editPhone.value });
     user.value.phone = editPhone.value;
-    alert("전화번호가 변경되었습니다.");
+    toast.success("전화번호가 변경되었습니다.");
   } catch (e: any) {
     const msg = e?.response?.data?.message ?? "전화번호 변경에 실패했습니다.";
-    alert(msg);
+    toast.error(msg);
   } finally {
     savingPhone.value = false;
   }
@@ -216,12 +220,12 @@ async function changePw() {
     newPw.value = "";
     newPwConfirm.value = "";
     isPwEditing.value = false;
-    alert("비밀번호가 변경되었습니다.");
+    toast.success("비밀번호가 변경되었습니다.");
     window.location.reload();
   } catch (e: any) {
     const msg =
       e?.response?.data?.message ?? "현재 비밀번호가 올바르지 않습니다.";
-    alert(msg);
+    toast.error(msg);
   } finally {
     savingPw.value = false;
   }
@@ -235,62 +239,48 @@ async function withdraw() {
   } catch (e: any) {
     const msg =
       e?.response?.data?.message ?? "회원탈퇴 중 오류가 발생했습니다.";
-    alert(msg);
+    toast.error(msg);
   }
 }
 
 // ─── 엽서 탭 (카카오 지도) ───
-let postcardMap: any = null;
-let postcardOverlays: any[] = [];
-
-function initPostcardMap() {
-  const container = document.getElementById("postcard-stamp-map");
-  if (!container) return;
-  const kakao = (window as any).kakao;
-  if (!kakao?.maps) return;
-  const center = new kakao.maps.LatLng(36.3619, 127.41);
-  postcardMap = new kakao.maps.Map(container, { center, level: 8 });
-  renderPostcardPins();
-}
+// 지도 생성·오버레이 정리·relayout은 useKakaoMap이 담당한다.
+const postcardMapController = useKakaoMap();
 
 function renderPostcardPins() {
-  if (!postcardMap) return;
-  const kakao = (window as any).kakao;
-  postcardOverlays.forEach((o) => o.setMap(null));
-  postcardOverlays = [];
+  postcardMapController.clearOverlays();
   if (stampStore.photos.length === 0) return;
-  const bounds = new kakao.maps.LatLngBounds();
+
   stampStore.photos.forEach((photo) => {
-    const pos = new kakao.maps.LatLng(photo.lat, photo.lng);
-    bounds.extend(pos);
-    const content = `<div style="width:52px;height:52px;border-radius:12px;border:3px solid #3db89e;box-shadow:0 3px 12px rgba(61,184,158,0.4);overflow:hidden;cursor:pointer;"><img src="${photo.url}" style="width:100%;height:100%;object-fit:cover;" /></div>`;
-    const overlay = new kakao.maps.CustomOverlay({
-      position: pos,
-      content,
-      yAnchor: 1,
-    });
-    overlay.setMap(postcardMap);
-    postcardOverlays.push(overlay);
+    postcardMapController.addCustomOverlay(
+      { lat: photo.lat, lng: photo.lng },
+      {
+        content: `<div style="width:52px;height:52px;border-radius:12px;border:3px solid #3db89e;box-shadow:0 3px 12px rgba(61,184,158,0.4);overflow:hidden;cursor:pointer;"><img src="${photo.url}" style="width:100%;height:100%;object-fit:cover;" /></div>`,
+        yAnchor: 1,
+      },
+    );
   });
-  postcardMap.setBounds(bounds);
+
+  postcardMapController.fitBounds(
+    stampStore.photos.map((photo) => ({ lat: photo.lat, lng: photo.lng })),
+  );
 }
 
 watch(
   () => activeTab.value,
   async (tab) => {
-    if (tab === "postcard") {
-      await nextTick();
-      if (!postcardMap) {
-        try {
-          await loadKakaoMaps();
-          initPostcardMap();
-        } catch (error) {
-          console.error("Kakao Maps SDK load failed:", error);
-        }
-      } else {
-        renderPostcardPins();
-      }
+    if (tab !== "postcard") return;
+    await nextTick();
+
+    // 탭이 처음 열릴 때만 지도를 만들고, 이후에는 핀만 다시 그린다.
+    if (!postcardMapController.map.value) {
+      const container = document.getElementById("postcard-stamp-map");
+      await postcardMapController.createMap(container, {
+        center: { lat: 36.3619, lng: 127.41 },
+        level: 8,
+      });
     }
+    renderPostcardPins();
   },
 );
 
@@ -330,7 +320,7 @@ async function handleDeleteCourse(courseId: string) {
     await deleteCourse(courseId);
     myCourses.value = myCourses.value.filter((c) => c.id !== courseId);
   } catch {
-    alert("삭제에 실패했습니다.");
+    toast.error("삭제에 실패했습니다.");
   } finally {
     deletingCourseId.value = null;
   }
@@ -350,15 +340,7 @@ const likedScrollRef = ref<HTMLDivElement | null>(null);
 // ─── 모달 상태 ───
 const showLogout = ref(false);
 const activePhotoModal = ref<string | null>(null);
-const activeCharacterDetail = ref<{
-  name: string;
-  imageUrl?: string;
-  imageAlt?: string;
-  role?: string;
-  placeName?: string;
-  photoUrl?: string;
-  description: string;
-} | null>(null);
+const activeCharacterDetail = ref<CharacterDetail | null>(null);
 
 type PostcardCharacter = {
   id: string;
@@ -1657,91 +1639,12 @@ function formatDate(dateStr: string): string {
         </div>
       </div>
 
-      <!-- 사진 모달 -->
-      <div
-        v-if="activePhotoModal"
-        class="fixed inset-0 flex items-center justify-center z-50 bg-black/70 backdrop-blur-sm"
-        @click="activePhotoModal = null"
-      >
-        <div
-          class="relative max-w-lg max-h-[80vh] p-2 bg-white rounded-2xl shadow-2xl mx-4"
-          @click.stop
-        >
-          <img
-            :src="activePhotoModal"
-            class="w-full h-auto max-h-[70vh] object-contain rounded-xl"
-          />
-          <div class="text-center mt-3">
-            <button
-              @click="activePhotoModal = null"
-              class="px-4 py-1.5 bg-gray-900 text-white rounded-xl text-xs font-bold"
-            >
-              닫기
-            </button>
-          </div>
-        </div>
-      </div>
+      <PhotoModal :src="activePhotoModal" @close="activePhotoModal = null" />
 
-      <!-- 캐릭터 상세 모달 -->
-      <div
-        v-if="activeCharacterDetail"
-        class="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
-        @click.self="activeCharacterDetail = null"
-      >
-        <div
-          class="mypage-dialog mypage-dialog--sm bg-white p-6 rounded-2xl w-[340px] shadow-xl border border-teal-50 flex flex-col items-center gap-4"
-        >
-          <img
-            v-if="activeCharacterDetail.imageUrl"
-            :src="activeCharacterDetail.imageUrl"
-            :alt="activeCharacterDetail.imageAlt || activeCharacterDetail.name"
-            class="w-28 h-28 object-contain mt-2"
-          />
-          <div class="text-center w-full">
-            <h3 class="font-bold text-base text-[#1a2e2b] mb-1">
-              {{ activeCharacterDetail.name }}
-            </h3>
-            <p
-              v-if="activeCharacterDetail.role"
-              class="text-[0.72rem] text-teal-600 font-bold mb-2"
-            >
-              {{ activeCharacterDetail.role }}
-            </p>
-            <p class="text-xs text-gray-500 leading-relaxed px-2 break-all">
-              {{ activeCharacterDetail.description }}
-            </p>
-          </div>
-          <div
-            class="w-full bg-teal-50/50 p-3 rounded-xl border border-teal-100/50"
-          >
-            <p class="text-[0.68rem] text-teal-700 font-bold mb-2 text-center">
-              함께 찍은 인증 장소
-            </p>
-            <div class="flex items-center gap-3">
-              <img
-                v-if="activeCharacterDetail.photoUrl"
-                :src="activeCharacterDetail.photoUrl"
-                alt="함께 찍은 인증 사진"
-                class="w-14 h-14 rounded-xl object-cover border border-white shadow-sm"
-              />
-              <div class="min-w-0 text-left">
-                <p class="text-xs font-bold text-[#1a2e2b] truncate">
-                  {{ activeCharacterDetail.placeName }}
-                </p>
-                <p class="text-[0.68rem] text-gray-400 mt-1">
-                  이 장소에서 함께 인증했어요.
-                </p>
-              </div>
-            </div>
-          </div>
-          <button
-            @click="activeCharacterDetail = null"
-            class="w-full py-2 rounded-xl bg-teal-500 hover:bg-teal-600 transition-colors text-white text-xs font-bold"
-          >
-            확인
-          </button>
-        </div>
-      </div>
+      <CharacterDetailModal
+        :character="activeCharacterDetail"
+        @close="activeCharacterDetail = null"
+      />
 
       <!-- 회고 모달 -->
       <div

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import { fetchDiPlaces, recalculateCourse, saveCourse } from "@/api/courses";
 import { useCourseStore } from "@/stores/course";
 import { useStampStore } from "@/stores/stamp";
@@ -135,7 +136,7 @@ async function recalculateCurrentCourse() {
     setTimeout(renderCourseElementsOnMap, 50);
   } catch (error) {
     console.error("코스 이동시간 재계산 실패:", error);
-    alert("이동시간 재계산에 실패했습니다. 잠시 후 다시 시도해주세요.");
+    toast.error("이동시간 재계산에 실패했습니다. 잠시 후 다시 시도해주세요.");
   } finally {
     isRecalculating.value = false;
   }
@@ -516,7 +517,7 @@ function openSearchMode() {
 
 async function addPlaceToCourse(scannedPlace: any) {
   if (currentPlaces.value.some((p) => p.id === scannedPlace.id)) {
-    alert("이미 코스에 추가된 장소입니다.");
+    toast.info("이미 코스에 추가된 장소입니다.");
     return;
   }
 
@@ -546,7 +547,7 @@ async function finishEdit() {
 
 async function confirmCourse() {
   if (!courseStore.lastRequest) {
-    alert("코스 정보가 없습니다. 다시 생성해주세요.");
+    toast.error("코스 정보가 없습니다. 다시 생성해주세요.");
     return;
   }
   isSaving.value = true;
@@ -572,7 +573,7 @@ async function confirmCourse() {
     stampStore.clearActiveCourse();
     router.push("/stamp-tour");
   } catch {
-    alert("저장에 실패했습니다. 로그인 상태를 확인해주세요.");
+    toast.error("저장에 실패했습니다. 로그인 상태를 확인해주세요.");
   } finally {
     isSaving.value = false;
   }

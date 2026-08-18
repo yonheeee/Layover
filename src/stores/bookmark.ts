@@ -1,3 +1,4 @@
+import { toast } from "@/composables/useToast";
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
@@ -28,7 +29,7 @@ export const useBookmarkStore = defineStore("bookmark", () => {
   async function toggleBookmark(placeId: string, placeData?: BookmarkPlace): Promise<void> {
     const auth = useAuthStore();
     if (!auth.isLoggedIn) {
-      alert("로그인이 필요합니다.");
+      toast.info("로그인이 필요합니다.");
       router.push("/login");
       return;
     }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import {
   CATEGORY_TO_CODE,
   CODE_TO_CATEGORY,
@@ -226,7 +227,7 @@ onMounted(async () => {
           null;
       }
     } catch {
-      alert("게시글을 불러올 수 없습니다.");
+      toast.error("게시글을 불러올 수 없습니다.");
       router.back();
     }
   }
@@ -234,18 +235,18 @@ onMounted(async () => {
 
 async function handleRegister() {
   if (!selectedCategory.value) {
-    alert("카테고리를 선택해주세요.");
+    toast.info("카테고리를 선택해주세요.");
     return;
   }
   if (!title.value.trim()) {
-    alert("제목을 입력해주세요.");
+    toast.info("제목을 입력해주세요.");
     return;
   }
   const hasContent = blocks.value.some((b) =>
     b.type === "text" ? b.value.trim() !== "" : true,
   );
   if (!hasContent) {
-    alert("내용을 입력해주세요.");
+    toast.info("내용을 입력해주세요.");
     return;
   }
 
@@ -281,7 +282,7 @@ async function handleRegister() {
 
     const apiCategory = CATEGORY_TO_CODE[selectedCategory.value];
     if (!apiCategory) {
-      alert("카테고리를 다시 선택해주세요.");
+      toast.info("카테고리를 다시 선택해주세요.");
       return;
     }
 
@@ -302,7 +303,7 @@ async function handleRegister() {
     const fallbackMessage = isEditMode
       ? "게시글 수정에 실패했습니다. 다시 시도해주세요."
       : "게시글 등록에 실패했습니다. 다시 시도해주세요.";
-    alert(getCommunityErrorMessage(error, fallbackMessage));
+    toast.error(getCommunityErrorMessage(error, fallbackMessage));
   } finally {
     isSubmitting.value = false;
   }
