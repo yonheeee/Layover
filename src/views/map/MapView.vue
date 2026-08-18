@@ -188,11 +188,17 @@ const courseBudgetText = computed(() => {
   const buffer = course?.returnBufferMinutes ?? 0;
 
   if (!budget && !estimated) return "";
+
+  // 복귀 버퍼는 이 서비스의 핵심 약속(열차를 놓치지 않게 한다)의 근거다.
+  // 예전에는 budget과 estimated가 모두 있을 때 버퍼 문구가 사라져서
+  // 정작 가장 많이 보이는 화면에서 근거가 빠져 있었다. 항상 함께 노출한다.
+  const bufferText = buffer ? ` · 역 복귀 ${buffer}분 확보` : "";
+
   if (budget && estimated) {
-    return `예상 ${estimated}분 / 가능 ${budget}분`;
+    return `예상 ${estimated}분 / 가능 ${budget}분${bufferText}`;
   }
-  if (estimated) return `예상 ${estimated}분`;
-  return `가능 ${budget}분${buffer ? ` · 역 복귀 ${buffer}분 권장` : ""}`;
+  if (estimated) return `예상 ${estimated}분${bufferText}`;
+  return `가능 ${budget}분${bufferText}`;
 });
 
 function transportSourceLabel(source?: string) {

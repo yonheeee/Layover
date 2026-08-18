@@ -28,6 +28,8 @@ interface PlaceListDto {
   kakaoPhone?: string;
   roadAddress?: string;
   active: boolean;
+  /** 백엔드가 운영시간/휴무일을 해석한 결과 */
+  openStatus?: "OPEN" | "CLOSED" | "UNKNOWN";
 }
 
 interface PlaceDetailDto extends PlaceListDto {
@@ -56,7 +58,9 @@ function mapList(dto: PlaceListDto): Place {
     lat: dto.latitude,
     lng: dto.longitude,
     image: dto.imageUrl,
-    isOpen: dto.active,
+    // isOpen은 예전에 is_active(노출 여부)를 그대로 썼다. 항상 1이라 늘 "영업중"으로 보였다.
+    isOpen: dto.openStatus !== "CLOSED",
+    openStatus: dto.openStatus,
     hours: dto.operatingHours,
     restDate: dto.restDate,
     infoCenter: dto.infoCenter,
@@ -79,7 +83,9 @@ function mapDetail(dto: PlaceDetailDto): Place {
     lat: dto.latitude,
     lng: dto.longitude,
     image: dto.imageUrl,
-    isOpen: dto.active,
+    // isOpen은 예전에 is_active(노출 여부)를 그대로 썼다. 항상 1이라 늘 "영업중"으로 보였다.
+    isOpen: dto.openStatus !== "CLOSED",
+    openStatus: dto.openStatus,
     hours: dto.operatingHours,
     restDate: dto.restDate,
     infoCenter: dto.infoCenter,

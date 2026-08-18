@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import {
+  Car,
   ChevronDown,
+  Footprints,
   Landmark,
   Navigation,
   ShoppingBag,
@@ -23,6 +25,7 @@ const emit = defineEmits<{
       stayDuration: number | string;
       travelDate: string;
       selectedFilters: string[];
+      travelMode: "WALK" | "TAXI";
       useWeather: boolean;
       remainingMinutes: number;
     },
@@ -57,8 +60,16 @@ const text = {
   alreadyDeparted: "\uc774\ubbf8 \ucd9c\ubc1c",
   minute: "\ubd84",
   safetyBuffer: "\ucd9c\ubc1c 30\ubd84 \uc804 \uc5ed \ubcf5\uadc0 \ubc84\ud37c \ubc18\uc601",
+  travelMode: "\uc774\ub3d9 \uc218\ub2e8",
+  walk: "\ub3c4\ubcf4",
+  taxi: "\ud0dd\uc2dc",
   availableTravelTime: "\ucd94\ucc9c \uac00\ub2a5",
 };
+
+const TRAVEL_MODES = [
+  { key: "WALK", labelKey: "walk", icon: Footprints },
+  { key: "TAXI", labelKey: "taxi", icon: Car },
+] as const;
 
 const CATEGORY_FILTERS = [
   { key: "food", label: "\uc74c\uc2dd", icon: Utensils },
@@ -100,13 +111,19 @@ const selectedStation = ref("daejeon");
 const selectedDestination = ref("busan");
 const selectedTrain = ref("");
 const selectedFilters = ref<string[]>([]);
+const travelMode = ref<"WALK" | "TAXI">("TAXI");
 const searchMode = ref<"train" | "stay">("train");
 const stayDuration = ref<number | string>("");
 const today = new Date();
 const travelDate = ref(
   `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`,
 );
-const SAFETY_BUFFER_MINUTES = 30;
+/**
+ * 화면에 "추천 가능 시간"을 보여줄 때만 쓰는 값이다.
+ * 실제 코스 편성에 반영되는 버퍼는 백엔드(course.return-buffer-minutes)가 관리하므로
+ * 서버에는 버퍼를 빼지 않은 잔여 시간을 그대로 보낸다. 양쪽에서 빼면 이중으로 차감된다.
+ */
+const DISPLAY_BUFFER_MINUTES = 30;
 
 const todayLabel = computed(() => {
   const d = new Date(`${travelDate.value}T00:00:00`);
@@ -144,7 +161,7 @@ const selectedTrainDetail = computed(() => {
     travelMinutes: Math.max(
       0,
       calcRemainingMinutes(travelDate.value, train.departTime) -
-        SAFETY_BUFFER_MINUTES,
+        DISPLAY_BUFFER_MINUTES,
     ),
   };
 });
@@ -263,7 +280,8 @@ function formatDuration(minutes: number) {
 }
 
 function handleRecommendCourse() {
-  const remaining = selectedTrainDetail.value?.travelMinutes ?? 0;
+  // 버퍼를 빼지 않은 잔여 시간. 차감은 백엔드가 한다.
+  const remaining = selectedTrainDetail.value?.remainingMinutes ?? 0;
   emit("recommend", {
     station: selectedStation.value,
     destination: selectedDestination.value,
@@ -272,6 +290,7 @@ function handleRecommendCourse() {
     stayDuration: stayDuration.value,
     travelDate: travelDate.value,
     selectedFilters: selectedFilters.value,
+    travelMode: travelMode.value,
     useWeather: false,
     remainingMinutes: remaining,
   });
@@ -387,6 +406,23 @@ function handleRecommendCourse() {
             >
               <component :is="category.icon" :size="13" stroke-width="2" />
               {{ category.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="field-block">
+          <span class="field-label">{{ text.travelMode }}</span>
+          <div class="travel-mode-grid" data-tour="home-travel-mode">
+            <button
+              v-for="mode in TRAVEL_MODES"
+              :key="mode.key"
+              type="button"
+              :class="{ active: travelMode === mode.key }"
+              :aria-pressed="travelMode === mode.key"
+              @click="travelMode = mode.key"
+            >
+              <component :is="mode.icon" :size="14" stroke-width="2" />
+              {{ text[mode.labelKey] }}
             </button>
           </div>
         </div>
@@ -664,6 +700,39 @@ function handleRecommendCourse() {
   border-radius: 8px;
   font-size: 0.76rem;
   white-space: nowrap;
+}
+
+.travel-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.travel-mode-grid button {
+  display: inline-flex;
+  min-height: 36px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid #dcece9;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.56);
+  color: #506864;
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.travel-mode-grid button.active {
+  border-color: #2f877c;
+  background: #e9f8f5;
+  color: #226d64;
 }
 
 .mode-tabs {

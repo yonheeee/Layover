@@ -64,6 +64,7 @@ async function handleRecommendCourse(filters: {
   stayDuration: number | string;
   selectedFilters: string[];
   travelDate: string;
+  travelMode: "WALK" | "TAXI";
   useWeather: boolean;
   remainingMinutes: number;
 }) {
@@ -73,30 +74,26 @@ async function handleRecommendCourse(filters: {
     return;
   }
 
+  // 열차 모드든 직접 입력 모드든 버퍼를 빼지 않은 값을 그대로 보낸다.
+  // 복귀 버퍼 차감은 백엔드(course.return-buffer-minutes)가 일괄 처리한다.
   const durationMinutes =
     filters.searchMode === "train"
       ? filters.remainingMinutes
       : Number(filters.stayDuration) * 60;
 
+  const request = {
+    departureStation: STATION_MAP[filters.station] ?? "DAEJEON",
+    durationMinutes,
+    travelMode: filters.travelMode,
+    themeTags: filters.selectedFilters
+      .map((filter) => FILTER_MAP[filter])
+      .filter(Boolean),
+  };
+
   isLoading.value = true;
   try {
-    const courses = await generateCourses({
-      departureStation: STATION_MAP[filters.station] ?? "DAEJEON",
-      durationMinutes,
-      travelMode: "TAXI",
-      themeTags: filters.selectedFilters
-        .map((filter) => FILTER_MAP[filter])
-        .filter(Boolean),
-    });
-
-    courseStore.setCourses(courses, {
-      departureStation: STATION_MAP[filters.station] ?? "DAEJEON",
-      durationMinutes,
-      travelMode: "TAXI",
-      themeTags: filters.selectedFilters
-        .map((filter) => FILTER_MAP[filter])
-        .filter(Boolean),
-    });
+    const courses = await generateCourses(request);
+    courseStore.setCourses(courses, request);
     router.push("/map");
   } catch {
     alert(t.generateFailed);
