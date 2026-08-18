@@ -106,6 +106,8 @@ type StampRewardCharacter = Pick<
 const newCharacterPopup = ref<StampRewardCharacter | null>(null)
 const isSavingStamp = ref(false)
 const allowDevStampVerification = import.meta.env.DEV
+/** 위치 인증에 성공한 좌표. 스탬프 저장 시 서버 검증용으로 함께 보낸다. */
+const verifiedCoords = ref<{ latitude: number; longitude: number } | null>(null)
 const collectibleDreamCharacters = dreamCharacters.filter((character) => character.id !== 'dream-family')
 
 function rewardCharacterForStampIndex(index: number): StampRewardCharacter {
@@ -388,6 +390,7 @@ function startVerify(idx: number) {
       const place = places.value[idx]
       const dist = haversine(coords.latitude, coords.longitude, place.lat, place.lng)
       if (dist <= 100 || allowDevStampVerification) {
+        verifiedCoords.value = { latitude: coords.latitude, longitude: coords.longitude }
         showGuide()
       } else {
         errorMsg.value = `거리가 너무 멉니다. (현재 약 ${Math.round(dist)}m 떨어져 있어요)`
@@ -515,7 +518,7 @@ async function confirmResult() {
 
   isSavingStamp.value = true
   try {
-    const res = await saveStamp(place.id)
+    const res = await saveStamp(place.id, verifiedCoords.value)
     if (res.newCharacter) {
       apiRewardCharacter = rewardCharacterFromApi(res.newCharacter)
     }
@@ -523,6 +526,12 @@ async function confirmResult() {
     const status = err?.response?.status
     if (status === 409) {
       alert('이미 방문한 장소입니다.')
+      isSavingStamp.value = false
+      return
+    }
+    if (status === 400) {
+      // 서버 위치 검증 실패 (반경 밖이거나 좌표 누락)
+      alert(err?.response?.data?.message ?? '위치를 확인할 수 없습니다. 장소 근처에서 다시 시도해주세요.')
       isSavingStamp.value = false
       return
     }
