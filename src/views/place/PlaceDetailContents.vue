@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import {
   CalendarDays,
   Clock,
@@ -12,7 +12,7 @@ import {
 } from "lucide-vue-next";
 import { getPlaceById } from "@/api/places";
 import { useBookmarkStore } from "@/stores/bookmark";
-import { loadKakaoMaps } from "@/utils/kakaoMaps";
+import { useKakaoMap } from "@/composables/useKakaoMap";
 
 const props = defineProps<{
   id?: string | null;
@@ -48,9 +48,8 @@ const EMPTY_PLACE = {
 const place = ref<any>({ ...EMPTY_PLACE });
 const loading = ref(false);
 const placeMapRef = ref<HTMLElement | null>(null);
-let placeMap: any = null;
-let placeMarker: any = null;
-let mapResizeObserver: ResizeObserver | null = null;
+// 지도 생성·마커·relayout·정리는 useKakaoMap이 담당한다.
+const placeMapController = useKakaoMap();
 
 function hasPlaceCoords() {
   return Number.isFinite(place.value.lat) && Number.isFinite(place.value.lng);
@@ -105,44 +104,14 @@ function openKakaoMap() {
   window.open(place.value.kakaoPlaceUrl, "_blank", "noopener,noreferrer");
 }
 
-function ensureKakaoMaps() {
-  return loadKakaoMaps();
-}
-
 async function renderPlaceMap() {
   await nextTick();
   if (!placeMapRef.value || !hasPlaceCoords()) return;
 
-  try {
-    const kakao = await ensureKakaoMaps();
-    const center = new kakao.maps.LatLng(place.value.lat, place.value.lng);
-
-    placeMap = new kakao.maps.Map(placeMapRef.value, {
-      center,
-      level: 4,
-    });
-
-    placeMarker?.setMap(null);
-    placeMarker = new kakao.maps.Marker({
-      position: center,
-      map: placeMap,
-      title: place.value.name,
-    });
-
-    mapResizeObserver?.disconnect();
-    mapResizeObserver = new ResizeObserver(() => {
-      placeMap?.relayout();
-      placeMap?.setCenter(center);
-    });
-    mapResizeObserver.observe(placeMapRef.value);
-
-    requestAnimationFrame(() => {
-      placeMap?.relayout();
-      placeMap?.setCenter(center);
-    });
-  } catch (e) {
-    console.error("카카오맵 로딩 실패:", e);
-  }
+  const center = { lat: place.value.lat as number, lng: place.value.lng as number };
+  placeMapController.clearOverlays();
+  await placeMapController.createMap(placeMapRef.value, { center, level: 4 });
+  placeMapController.addMarker(center, { title: place.value.name });
 }
 
 function applyPlace(data: any) {
@@ -172,11 +141,6 @@ watch(
   },
   { immediate: true },
 );
-
-onUnmounted(() => {
-  mapResizeObserver?.disconnect();
-  placeMarker?.setMap(null);
-});
 
 const bookmarkStore = useBookmarkStore();
 

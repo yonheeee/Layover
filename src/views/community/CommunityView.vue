@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import { ref, computed, onMounted, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
@@ -146,7 +147,7 @@ function canOpenUserAction(userId?: string | null) {
 function toggleUserAction(key: string, userId?: string | null, username?: string) {
   if (!userId || !username || userId === auth.userId) return;
   if (!isLoggedIn.value) {
-    alert("로그인이 필요합니다.");
+    toast.info("로그인이 필요합니다.");
     return;
   }
   activeUserAction.value =
@@ -240,7 +241,7 @@ async function submitComment(postId: string) {
     const post = posts.value.find((p) => p.id === postId);
     if (post) post.commentCount++;
   } catch {
-    alert("댓글 등록에 실패했습니다.");
+    toast.error("댓글 등록에 실패했습니다.");
   } finally {
     commentSubmittingIds.value.delete(postId);
   }
@@ -320,7 +321,7 @@ function removeFile(index: number) {
 // ─── 1:1 문의 제출 ───
 async function submitInquiry() {
   if (!inquiryTitle.value.trim() || !inquiryContent.value.trim()) {
-    alert("제목과 내용을 입력해주세요.");
+    toast.info("제목과 내용을 입력해주세요.");
     return;
   }
   isSubmittingInquiry.value = true;
@@ -335,9 +336,9 @@ async function submitInquiry() {
     inquiryContent.value = "";
     attachedFiles.value = [];
     myInquiries.value = await getMyInquiries();
-    alert("문의가 등록되었습니다.");
+    toast.success("문의가 등록되었습니다.");
   } catch {
-    alert("문의 등록에 실패했습니다. 다시 시도해주세요.");
+    toast.error("문의 등록에 실패했습니다. 다시 시도해주세요.");
   } finally {
     isSubmittingInquiry.value = false;
   }

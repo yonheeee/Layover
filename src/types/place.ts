@@ -10,6 +10,8 @@ export interface Place {
   name: string
   category: string
   isOpen: boolean
+  /** OPEN / CLOSED / UNKNOWN. UNKNOWN이면 화면에서 "정보 확인 필요"로 안내한다. */
+  openStatus?: 'OPEN' | 'CLOSED' | 'UNKNOWN'
   rating?: number
   description?: string
   distance?: string

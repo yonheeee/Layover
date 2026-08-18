@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import {
   CODE_TO_CATEGORY,
   createComment,
@@ -83,7 +84,7 @@ function canOpenUserAction(userId?: string | null) {
 function toggleUserAction(key: string, userId?: string | null, username?: string) {
   if (!userId || !username || userId === auth.userId) return;
   if (!isLoggedIn.value) {
-    alert("로그인이 필요합니다.");
+    toast.info("로그인이 필요합니다.");
     return;
   }
   activeUserAction.value =
@@ -122,7 +123,7 @@ function formatDate(isoStr: string): string {
 // ─── 좋아요 ───
 async function handleToggleLike() {
   if (!isLoggedIn.value) {
-    alert("로그인이 필요합니다.");
+    toast.info("로그인이 필요합니다.");
     return;
   }
   if (!post.value) return;
@@ -131,14 +132,14 @@ async function handleToggleLike() {
     isLiked.value = !isLiked.value;
     post.value.likeCount += isLiked.value ? 1 : -1;
   } catch {
-    alert("좋아요 처리에 실패했습니다.");
+    toast.error("좋아요 처리에 실패했습니다.");
   }
 }
 
 // ─── 댓글 등록 ───
 async function handleAddComment() {
   if (!isLoggedIn.value) {
-    alert("로그인이 필요합니다.");
+    toast.info("로그인이 필요합니다.");
     return;
   }
   if (!commentText.value.trim() || !post.value) return;
@@ -150,7 +151,7 @@ async function handleAddComment() {
     const refreshed = await getPost(postId);
     post.value = refreshed;
   } catch {
-    alert("댓글 등록에 실패했습니다.");
+    toast.error("댓글 등록에 실패했습니다.");
   } finally {
     isSubmittingComment.value = false;
   }
@@ -164,7 +165,7 @@ async function handleDeleteComment(commentId: string) {
     post.value.comments = post.value.comments.filter((c) => c.id !== commentId);
     post.value.commentCount--;
   } catch {
-    alert("댓글 삭제에 실패했습니다.");
+    toast.error("댓글 삭제에 실패했습니다.");
   }
 }
 
@@ -175,7 +176,7 @@ async function handleDeletePost() {
     await deletePost(postId);
     router.replace("/community");
   } catch {
-    alert("게시글 삭제에 실패했습니다.");
+    toast.error("게시글 삭제에 실패했습니다.");
   }
 }
 

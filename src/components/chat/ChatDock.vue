@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toast } from "@/composables/useToast";
 import {
   createChatRoom,
   getChatMessages,
@@ -82,7 +83,7 @@ const hasCurrentPageTour = computed(() => currentTourKey.value !== null);
 
 async function openDock() {
   if (!isLoggedIn.value) {
-    alert("로그인이 필요합니다.");
+    toast.info("로그인이 필요합니다.");
     return;
   }
   selectedRoom.value = null;
@@ -147,7 +148,7 @@ async function selectRoom(room: ChatRoom) {
 
 async function openChat(target: UserTarget) {
   if (!isLoggedIn.value) {
-    alert("로그인이 필요합니다.");
+    toast.info("로그인이 필요합니다.");
     return;
   }
   try {
@@ -156,7 +157,7 @@ async function openChat(target: UserTarget) {
     await fetchRooms();
     await selectRoom(rooms.value.find((item) => item.id === room.id) ?? room);
   } catch (error: any) {
-    alert(error?.message ?? "채팅을 시작할 수 없습니다.");
+    toast.error(error?.message ?? "채팅을 시작할 수 없습니다.");
   }
 }
 
@@ -171,7 +172,7 @@ async function sendText() {
     await fetchRooms();
     await scrollToBottom();
   } catch {
-    alert("메시지 전송에 실패했습니다.");
+    toast.error("메시지 전송에 실패했습니다.");
   } finally {
     isSending.value = false;
     await nextTick();
@@ -196,7 +197,7 @@ async function handleImageUpload(event: Event) {
     await fetchRooms();
     await scrollToBottom();
   } catch {
-    alert("사진 전송에 실패했습니다.");
+    toast.error("사진 전송에 실패했습니다.");
   } finally {
     isSending.value = false;
   }
@@ -230,7 +231,7 @@ async function sendCourse(course: SavedCourseResponse) {
     await fetchRooms();
     await scrollToBottom();
   } catch {
-    alert("코스 공유에 실패했습니다.");
+    toast.error("코스 공유에 실패했습니다.");
   } finally {
     isSendingCourse.value = false;
     await nextTick();
@@ -309,7 +310,7 @@ async function waitForMessageListPaint() {
 
 function openReport(target: UserTarget) {
   if (!isLoggedIn.value) {
-    alert("로그인이 필요합니다.");
+    toast.info("로그인이 필요합니다.");
     return;
   }
   reportTarget.value = target;
@@ -324,9 +325,9 @@ async function submitReport() {
     reportTarget.value = null;
     reportContent.value = "";
     window.dispatchEvent(new CustomEvent("layover:reports-updated"));
-    alert("신고가 접수되었습니다.");
+    toast.success("신고가 접수되었습니다.");
   } catch (error: any) {
-    alert(error?.message ?? "신고 접수에 실패했습니다.");
+    toast.error(error?.message ?? "신고 접수에 실패했습니다.");
   } finally {
     isReporting.value = false;
   }
