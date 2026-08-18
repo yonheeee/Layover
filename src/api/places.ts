@@ -19,6 +19,14 @@ interface PlaceListDto {
   longitude: number;
   imageUrl: string;
   operatingHours: string;
+  restDate?: string;
+  infoCenter?: string;
+  parking?: string;
+  useFee?: string;
+  reservation?: string;
+  kakaoPlaceUrl?: string;
+  kakaoPhone?: string;
+  roadAddress?: string;
   active: boolean;
 }
 
@@ -50,6 +58,15 @@ function mapList(dto: PlaceListDto): Place {
     image: dto.imageUrl,
     isOpen: dto.active,
     hours: dto.operatingHours,
+    restDate: dto.restDate,
+    infoCenter: dto.infoCenter,
+    parking: dto.parking,
+    useFee: dto.useFee,
+    reservation: dto.reservation,
+    roadAddress: dto.roadAddress,
+    phone: dto.kakaoPhone,
+    kakaoPlaceUrl: dto.kakaoPlaceUrl,
+    kakaoPhone: dto.kakaoPhone,
   };
 }
 
@@ -64,6 +81,15 @@ function mapDetail(dto: PlaceDetailDto): Place {
     image: dto.imageUrl,
     isOpen: dto.active,
     hours: dto.operatingHours,
+    restDate: dto.restDate,
+    infoCenter: dto.infoCenter,
+    parking: dto.parking,
+    useFee: dto.useFee,
+    reservation: dto.reservation,
+    roadAddress: dto.roadAddress,
+    phone: dto.kakaoPhone,
+    kakaoPlaceUrl: dto.kakaoPlaceUrl,
+    kakaoPhone: dto.kakaoPhone,
     description: dto.description,
   };
 }

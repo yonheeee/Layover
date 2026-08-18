@@ -1,6 +1,15 @@
 <script setup lang="ts">
-import { nextTick, onUnmounted, ref, watch } from "vue";
-import { MapPin, Clock, Heart, Image as ImageIcon } from "lucide-vue-next";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
+import {
+  CalendarDays,
+  Clock,
+  ExternalLink,
+  Heart,
+  Image as ImageIcon,
+  Info,
+  MapPin,
+  Phone,
+} from "lucide-vue-next";
 import { getPlaceById } from "@/api/places";
 import { useBookmarkStore } from "@/stores/bookmark";
 import { loadKakaoMaps } from "@/utils/kakaoMaps";
@@ -18,8 +27,16 @@ const EMPTY_PLACE = {
   reviewCount: undefined as number | undefined,
   isOpen: false,
   hours: "정보 없음",
+  restDate: "",
+  infoCenter: "",
+  parking: "",
+  useFee: "",
+  reservation: "",
   address: "정보 없음",
+  roadAddress: "",
   phone: "정보 없음",
+  kakaoPlaceUrl: "",
+  kakaoPhone: "",
   lat: undefined as number | undefined,
   lng: undefined as number | undefined,
   distance: "",
@@ -42,6 +59,50 @@ function hasPlaceCoords() {
 function formatHours(hours: string): string {
   if (!hours || hours === "정보 없음") return hours;
   return hours.replace(/(\d{4})(\d{2})(\d{2})/g, "$1.$2.$3");
+}
+
+function hasValue(value?: string | null) {
+  return Boolean(value && value.trim() && value !== "정보 없음");
+}
+
+const detailInfoItems = computed(() =>
+  [
+    {
+      label: "운영시간",
+      value: place.value.hours,
+      icon: Clock,
+    },
+    {
+      label: "휴무일",
+      value: place.value.restDate,
+      icon: CalendarDays,
+    },
+    {
+      label: "문의",
+      value: place.value.infoCenter || place.value.kakaoPhone || place.value.phone,
+      icon: Phone,
+    },
+    {
+      label: "주차",
+      value: place.value.parking,
+      icon: MapPin,
+    },
+    {
+      label: "요금/대표정보",
+      value: place.value.useFee,
+      icon: Info,
+    },
+    {
+      label: "예약/체험",
+      value: place.value.reservation,
+      icon: Info,
+    },
+  ].filter((item) => hasValue(item.value)),
+);
+
+function openKakaoMap() {
+  if (!place.value.kakaoPlaceUrl) return;
+  window.open(place.value.kakaoPlaceUrl, "_blank", "noopener,noreferrer");
 }
 
 function ensureKakaoMaps() {
@@ -197,16 +258,51 @@ function toggleLike() {
         </div>
       </div>
 
-      <!-- 영업시간 -->
+      <!-- 상세 운영 정보 -->
       <div
-        v-if="place.hours && place.hours !== '정보 없음'"
-        class="flex items-center gap-3 mb-3"
+        class="rounded-2xl mb-4 p-4"
+        style="background:#f8fbfa; border:1.5px solid rgba(178,228,220,0.4)"
       >
-        <Clock :size="15" color="#B2E4DC" class="flex-shrink-0" />
-        <span
-          style="font-size: 0.88rem; color: #374151"
-          v-html="formatHours(place.hours)"
-        />
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <p style="font-size:0.78rem; font-weight:800; color:#3db89e">
+              상세 정보
+            </p>
+            <p style="font-size:0.7rem; color:#7b8f8b; line-height:1.55; margin-top:2px">
+              TourAPI와 Kakao Local API 기반 정보입니다. 영업정보는 변동될 수 있어요.
+            </p>
+          </div>
+          <button
+            v-if="place.kakaoPlaceUrl"
+            type="button"
+            class="kakao-map-link"
+            @click="openKakaoMap"
+          >
+            <span class="kakao-map-link__icon">K</span>
+            <span>카카오맵</span>
+            <ExternalLink :size="13" />
+          </button>
+        </div>
+
+        <div v-if="detailInfoItems.length" class="grid gap-2">
+          <div
+            v-for="item in detailInfoItems"
+            :key="item.label"
+            class="place-detail-info-row"
+          >
+            <component :is="item.icon" :size="15" color="#3db89e" />
+            <div class="min-w-0">
+              <p class="place-detail-info-row__label">{{ item.label }}</p>
+              <p
+                class="place-detail-info-row__value"
+                v-html="formatHours(item.value)"
+              />
+            </div>
+          </div>
+        </div>
+        <p v-else style="font-size:0.78rem; color:#9ca3af; line-height:1.6">
+          상세 운영 정보는 아직 준비 중입니다. 최신 정보는 지도 상세 페이지에서 확인해주세요.
+        </p>
       </div>
 
       <!-- 설명 -->
@@ -243,9 +339,63 @@ function toggleLike() {
       <div class="flex items-center gap-3">
         <MapPin :size="15" color="#B2E4DC" class="flex-shrink-0" />
         <span style="font-size: 0.88rem; color: #374151">{{
-          place.address
+          place.roadAddress || place.address
         }}</span>
       </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.kakao-map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #fee500;
+  color: #191919;
+  font-size: 0.72rem;
+  font-weight: 900;
+  box-shadow: 0 6px 14px rgba(25, 25, 25, 0.12);
+}
+
+.kakao-map-link__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 6px;
+  background: #191919;
+  color: #fee500;
+  font-size: 0.68rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.place-detail-info-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.place-detail-info-row__label {
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #6b8c87;
+}
+
+.place-detail-info-row__value {
+  margin-top: 2px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #374151;
+  word-break: keep-all;
+}
+</style>

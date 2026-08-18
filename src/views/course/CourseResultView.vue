@@ -22,6 +22,7 @@ import {
 } from "lucide-vue-next";
 import type { Course, CourseStop } from "@/types/course";
 import { regenerateCourse, searchPlaces, saveCourse } from "@/api/courses";
+import { CATEGORY_LABELS } from "@/api/places";
 import { useCourseStore } from "@/stores/course";
 import { loadKakaoMaps } from "@/utils/kakaoMaps";
 
@@ -101,12 +102,15 @@ const courseMapRef = ref<HTMLElement | null>(null);
 let resultMap: any = null;
 let resultOverlays: any[] = [];
 let resultPolylines: any[] = [];
+let candidateOverlays: any[] = [];
 
 function clearResultMap() {
   resultOverlays.forEach((overlay) => overlay.setMap(null));
   resultPolylines.forEach((polyline) => polyline.setMap(null));
+  candidateOverlays.forEach((overlay) => overlay.setMap(null));
   resultOverlays = [];
   resultPolylines = [];
+  candidateOverlays = [];
 }
 
 async function initResultMap() {
@@ -187,6 +191,45 @@ function renderResultMap() {
     resultPolylines.push(polyline);
   }
 
+  if (isEditing.value) {
+    filteredCandidatePlaces.value.forEach((place) => {
+      if (!Number.isFinite(place.lat) || !Number.isFinite(place.lng)) return;
+
+      const position = new kakao.maps.LatLng(place.lat, place.lng);
+      bounds.extend(position);
+
+      const markerContent = document.createElement("button");
+      markerContent.type = "button";
+      markerContent.title = `${place.name} 정보 보기`;
+      markerContent.style.cssText = `
+        width:28px;height:28px;border-radius:999px;
+        background:#ffffff;border:2px solid #3db89e;
+        box-shadow:0 8px 18px rgba(18,61,53,0.18);
+        display:flex;align-items:center;justify-content:center;
+        cursor:pointer;padding:0;
+      `;
+      markerContent.innerHTML = `
+        <span style="
+          width:10px;height:10px;border-radius:999px;
+          background:#3db89e;display:block;
+        "></span>
+      `;
+      markerContent.addEventListener("click", () => {
+        selectedMapPlace.value = place;
+      });
+
+      const overlay = new kakao.maps.CustomOverlay({
+        position,
+        content: markerContent,
+        yAnchor: 0.5,
+        xAnchor: 0.5,
+        zIndex: 5,
+      });
+      overlay.setMap(resultMap);
+      candidateOverlays.push(overlay);
+    });
+  }
+
   resultMap.setBounds(bounds);
 }
 
@@ -208,9 +251,45 @@ const isSaving = ref(false);
 const isRegenerating = ref(false); // AI 재추천 로딩 상태
 const showAddModal = ref(false);
 const searchKeyword = ref("");
+const selectedMapCategories = ref<string[]>([]);
+const selectedMapPlace = ref<Omit<CourseStop, "stayTime" | "isLocked"> | null>(null);
 
 const allMockSearch = ref<Omit<CourseStop, "stayTime" | "isLocked">[]>([]);
 const searchResults = ref<Omit<CourseStop, "stayTime" | "isLocked">[]>([]);
+
+const mapCategoryOptions = computed(() => {
+  const categories = new Set(
+    allMockSearch.value
+      .map((place) => place.category)
+      .filter(Boolean),
+  );
+
+  return [...categories].map((category) => ({
+    value: category,
+    label: categoryLabel(category),
+  }));
+});
+
+const filteredCandidatePlaces = computed(() => {
+  const currentIds = new Set(currentPlaces.value.map((place) => place.id));
+  const categories = selectedMapCategories.value;
+
+  return allMockSearch.value
+    .filter((place) => !currentIds.has(place.id))
+    .filter((place) => categories.length === 0 || categories.includes(place.category))
+    .filter((place) => Number.isFinite(place.lat) && Number.isFinite(place.lng))
+    .slice(0, 120);
+});
+
+function categoryLabel(category: string) {
+  return CATEGORY_LABELS[category] ?? category;
+}
+
+function toggleMapCategory(category: string) {
+  selectedMapCategories.value = selectedMapCategories.value.includes(category)
+    ? selectedMapCategories.value.filter((item) => item !== category)
+    : [...selectedMapCategories.value, category];
+}
 
 // 자물쇠 고정 토글 함수
 function toggleLock(idx: number) {
@@ -257,7 +336,7 @@ function handleSearch() {
   );
 }
 
-function addPlace(scanned: any) {
+function addPlace(scanned: Omit<CourseStop, "stayTime" | "isLocked">, closeModal = true) {
   currentPlaces.value.push({
     ...scanned,
     stayTime: "30분",
@@ -265,7 +344,8 @@ function addPlace(scanned: any) {
     transport: "walk",
     transportTime: "5분",
   });
-  showAddModal.value = false;
+  selectedMapPlace.value = null;
+  if (closeModal) showAddModal.value = false;
 }
 
 function removePlace(idx: number) {
@@ -278,6 +358,22 @@ async function finishEdit() {
   isSaving.value = false;
   isEditing.value = false;
 }
+
+watch(
+  [isEditing, filteredCandidatePlaces],
+  () => {
+    if (!isEditing.value) {
+      selectedMapPlace.value = null;
+    } else if (
+      selectedMapPlace.value &&
+      !filteredCandidatePlaces.value.some((place) => place.id === selectedMapPlace.value?.id)
+    ) {
+      selectedMapPlace.value = null;
+    }
+    nextTick(() => renderResultMap());
+  },
+  { deep: true },
+);
 
 // 코스 확정 모달 및 토스트
 const showConfirmModal = ref(false);
@@ -484,7 +580,7 @@ async function confirmCourse() {
                 <div class="flex items-center gap-1.5 mt-1">
                   <span
                     class="px-2 py-0.5 rounded-full text-[0.65rem] bg-gray-50 border border-gray-100 text-gray-500 font-medium"
-                    >{{ place.category }}</span
+                    >{{ categoryLabel(place.category) }}</span
                   >
                   <span
                     v-if="place.waitingTime"
@@ -606,6 +702,77 @@ async function confirmCourse() {
           현재 기차 환승 대기 스케줄에 실시간 동기화 완료
         </p>
       </div>
+
+      <div
+        v-if="isEditing"
+        class="absolute left-5 top-5 z-20 w-[320px] max-w-[calc(100%-40px)] rounded-3xl border border-teal-100 bg-white/95 p-4 shadow-xl backdrop-blur-md"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="text-[0.7rem] font-black uppercase tracking-wide text-teal-600">
+              편집 지도
+            </p>
+            <h2 class="mt-0.5 text-sm font-extrabold text-[#123d35]">
+              후보 관광지 핀
+            </h2>
+          </div>
+          <span class="rounded-full bg-teal-50 px-2.5 py-1 text-[0.68rem] font-black text-teal-700">
+            {{ filteredCandidatePlaces.length }}곳
+          </span>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <button
+            v-for="category in mapCategoryOptions"
+            :key="category.value"
+            type="button"
+            class="rounded-full border px-2.5 py-1 text-[0.68rem] font-bold transition"
+            :class="
+              selectedMapCategories.includes(category.value)
+                ? 'border-teal-400 bg-teal-500 text-white'
+                : 'border-teal-100 bg-white text-[#5d746f] hover:border-teal-300'
+            "
+            @click="toggleMapCategory(category.value)"
+          >
+            {{ category.label }}
+          </button>
+        </div>
+
+        <div
+          v-if="selectedMapPlace"
+          class="mt-3 rounded-2xl border border-teal-100 bg-[#f8fbfa] p-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="truncate text-sm font-extrabold text-[#123d35]">
+                {{ selectedMapPlace.name }}
+              </p>
+              <p class="mt-1 text-[0.7rem] font-bold text-teal-700">
+                {{ categoryLabel(selectedMapPlace.category) }}
+                · {{ selectedMapPlace.isOpen ? "운영 가능" : "운영 정보 확인 필요" }}
+              </p>
+            </div>
+            <button
+              type="button"
+              class="shrink-0 rounded-full bg-white p-1.5 text-gray-400 hover:text-gray-600"
+              @click="selectedMapPlace = null"
+            >
+              <X :size="13" />
+            </button>
+          </div>
+          <button
+            type="button"
+            class="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-500 py-2 text-xs font-extrabold text-white transition hover:bg-teal-600"
+            @click="addPlace(selectedMapPlace, false)"
+          >
+            <Plus :size="13" />
+            코스에 추가
+          </button>
+        </div>
+        <p v-else class="mt-3 text-[0.7rem] font-semibold leading-relaxed text-gray-500">
+          지도 위 후보 핀을 누르면 장소 정보를 보고 바로 코스에 추가할 수 있어요.
+        </p>
+      </div>
     </div>
 
     <div
@@ -654,7 +821,7 @@ async function confirmCourse() {
                   {{ result.name }}
                 </p>
                 <span class="text-[0.65rem] text-teal-600 font-semibold">{{
-                  result.category
+                  categoryLabel(result.category)
                 }}</span>
               </div>
               <Plus :size="14" class="text-teal-500" />

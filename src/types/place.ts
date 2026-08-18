@@ -20,10 +20,18 @@ export interface Place {
   reviewCount?: number
   duration?: string
   hours?: string
+  restDate?: string
+  infoCenter?: string
+  parking?: string
+  useFee?: string
+  reservation?: string
   address?: string
+  roadAddress?: string
   lat?: number
   lng?: number
   phone?: string
+  kakaoPlaceUrl?: string
+  kakaoPhone?: string
   liked?: boolean
   nearbyPlaces?: NearbyPlace[]
 }
