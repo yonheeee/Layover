@@ -490,7 +490,15 @@ async function composePostcard(
     // 캐릭터 이미지는 프론트 번들에 있어 same-origin이다.
     // 외부 도메인에서 불러오면 canvas가 오염돼 toDataURL이 실패한다.
     const characterImage = await loadCanvasImage(resolveCharacterImage(character?.code ?? ''))
-    ctx.drawImage(characterImage, badgeX, badgeY, size, size)
+    const nw = characterImage.naturalWidth
+    const nh = characterImage.naturalHeight
+    // 0×0이면 NaN이 drawImage에 들어가 배지가 조용히 사라진다 → 폴백으로 넘긴다.
+    if (nw === 0 || nh === 0) throw new Error('빈 이미지')
+    const scale = Math.min(size / nw, size / nh)
+    const drawW = nw * scale
+    const drawH = nh * scale
+    // 가로: 중앙, 세로: 하단 기준 — 솔로/듀오 혼재 시 발 위치 기준선 일치
+    ctx.drawImage(characterImage, badgeX + (size - drawW) / 2, badgeY + (size - drawH), drawW, drawH)
   } catch {
     ctx.font = `${Math.round(size * 0.42)}px serif`
     ctx.textAlign = 'center'
