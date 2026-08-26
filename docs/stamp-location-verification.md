@@ -1,7 +1,7 @@
 # 스탬프 위치 검증 개선 설계
 
 > 대상: `Layover`(FE) / `Layover_Backend`(BE) · 2026-08-26
-> 상태: **설계만. 구현 전.**
+> 상태: **구현 완료** — BE `3378a16`, FE `7a8a1bc` (브랜치 `feat/characters_update`)
 
 ## 확인 사항
 
@@ -107,7 +107,7 @@ accuracy > ACCURACY_LIMIT (기본 200m)  →  거부
 
 ```
 dist <= RADIUS + min(accuracy, ACCURACY_ALLOWANCE)
-        (기본 100m)      (상한 100m)
+        (기본 100m)      (상한 200m)
 ```
 
 오차만큼 반경을 넓혀주되, 상한을 둬서 무한정 관대해지지 않게 합니다.
@@ -117,7 +117,13 @@ dist <= RADIUS + min(accuracy, ACCURACY_ALLOWANCE)
 | 실외 GPS, 입구 앞 | 15 m | 90 m | 115 m | 통과 |
 | 실외 GPS, 두 블록 밖 | 15 m | 200 m | 115 m | 거부 |
 | 실내 WiFi | 80 m | 150 m | 180 m | 통과 |
+| 나쁜 실내 | 200 m | 250 m | 300 m | 통과 |
 | 기지국 | 1500 m | — | — | 1단계에서 거부 + 안내 |
+
+> `accuracy-limit`과 `accuracy-allowance`가 둘 다 200이라 지금은 `min()`이
+> 잘리는 일이 없습니다. 즉 **실질 반경 = 100 + accuracy, 최대 300m** 입니다.
+> "오차가 큰 좌표도 받되 반경 보정은 줄이고 싶다"면 allowance만 낮추면 됩니다.
+> accuracy를 안 보내면 tolerance가 0이라 기존과 똑같이 100m로 판정합니다.
 
 지금보다 정상 사용자는 덜 막히고, 신뢰할 수 없는 좌표는 아예 안 씁니다.
 
@@ -125,7 +131,7 @@ dist <= RADIUS + min(accuracy, ACCURACY_ALLOWANCE)
 stamp.verification.enabled=${STAMP_VERIFICATION_ENABLED:true}
 stamp.verification.radius-meters=${STAMP_VERIFICATION_RADIUS_METERS:100}
 stamp.verification.accuracy-limit-meters=${STAMP_VERIFICATION_ACCURACY_LIMIT:200}
-stamp.verification.accuracy-allowance-meters=${STAMP_VERIFICATION_ACCURACY_ALLOWANCE:100}
+stamp.verification.accuracy-allowance-meters=${STAMP_VERIFICATION_ACCURACY_ALLOWANCE:200}
 ```
 
 ### 4-2. 판정을 서버 한 곳으로
@@ -164,24 +170,33 @@ log.warn("[Stamp] 위치 검증이 꺼져 있습니다. 배포 환경에서는 s
 
 ## 5. 변경 파일
 
-**백엔드**
+**백엔드** — 커밋 `3378a16`
 
 | 파일 | 변경 |
 |---|---|
-| `stamp/StampService.java` | `verifyLocation`을 accuracy 반영 판정으로 교체, 검증 전용 메서드 분리 |
+| `stamp/StampService.java` | `verifyLocation`을 public으로 올려 두 진입점이 공유, accuracy 2단계 판정 |
 | `stamp/StampController.java` | `POST /verify-location` 추가 |
 | `stamp/VerifyLocationRequest.java` | 신규 (placeId, latitude, longitude, accuracy) |
 | `stamp/SaveStampRequest.java` | `accuracy` 필드 추가 |
-| `resources/application.properties` | 설정 2개 추가 |
+| `resources/application.properties` | `accuracy-limit-meters` / `accuracy-allowance-meters` 추가 |
 
-**프론트엔드**
+**프론트엔드** — 커밋 `7a8a1bc`
 
 | 파일 | 변경 |
 |---|---|
-| `api/stamps.ts` | `verifyLocation()` 추가, `saveStamp`에 accuracy 전달 |
-| `views/stamp/StampTourView.vue` | `haversine`·`allowDevStampVerification` 제거, `startVerify`가 서버 호출로 전환, 재시도 안내 UI |
+| `api/stamps.ts` | `verifyStampLocation()` 추가, `StampCoords` 타입, `saveStamp`에 accuracy 전달 |
+| `views/stamp/StampTourView.vue` | `haversine()`·`R = 6371000`·`dist <= 100`·`allowDevStampVerification`·미사용 `devVerify()` 제거, `startVerify`가 서버 호출로 전환 |
 
-DB 변경 없음. 마이그레이션 없음.
+에러 메시지는 서버 응답을 그대로 기존 `errorMsg` 영역에 띄웁니다. 사용자는 타임라인에서
+"인증하기"를 다시 누르면 재시도되므로 별도 UI를 만들지 않았습니다.
+
+DB 변경 없음. 마이그레이션 없음. 좌표는 어떤 테이블에도 저장되지 않습니다.
+
+**검증 현황**
+
+- 프론트: `npm run build`(vue-tsc 포함) 통과
+- 백엔드: Maven Central이 막힌 환경이라 컴파일 미확인. 구문 파싱과
+  `verifyLocation` 시그니처·설정 키 대조까지만 완료 → `./mvnw compile` 필요
 
 ---
 
