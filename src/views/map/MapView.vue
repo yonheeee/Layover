@@ -145,6 +145,16 @@ async function recalculateCurrentCourse() {
 const activeTab = ref(0);
 const currentCourse = computed(() => courses.value[activeTab.value]);
 const currentPlaces = computed(() => currentCourse.value?.places ?? []);
+const routeDisplayMode = ref<"course" | "walk" | "bus" | "taxi">("course");
+
+function routePathFor(place: CourseStop) {
+  const transport = place.nextTransport;
+  if (!transport) return undefined;
+  if (routeDisplayMode.value === "walk") return transport.walkRoutePath;
+  if (routeDisplayMode.value === "bus") return transport.busRoutePath;
+  if (routeDisplayMode.value === "taxi") return transport.taxiRoutePath;
+  return transport.routePath;
+}
 
 const calculatedCost = computed(() => {
   if (currentCourse.value?.estimatedCost)
@@ -208,6 +218,8 @@ function transportSourceLabel(source?: string) {
       return "카카오모빌리티";
     case "KAKAO":
       return "카카오";
+    case "TMAP":
+      return "T맵";
     case "BUS_STOP_ESTIMATE":
       return "정류장 추정";
     case "ESTIMATED":
@@ -409,22 +421,14 @@ function renderCourseElementsOnMap() {
   // 각 장소 간 구간별 폴리라인 렌더링
   for (let i = 0; i < places.length - 1; i++) {
     const cur = places[i];
-    const routePath = cur.nextTransport?.routePath;
+    const routePath = routePathFor(cur);
 
-    let segmentPath: any[];
-    if (routePath && routePath.length > 1) {
-      segmentPath = routePath.map(
-        ([lat, lng]) => new (window as any).kakao.maps.LatLng(lat, lng),
-      );
-    } else {
-      segmentPath = [
-        new (window as any).kakao.maps.LatLng(cur.lat, cur.lng),
-        new (window as any).kakao.maps.LatLng(
-          places[i + 1].lat,
-          places[i + 1].lng,
-        ),
-      ];
-    }
+    // 실제 경로 좌표가 없을 때 직선을 그리면 도로 경로처럼 오해할 수 있다.
+    // TMap/Kakao Mobility가 반환한 경로가 있는 구간만 표시한다.
+    if (!routePath || routePath.length < 2) continue;
+    const segmentPath = routePath.map(
+      ([lat, lng]) => new (window as any).kakao.maps.LatLng(lat, lng),
+    );
 
     const polyline = new (window as any).kakao.maps.Polyline({
       path: segmentPath,
@@ -443,7 +447,7 @@ function renderCourseElementsOnMap() {
 }
 
 watch(
-  [activeTab, currentPlaces],
+  [activeTab, currentPlaces, routeDisplayMode],
   () => {
     setTimeout(() => {
       renderCourseElementsOnMap();
@@ -893,7 +897,12 @@ async function confirmCourse() {
                 <div
                   class="course-leg-options flex-1 flex flex-wrap items-center justify-between gap-2 pr-4 pl-1 text-[0.7rem] font-bold"
                 >
-                  <div class="flex items-center gap-1 text-gray-500">
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 rounded-lg px-1.5 py-1 text-gray-500"
+                    :class="routeDisplayMode === 'walk' ? 'bg-teal-50 ring-1 ring-teal-300' : ''"
+                    @click="routeDisplayMode = 'walk'"
+                  >
                     <Footprints :size="12" class="text-gray-400" />
                     <span
                       >도보
@@ -904,17 +913,20 @@ async function confirmCourse() {
                         transportSourceLabel(place.nextTransport.walkSource)
                       }}</small></span
                     >
-                  </div>
-                  <div
-                    class="flex items-center gap-1"
-                    :class="
+                  </button>
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 rounded-lg px-1.5 py-1"
+                    :class="[
                       isUnavailableTransport(
                         place.nextTransport.busSource,
                         place.nextTransport.busTime,
                       )
                         ? 'text-gray-400'
-                        : 'text-blue-600'
-                    "
+                        : 'text-blue-600',
+                      routeDisplayMode === 'bus' ? 'bg-blue-50 ring-1 ring-blue-300' : '',
+                    ]"
+                    @click="routeDisplayMode = 'bus'"
                   >
                     <Bus :size="12" class="text-blue-400" />
                     <span
@@ -935,8 +947,13 @@ async function confirmCourse() {
                         transportSourceLabel(place.nextTransport.busSource)
                       }}</small></span
                     >
-                  </div>
-                  <div class="flex items-center gap-1 text-teal-600">
+                  </button>
+                  <button
+                    type="button"
+                    class="flex items-center gap-1 rounded-lg px-1.5 py-1 text-teal-600"
+                    :class="routeDisplayMode === 'taxi' ? 'bg-teal-50 ring-1 ring-teal-300' : ''"
+                    @click="routeDisplayMode = 'taxi'"
+                  >
                     <Car :size="12" class="text-teal-500" />
                     <span
                       >택시
@@ -954,8 +971,27 @@ async function confirmCourse() {
                         place.nextTransport.taxiFare.toLocaleString()
                       }}원)</span
                     >
-                  </div>
+                  </button>
                 </div>
+              </div>
+              <div
+                v-if="place.nextTransport?.busSource === 'KAKAO'"
+                class="ml-8 mr-4 -mt-1 mb-2 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2 text-[0.65rem] text-blue-900"
+              >
+                <div class="flex flex-wrap gap-x-3 gap-y-1 font-bold">
+                  <span v-if="place.nextTransport.busVehicles?.length">
+                    노선 {{ place.nextTransport.busVehicles.join(', ') }}
+                  </span>
+                  <span v-if="(place.nextTransport.busTransfers ?? -1) >= 0">
+                    환승 {{ place.nextTransport.busTransfers }}회
+                  </span>
+                  <span v-if="(place.nextTransport.busFare ?? 0) > 0">
+                    {{ place.nextTransport.busFare?.toLocaleString() }}원
+                  </span>
+                </div>
+                <p v-if="place.nextTransport.busStops?.length" class="mt-1 line-clamp-2 text-blue-700">
+                  정류장 {{ place.nextTransport.busStops.join(' → ') }}
+                </p>
               </div>
             </template>
 

@@ -48,6 +48,9 @@ onMounted(async () => {
   }
   if (error === "withdrawn") {
     loginError.value = "탈퇴한 계정입니다. 로그인할 수 없습니다.";
+  } else if (error === "kakao_login_failed") {
+    loginError.value =
+      "카카오 로그인 연결에 실패했습니다. 잠시 후 다시 시도해주세요.";
   }
 });
 

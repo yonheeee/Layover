@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   Footprints,
+  Bus,
   Car,
   Share2,
   ExternalLink,
@@ -85,6 +86,8 @@ function transportSourceLabel(source?: string) {
       return "카카오모빌리티";
     case "KAKAO":
       return "카카오";
+    case "TMAP":
+      return "T맵";
     case "BUS_STOP_ESTIMATE":
       return "정류장 추정";
     case "ESTIMATED":
@@ -101,7 +104,9 @@ function legSourceLabel(place: CourseStop) {
   const source =
     place.transport === "walk"
       ? place.nextTransport.walkSource
-      : place.nextTransport.taxiSource;
+      : place.transport === "bus"
+        ? place.nextTransport.busSource
+        : place.nextTransport.taxiSource;
   return transportSourceLabel(source);
 }
 
@@ -175,17 +180,11 @@ function renderResultMap() {
 
   for (let index = 0; index < places.length - 1; index++) {
     const current = places[index];
-    const next = places[index + 1];
     const routePath = current.nextTransport?.routePath;
-    const segmentPath =
-      routePath && routePath.length > 1
-        ? routePath.map(
-            ([lat, lng]) => new kakao.maps.LatLng(lat, lng),
-          )
-        : [
-            new kakao.maps.LatLng(current.lat, current.lng),
-            new kakao.maps.LatLng(next.lat, next.lng),
-          ];
+    if (!routePath || routePath.length < 2) continue;
+    const segmentPath = routePath.map(
+      ([lat, lng]) => new kakao.maps.LatLng(lat, lng),
+    );
 
     const polyline = new kakao.maps.Polyline({
       path: segmentPath,
@@ -634,10 +633,11 @@ async function confirmCourse() {
                   :size="11"
                   class="text-teal-500"
                 />
+                <Bus v-else-if="place.transport === 'bus'" :size="11" class="text-blue-500" />
                 <Car v-else :size="11" class="text-teal-500" />
 
                 <span class="text-[0.7rem] text-gray-500 font-semibold">
-                  {{ place.transport === "walk" ? "도보" : "택시" }}
+                  {{ place.transport === "walk" ? "도보" : place.transport === "bus" ? "대중교통" : "택시" }}
                   {{ place.transportTime }}
                   <small
                     v-if="legSourceLabel(place)"

@@ -30,6 +30,23 @@ export interface TransportInfo {
   busSource?: string
   taxiSource?: string
   routePathSource?: string
+  walkRoutePath?: [number, number][]
+  busRoutePath?: [number, number][]
+  taxiRoutePath?: [number, number][]
+  busFare?: number
+  busTransfers?: number
+  busRouteType?: string
+  busVehicles?: string[]
+  busStops?: string[]
+  busSteps?: TransitStepInfo[]
+}
+
+export interface TransitStepInfo {
+  type: 'BUS' | 'SUBWAY' | 'WALKING' | string
+  guidance: string
+  minutes: number
+  vehicles: string[]
+  stops: string[]
 }
 
 /** 코스 경유지. MapView·CourseResultView 양쪽 필드를 모두 포함한 superset. */
