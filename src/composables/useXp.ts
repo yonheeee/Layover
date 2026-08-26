@@ -32,7 +32,11 @@ function markLevelCelebrated(level: number) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]))
 }
 
-export function useXp(courseCount: Ref<number>, postCount: Ref<number>) {
+/**
+ * @param stampCount 서버 기준 누적 인증 횟수. 넘기지 않으면 로컬에 남은
+ *   엽서 수로 대신하지만, 로컬 기록은 기기마다 달라서 화면끼리 값이 어긋난다.
+ */
+export function useXp(courseCount: Ref<number>, postCount: Ref<number>, stampCount?: Ref<number>) {
   const stampStore = useStampStore()
   const bookmarkStore = useBookmarkStore()
 
@@ -40,7 +44,7 @@ export function useXp(courseCount: Ref<number>, postCount: Ref<number>) {
 
   const totalXp = computed(
     () =>
-      stampStore.photos.length * XP_PER_STAMP +
+      (stampCount?.value ?? stampStore.photos.length) * XP_PER_STAMP +
       courseCount.value * XP_PER_COURSE +
       postCount.value * XP_PER_POST +
       bookmarkStore.bookmarkedPlaces.length * XP_PER_BOOKMARK,

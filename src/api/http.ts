@@ -1,5 +1,6 @@
 import axios from "axios";
 import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import { clearUserScopedStorage } from "@/utils/storage";
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -108,10 +109,7 @@ http.interceptors.response.use(
 );
 
 function clearTokensAndRedirect() {
-  localStorage.removeItem("accessToken");
-  localStorage.removeItem("refreshToken");
-  localStorage.removeItem("course_confirmed");
-  localStorage.removeItem("stamp_photos");
+  clearUserScopedStorage();
   window.location.href = "/login";
 }
 

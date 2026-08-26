@@ -390,9 +390,10 @@ const sidebarTabs = [
   { key: "info", label: "기본정보", icon: User },
 ];
 
+const xpStampCount = computed(() => user.value.stampCount ?? 0);
 const xpCourseCount = computed(() => myCourses.value.length);
 const xpPostCount = computed(() => myPosts.value.length);
-const { totalXp, currentLevel: currentXpLevel, nextLevel: nextXpLevel, xpProgress, levelUpModal } = useXp(xpCourseCount, xpPostCount);
+const { totalXp, currentLevel: currentXpLevel, nextLevel: nextXpLevel, xpProgress, levelUpModal } = useXp(xpCourseCount, xpPostCount, xpStampCount);
 const xpLevels = XP_LEVELS;
 const showXpGuide = ref(false);
 const roadmapProgressRatio = computed(() => {

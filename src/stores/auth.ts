@@ -6,6 +6,7 @@ import { login as loginApi, getKakaoAuthUrl } from "@/api/auth";
 import { useBookmarkStore } from "./bookmark";
 import { useCourseStore } from "./course";
 import { useStampStore } from "./stamp";
+import { clearUserScopedStorage } from "@/utils/storage";
 
 export const useAuthStore = defineStore("auth", () => {
   const accessToken = ref<string | null>(localStorage.getItem("accessToken"));
@@ -51,8 +52,7 @@ export const useAuthStore = defineStore("auth", () => {
     accessToken.value = null;
     refreshToken.value = null;
     user.value = null;
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
+    clearUserScopedStorage();
     useBookmarkStore().$reset();
     useCourseStore().reset();
     useStampStore().clearPhotos();
