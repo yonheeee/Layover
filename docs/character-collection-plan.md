@@ -609,34 +609,32 @@ function retake() {
 | `layover-tour-*` | 튜토리얼 완료 | 유지 (기기별이 자연스러움) |
 | `course_confirmed` | — | **죽은 키**. `course.ts`가 `ref`로 바뀌면서 아무도 안 씀 |
 
-### 발견된 버그 — 계정 전환 시 데이터가 남습니다
+### 로그아웃 경로 두 개가 서로 다르게 정리하던 문제 — 수정 완료
 
-로그아웃 경로가 **두 개**인데 지우는 항목이 다릅니다.
+> **정정.** 초안에서 "명시적 로그아웃 시 `stamp_photos`가 남는다"고 적었는데 사실이 아니었습니다.
+> `stores/auth.ts`의 `logout()`은 `useStampStore().clearPhotos()`와 `useCourseStore().reset()`을
+> 호출해 엽서·진행 코스·코스 후보를 지우고 있었습니다. `localStorage` 호출만 grep 하고
+> 스토어 경유 정리를 놓친 제 실수입니다.
 
-```ts
-// api/http.ts — 401 refresh 실패 시에만
-localStorage.removeItem("accessToken"); removeItem("refreshToken");
-localStorage.removeItem("course_confirmed"); removeItem("stamp_photos");
+실제로 남아 있던 구멍은 두 가지였습니다.
 
-// stores/auth.ts — 사용자가 직접 로그아웃할 때
-localStorage.removeItem("accessToken"); removeItem("refreshToken");
-// ← stamp_photos 를 안 지웁니다
-```
+1. **`layover_celebrated_levels`가 어느 경로에서도 안 지워짐** — 계정을 바꿔도 이미 축하받은 레벨로 남아 레벨업 팝업이 안 뜹니다
+2. **`api/http.ts`의 `clearTokensAndRedirect()`가 스토어를 거치지 않음** — 토큰 만료로 튕길 때는 `stamp_active_course`, `generated_courses`, `last_request`가 남습니다
 
-**명시적 로그아웃 후 다른 계정으로 로그인하면 이전 계정의 엽서 도감이 그대로 보입니다.** `stamp_active_course`, `generated_courses`, `last_request`, `layover_celebrated_levels`는 어느 경로로도 안 지워집니다.
+정리 대상을 한 곳으로 모았습니다.
 
 ```ts
-// utils/auth.ts
+// src/utils/storage.ts — 아무것도 import 하지 않는다
 const USER_SCOPED_KEYS = [
   'accessToken', 'refreshToken', 'stamp_photos', 'stamp_active_course',
-  'generated_courses', 'last_request', 'layover_celebrated_levels',
+  'generated_courses', 'last_request', 'layover_celebrated_levels', 'course_confirmed',
 ]
 export function clearUserScopedStorage() {
   USER_SCOPED_KEYS.forEach((k) => localStorage.removeItem(k))
 }
 ```
 
-`auth.ts` 로그아웃과 `http.ts`의 `clearTokensAndRedirect()` 양쪽에서 호출하세요.
+`utils/auth.ts`가 아니라 **별도 모듈**인 이유는 순환 참조 때문입니다. `utils/auth.ts`는 `stores/auth`를 import 하므로, 거기에 두면 `api/http` → `utils/auth` → `stores/auth` → `api/auth` → `api/http` 고리가 생깁니다.
 
 ---
 
@@ -820,7 +818,20 @@ try {
 - [ ] `utils/auth.ts`에 `clearUserScopedStorage()` + 로그아웃 두 경로에서 호출 (5절)
 - [ ] `useXp` 스탬프 수를 서버 `stampCount` 기준으로
 
-### E. 정리 (동작 확인 후)
+### E. 남은 작업
+
+**적용/검증**
+- [ ] DB 마이그레이션 3개 파일 순서대로 적용
+- [ ] 프론트 `npm run build` 로 전체 타입/빌드 확인 (이번 작업은 SFC 컴파일까지만 검증)
+- [ ] 백엔드 `./mvnw compile` 로 컴파일 확인
+- [ ] 9절 검증 체크리스트 수행
+
+**기능**
+- [ ] `MypageView` 스탬프 탭을 `/api/characters/my` 기반으로 (기기 간 도감 동기화)
+- [ ] `StampController.getMyStamps()` 조회 DTO 분리
+- [ ] `StampTourView` 헤더의 `🌟 completedCount`가 아직 코스 단위 (서버 `stampCount`와 다름)
+
+### F. 정리 (동작 확인 후)
 
 - [ ] `dreamCharacters.ts` 참조 정리 — 텍스트만 쓸 거면 이미지 import와 분리 (2-3)
 - [ ] `dream_family_01`, `03`~`11` 삭제 여부 결정
