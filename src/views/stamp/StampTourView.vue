@@ -5,8 +5,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Camera, Loader2, MapPin, X } from 'lucide-vue-next'
 import { fetchDiPlaces } from '@/api/courses'
 import { httpGet } from '@/api/http'
-import { saveStamp } from '@/api/stamps'
-import { dreamCharacters, type DreamCharacter } from '@/data/dreamCharacters'
+import { getTodayStampedPlaceIds, saveStamp } from '@/api/stamps'
+import { drawCharacter, type CharacterResponse } from '@/api/characters'
+import { dataUrlToFile, uploadStampPhoto } from '@/api/upload'
+import { resolveCharacterImage } from '@/data/characterImages'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
@@ -67,7 +69,8 @@ function toTourPlaces(coursePlaces: any[], courseId: string | null) {
       lng: p.lng,
       guideText: guideTextFor(p.category ?? p.desc),
       guideEmoji: emojiFor(p.category ?? p.desc),
-      visited: stampStore.isPlaceStamped(String(p.id), courseId),
+      // 서버가 하루 1회로 제한하므로 코스 단위 로컬 기록이 아니라 오늘 기록으로 판정한다
+      visited: todayStamped.value.has(String(p.id)),
     }))
 }
 
@@ -96,51 +99,23 @@ const errorMsg = ref('')
 const guideCountdown = ref(2)
 const resultImageUrl = ref('')
 const stampAnimIdx = ref<number | null>(null)
-type StampRewardCharacter = Pick<
-  DreamCharacter,
-  'id' | 'name' | 'description' | 'imageUrl'
-> & {
-  role?: string
-  imageAlt?: string
-  requiredStamps: number
-}
-const newCharacterPopup = ref<StampRewardCharacter | null>(null)
+/** 촬영할 때마다 서버에서 뽑은 캐릭터. 저장을 눌러야 도감에 반영된다. */
+const drawnCharacter = ref<CharacterResponse | null>(null)
+/** 캐릭터를 합성하기 전의 원본 프레임. 다시 찍기와 재합성에 쓴다. */
+const rawFrameUrl = ref('')
+const isDrawing = ref(false)
+const newCharacterPopup = ref<CharacterResponse | null>(null)
+/** 오늘 이미 스탬프를 찍은 장소. 서버 기록이 기준이다. */
+const todayStamped = ref<Set<string>>(new Set())
 const isSavingStamp = ref(false)
 const allowDevStampVerification = import.meta.env.DEV
 /** 위치 인증에 성공한 좌표. 스탬프 저장 시 서버 검증용으로 함께 보낸다. */
 const verifiedCoords = ref<{ latitude: number; longitude: number } | null>(null)
-const collectibleDreamCharacters = dreamCharacters.filter((character) => character.id !== 'dream-family')
-
-function rewardCharacterForStampIndex(index: number): StampRewardCharacter {
-  const character = collectibleDreamCharacters[index % collectibleDreamCharacters.length]
-  return {
-    ...character,
-    requiredStamps: index + 1,
-  }
+// 캐릭터는 서버가 뽑는다. 예전에는 코스 내 방문 순번으로 로컬 배열에서 골랐는데,
+// 랜덤도 아니고 유저별로 다르지도 않았으며 서버가 준 캐릭터와도 어긋났다.
+function characterImage(character: CharacterResponse | null) {
+  return character ? resolveCharacterImage(character.code) : ''
 }
-
-function rewardCharacterFromApi(character: {
-  id: string
-  name: string
-  imageUrl: string
-  requiredStamps: number
-  description: string
-}): StampRewardCharacter {
-  return {
-    id: character.id,
-    name: character.name,
-    imageUrl: character.imageUrl,
-    imageAlt: character.name,
-    description: character.description,
-    requiredStamps: character.requiredStamps,
-  }
-}
-
-const currentRewardCharacter = computed(() =>
-  currentPlaceIdx.value !== null
-    ? rewardCharacterForStampIndex(currentPlaceIdx.value)
-    : rewardCharacterForStampIndex(Math.max(completedCount.value, 0)),
-)
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -321,6 +296,14 @@ function renderStampMap() {
 }
 
 onMounted(async () => {
+  // 방문 여부 판정 기준이라 코스를 구성하기 전에 먼저 받아둔다.
+  // 실패하면 전부 미방문으로 보이고, 저장 단계에서 서버가 409로 걸러낸다.
+  try {
+    todayStamped.value = await getTodayStampedPlaceIds()
+  } catch {
+    todayStamped.value = new Set()
+  }
+
   if (!courseStore.hasConfirmedCourse) {
     await courseStore.checkConfirmedCourse()
   }
@@ -448,18 +431,50 @@ async function openCamera() {
   }
 }
 
-// ── Step 4: Canvas 합성 ───────────────────────────────────
+// ── Step 4: 촬영 → 뽑기 → 엽서 합성 ─────────────────────
 async function capturePhoto() {
   if (!videoRef.value || !canvasRef.value || currentPlaceIdx.value === null) return
-  const video = videoRef.value
+  const place = places.value[currentPlaceIdx.value]
   const canvas = canvasRef.value
   const ctx = canvas.getContext('2d')!
-  const place = places.value[currentPlaceIdx.value]
-  const character = currentRewardCharacter.value
 
-  canvas.width = video.videoWidth || 640
-  canvas.height = video.videoHeight || 480
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  // 1) 원본 프레임만 먼저 확보한다. 다시 찍을 때 이 값을 버리고 새로 찍는다.
+  canvas.width = videoRef.value.videoWidth || 640
+  canvas.height = videoRef.value.videoHeight || 480
+  ctx.drawImage(videoRef.value, 0, 0, canvas.width, canvas.height)
+  rawFrameUrl.value = canvas.toDataURL('image/jpeg', 0.92)
+  stopCamera()
+
+  // 2) 서버에서 캐릭터를 뽑는다. 저장하지 않으므로 다시 찍으면 다시 뽑힌다.
+  isDrawing.value = true
+  try {
+    drawnCharacter.value = await drawCharacter(place.id)
+  } catch (err) {
+    console.error('캐릭터 뽑기 실패:', err)
+    toast.error('캐릭터를 불러오지 못했어요. 다시 시도해주세요.')
+    drawnCharacter.value = null
+  } finally {
+    isDrawing.value = false
+  }
+
+  // 3) 뽑은 캐릭터를 얹어 엽서를 만든다.
+  resultImageUrl.value = await composePostcard(rawFrameUrl.value, place, drawnCharacter.value)
+  currentStep.value = 'result'
+}
+
+/** 원본 프레임에 캐릭터 배지와 인증 밴드를 얹는다. */
+async function composePostcard(
+  frameUrl: string,
+  place: TourPlace,
+  character: CharacterResponse | null,
+): Promise<string> {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  const frame = await loadCanvasImage(frameUrl)
+
+  canvas.width = frame.width
+  canvas.height = frame.height
+  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height)
 
   const size = Math.round(canvas.width * 0.18)
   const padding = Math.round(size * 0.18)
@@ -467,7 +482,9 @@ async function capturePhoto() {
   const badgeY = canvas.height - size - padding
   ctx.save()
   try {
-    const characterImage = await loadCanvasImage(character.imageUrl)
+    // 캐릭터 이미지는 프론트 번들에 있어 same-origin이다.
+    // 외부 도메인에서 불러오면 canvas가 오염돼 toDataURL이 실패한다.
+    const characterImage = await loadCanvasImage(resolveCharacterImage(character?.code ?? ''))
     ctx.drawImage(characterImage, badgeX, badgeY, size, size)
   } catch {
     ctx.font = `${Math.round(size * 0.42)}px serif`
@@ -488,11 +505,18 @@ async function capturePhoto() {
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText(`✓ ${place.name} ${character.name} 인증`, canvas.width / 2, bandH / 2)
+  const label = character ? `${place.name} ${character.name}` : place.name
+  ctx.fillText(`✓ ${label} 인증`, canvas.width / 2, bandH / 2)
 
-  resultImageUrl.value = canvas.toDataURL('image/jpeg', 0.92)
-  stopCamera()
-  currentStep.value = 'result'
+  return canvas.toDataURL('image/jpeg', 0.85)
+}
+
+/** 다시 찍기. 저장 전이므로 도감에는 아무 영향이 없고 캐릭터도 새로 뽑힌다. */
+function retake() {
+  rawFrameUrl.value = ''
+  resultImageUrl.value = ''
+  drawnCharacter.value = null
+  openCamera()
 }
 
 function stopCamera() {
@@ -509,66 +533,66 @@ function loadCanvasImage(src: string) {
   })
 }
 
-// ── Step 5: 완료 → 타임라인 ──────────────────────────────
+// ── Step 5: 저장 → 도감 해금 → 타임라인 ─────────────────
 async function confirmResult() {
-  if (currentPlaceIdx.value === null) return
+  if (currentPlaceIdx.value === null || isSavingStamp.value) return
   const idx = currentPlaceIdx.value
   const place = places.value[idx]
-  const rewardCharacter = rewardCharacterForStampIndex(idx)
-  let apiRewardCharacter: StampRewardCharacter | null = null
 
   isSavingStamp.value = true
+  let res
   try {
-    const res = await saveStamp(place.id, verifiedCoords.value)
-    if (res.newCharacter) {
-      apiRewardCharacter = rewardCharacterFromApi(res.newCharacter)
-    }
+    // 사진을 먼저 올린다. 파일 저장은 트랜잭션 롤백에 참여하지 못하므로
+    // 순서를 뒤집으면 사진 없는 도감 항목이 생긴다.
+    const photoUrl = await uploadStampPhoto(dataUrlToFile(resultImageUrl.value))
+    res = await saveStamp(place.id, verifiedCoords.value, drawnCharacter.value?.id, photoUrl)
   } catch (err: any) {
     const status = err?.response?.status
     if (status === 409) {
-      toast.info('이미 방문한 장소입니다.')
-      isSavingStamp.value = false
-      return
-    }
-    if (status === 400) {
-      // 서버 위치 검증 실패 (반경 밖이거나 좌표 누락)
-      toast.error(err?.response?.data?.message ?? '위치를 확인할 수 없습니다. 장소 근처에서 다시 시도해주세요.')
-      isSavingStamp.value = false
-      return
-    }
-    if (status && status !== 401) {
+      toast.info(err.response?.data?.message ?? '오늘 이미 방문한 장소입니다.')
+    } else if (status === 400) {
+      toast.error(err.response?.data?.message ?? '위치를 확인할 수 없습니다. 장소 근처에서 다시 시도해주세요.')
+    } else if (status !== 401) {
       console.error('스탬프 저장 실패:', err)
-      isSavingStamp.value = false
-      return
+      toast.error('저장에 실패했어요. 잠시 후 다시 시도해주세요.')
     }
+    // 예전에는 네트워크 오류일 때 아래로 흘러가 저장되지도 않은 스탬프를
+    // "인증 완료"로 표시하고 로컬에만 사진을 남겼다. 어떤 실패든 여기서 끝낸다.
+    return
   } finally {
     isSavingStamp.value = false
   }
 
-  // 로컬 저장
+  // 서버가 확정한 캐릭터를 최종으로 삼는다. 자정을 넘겨 테마가 바뀐 경우처럼
+  // 미리보기와 달라졌다면 엽서를 다시 합성한다.
+  const finalCharacter = res.newCharacter ?? drawnCharacter.value
+  if (finalCharacter && finalCharacter.id !== drawnCharacter.value?.id) {
+    resultImageUrl.value = await composePostcard(rawFrameUrl.value, place, finalCharacter)
+  }
+
   stampStore.addPhoto({
     id: `${place.id}_${Date.now()}`,
-    url: resultImageUrl.value,
+    url: res.photoUrl || resultImageUrl.value,
     placeName: place.name,
     placeEmoji: place.guideEmoji,
     courseId: stampStore.activeCourseId ?? undefined,
     courseTitle: stampStore.activeCourseTitle,
-    characterId: rewardCharacter.id,
-    characterName: rewardCharacter.name,
-    characterRole: rewardCharacter.role,
-    characterDescription: rewardCharacter.description,
-    characterImageUrl: rewardCharacter.imageUrl,
-    characterImageAlt: rewardCharacter.imageAlt,
+    characterId: finalCharacter?.id,
+    characterName: finalCharacter?.name,
+    characterCode: finalCharacter?.code,
+    characterDescription: finalCharacter?.description,
+    characterImageUrl: characterImage(finalCharacter),
+    characterImageAlt: finalCharacter?.name,
     takenAt: new Date().toISOString(),
     lat: place.lat,
     lng: place.lng,
   })
 
-  // UI 전환 먼저 (API 응답 기다리지 않음)
+  todayStamped.value.add(String(place.id))
   stampAnimIdx.value = idx
   returnToTimeline()
   currentPlaceIdx.value = null
-  newCharacterPopup.value = apiRewardCharacter
+  newCharacterPopup.value = finalCharacter
   setTimeout(() => {
     places.value[idx].visited = true
     setTimeout(() => (stampAnimIdx.value = null), 800)
@@ -588,18 +612,6 @@ const currentGuidePlace = computed(() =>
   currentPlaceIdx.value !== null ? places.value[currentPlaceIdx.value] : null,
 )
 
-// ── 게이미피케이션 데이터 ─────────────────────────────────
-const nextCharacters = computed(() =>
-  collectibleDreamCharacters.map((character, index) => ({
-    ...character,
-    requiredStamps: index + 1,
-  })),
-)
-
-
-const nextCharacter = computed(() =>
-  nextCharacters.value.find((c) => c.requiredStamps > completedCount.value) ?? null,
-)
 
 onUnmounted(() => {
   stopCamera()
@@ -667,12 +679,6 @@ onUnmounted(() => {
               style="font-size:0.65rem;background:rgba(61,184,158,0.2);color:#3db89e">🌟 {{ completedCount }}</span>
             <span class="px-2 py-0.5 rounded-full font-bold"
               style="font-size:0.65rem;background:rgba(255,255,255,0.08);color:#B2E4DC">📍 {{ completedCount }}/{{ places.length }}</span>
-            <span v-if="nextCharacter" class="px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1"
-              style="font-size:0.65rem;background:rgba(255,255,255,0.08);color:#B2E4DC">
-              <img :src="nextCharacter.imageUrl" :alt="nextCharacter.imageAlt"
-                class="w-4 h-4 object-contain" />
-              {{ nextCharacter.requiredStamps - completedCount }}개
-            </span>
             <div class="w-8 h-8 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
               style="background:rgba(255,255,255,0.07);border:1px solid rgba(178,228,220,0.2)">
               {{ currentLevel.emoji }}
@@ -900,24 +906,39 @@ onUnmounted(() => {
       <div v-if="currentStep === 'result'" class="fixed inset-0 z-50 flex flex-col" style="background:#000">
         <div class="flex-1 relative overflow-hidden">
           <img :src="resultImageUrl" alt="인증 사진" class="w-full h-full object-contain" />
-          <div class="absolute top-6 left-0 right-0 flex justify-center">
+          <div v-if="drawnCharacter" class="absolute top-6 left-0 right-0 flex justify-center">
             <div class="flex items-center gap-2 px-5 py-2.5 rounded-full"
               style="background:rgba(61,184,158,0.92);backdrop-filter:blur(8px)">
-              <img :src="currentRewardCharacter.imageUrl" :alt="currentRewardCharacter.imageAlt"
+              <img :src="characterImage(drawnCharacter)" :alt="drawnCharacter.name"
                 class="w-7 h-7 object-contain" />
-              <span class="font-bold text-sm text-white">인증 완료!</span>
+              <span class="font-bold text-sm text-white">{{ drawnCharacter.name }}</span>
             </div>
           </div>
         </div>
         <div class="px-6 py-8" style="background:#1a2e2b">
           <p class="text-center text-sm mb-4" style="color:#B2E4DC">
-            {{ currentRewardCharacter.name }}와 함께한 <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 인증 사진이에요!
+            <template v-if="drawnCharacter">
+              {{ drawnCharacter.name }}와 함께한 <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 사진이에요!
+            </template>
+            <template v-else>
+              <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 인증 사진이에요!
+            </template>
           </p>
-          <button @click="confirmResult"
-            class="w-full py-4 rounded-2xl font-bold text-white text-base transition-all active:scale-95"
-            style="background:linear-gradient(135deg,#3db89e,#2da08a)">
-            스탬프 받기 🎉
-          </button>
+          <p class="text-center mb-4" style="font-size:0.72rem;color:rgba(178,228,220,0.65)">
+            마음에 들지 않으면 다시 찍을 수 있어요. 저장해야 도감에 담겨요.
+          </p>
+          <div class="flex gap-3">
+            <button @click="retake" :disabled="isSavingStamp"
+              class="flex-1 py-4 rounded-2xl font-bold text-base transition-all active:scale-95 disabled:opacity-50"
+              style="background:rgba(255,255,255,0.1);color:#B2E4DC">
+              다시 찍기
+            </button>
+            <button @click="confirmResult" :disabled="isSavingStamp"
+              class="py-4 rounded-2xl font-bold text-white text-base transition-all active:scale-95 disabled:opacity-60"
+              style="flex:2;background:linear-gradient(135deg,#3db89e,#2da08a)">
+              {{ isSavingStamp ? '저장 중…' : '스탬프 받기 🎉' }}
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -960,20 +981,20 @@ onUnmounted(() => {
         @click.self="newCharacterPopup = null">
         <div class="rounded-3xl p-8 text-center shadow-2xl mx-6"
           style="background:#fff;max-width:320px;width:100%">
-          <img :src="newCharacterPopup.imageUrl" :alt="newCharacterPopup.imageAlt"
+          <img :src="characterImage(newCharacterPopup)" :alt="newCharacterPopup.name"
             class="w-28 h-28 mx-auto mb-3 object-contain" />
-          <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">새 캐릭터 획득!</p>
+          <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">
+            {{ newCharacterPopup.theme ? '특별한 캐릭터를 만났어요!' : '캐릭터를 만났어요!' }}
+          </p>
           <h3 style="font-size:1.2rem;font-weight:800;color:#1a2e2b;margin-bottom:8px">
             {{ newCharacterPopup.name }}
           </h3>
-          <p style="font-size:0.76rem;color:#6b8c87;font-weight:700;margin-bottom:8px">
-            {{ newCharacterPopup.role }}
-          </p>
-          <p style="font-size:0.82rem;color:#9ca3af;line-height:1.55;margin-bottom:16px">
+          <p v-if="newCharacterPopup.description"
+            style="font-size:0.82rem;color:#9ca3af;line-height:1.55;margin-bottom:16px">
             {{ newCharacterPopup.description }}
           </p>
           <p style="font-size:0.82rem;color:#9ca3af;margin-bottom:24px">
-            스탬프 {{ newCharacterPopup.requiredStamps }}개 달성으로 획득했어요!
+            도감에 담았어요. 마이페이지에서 확인할 수 있어요!
           </p>
           <button @click="newCharacterPopup = null"
             class="w-full py-3 rounded-2xl font-bold text-white text-sm"

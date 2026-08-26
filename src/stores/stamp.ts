@@ -25,6 +25,8 @@ export interface StampPhoto {
   courseTitle?: string
   characterId?: string
   characterName?: string
+  /** 캐릭터 이미지 파일명. 번들 이미지를 다시 찾을 때 쓴다. */
+  characterCode?: string
   characterRole?: string
   characterDescription?: string
   characterImageUrl?: string
