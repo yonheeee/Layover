@@ -1,172 +1,239 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowLeft, Lock, Star } from "lucide-vue-next";
-import { getCharacters, type CharacterResponse } from "@/api/characters";
-import { fetchUser } from "@/api/user";
-import ImageWithFallback from "@/components/ImageWithFallback.vue";
-import dreamCharacterImage from "@/assets/characters/dream/character_dream.png";
+import { ArrowLeft, MapPin, Star, X } from "lucide-vue-next";
+import { getMyCharacters, type OwnedCharacter } from "@/api/characters";
+import {
+  CHAR_META,
+  TOTAL_CHARACTER_COUNT,
+  catalogGroups,
+  characterCatalog,
+  type CatalogCharacter,
+} from "@/data/characterCatalog";
 
 const router = useRouter();
 
-const characters = ref<CharacterResponse[]>([]);
-const selectedChar = ref<CharacterResponse | null>(null);
-const myStamps = ref(0);
-const isLoading = ref(false);
+/** code → 보유 횟수 */
+const owned = ref<Map<string, OwnedCharacter>>(new Map());
+const isLoading = ref(true);
+const loadFailed = ref(false);
+
+const activeTab = ref<string>("all");
+const selected = ref<CatalogCharacter | null>(null);
 
 const obtainedCount = computed(
-  () => characters.value.filter((character) => character.obtained).length,
+  () => characterCatalog.filter((c) => owned.value.has(c.code)).length,
+);
+const totalDrawCount = computed(() =>
+  [...owned.value.values()].reduce((sum, o) => sum + o.count, 0),
+);
+const progressRatio = computed(() =>
+  TOTAL_CHARACTER_COUNT ? obtainedCount.value / TOTAL_CHARACTER_COUNT : 0,
 );
 
-const maxRequiredStamps = computed(() =>
-  Math.max(...characters.value.map((character) => character.requiredStamps), 1),
-);
+const tabs = computed(() => [
+  {
+    key: "all",
+    label: "전체",
+    total: TOTAL_CHARACTER_COUNT,
+    got: obtainedCount.value,
+  },
+  ...catalogGroups.map((group) => ({
+    key: group.key,
+    label: group.label,
+    total: group.items.length,
+    got: group.items.filter((c) => owned.value.has(c.code)).length,
+  })),
+]);
 
-const nextCharacter = computed(() =>
-  characters.value.find((character) => !character.obtained),
-);
-
-const remainingStamps = computed(() => {
-  if (!nextCharacter.value) return 0;
-  return Math.max(nextCharacter.value.requiredStamps - myStamps.value, 0);
+const visibleCharacters = computed(() => {
+  if (activeTab.value === "all") return characterCatalog;
+  return catalogGroups.find((g) => g.key === activeTab.value)?.items ?? [];
 });
 
-function characterImageUrl(character: CharacterResponse | null) {
-  return character?.imageUrl || dreamCharacterImage;
+function ownedOf(code: string) {
+  return owned.value.get(code) ?? null;
 }
 
-async function loadCharacters() {
+function isObtained(code: string) {
+  return owned.value.has(code);
+}
+
+function metaOf(character: CatalogCharacter) {
+  // duo는 앞쪽 캐릭터 소개를 쓴다
+  return CHAR_META[character.baseChar.split("+")[0]] ?? null;
+}
+
+function themeHint(character: CatalogCharacter) {
+  if (character.theme === "BIRTHDAY") return "생일 당일에 사진을 찍으면 만날 수 있어요.";
+  if (character.theme === "EXPO") return "엑스포과학공원 일대에서 사진을 찍으면 만날 수 있어요.";
+  return null;
+}
+
+function formatDate(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
+
+async function loadOwned() {
   isLoading.value = true;
+  loadFailed.value = false;
   try {
-    const [user, characterList] = await Promise.all([
-      fetchUser(),
-      getCharacters(),
-    ]);
-    myStamps.value = user.stampCount ?? 0;
-    characters.value = characterList;
+    const list = await getMyCharacters();
+    owned.value = new Map(list.map((o) => [o.code, o]));
   } catch (error) {
-    console.error("캐릭터 정보를 불러오지 못했습니다.", error);
-    characters.value = [];
+    console.error("도감 정보를 불러오지 못했습니다.", error);
+    loadFailed.value = true;
+    owned.value = new Map();
   } finally {
     isLoading.value = false;
   }
 }
 
-onMounted(loadCharacters);
+onMounted(loadOwned);
 </script>
 
 <template>
-  <div class="characters-page">
-    <div class="characters-page__inner">
-      <button type="button" class="characters-page__back" @click="router.back()">
+  <div class="dex">
+    <div class="dex__inner">
+      <button type="button" class="dex__back" @click="router.back()">
         <ArrowLeft :size="17" />
         마이페이지
       </button>
 
-      <div class="characters-page__title">
-        <div class="characters-page__title-icon">
-          <img :src="dreamCharacterImage" alt="" />
-        </div>
-        <div>
-          <h1>꿈돌이 컬렉션</h1>
-          <p>대전 곳곳에서 모은 스탬프로 해금한 캐릭터를 확인해보세요.</p>
-        </div>
-      </div>
+      <header class="dex__title">
+        <h1>꿈씨 도감</h1>
+        <p>대전 곳곳에서 사진을 찍으며 만난 캐릭터를 모아보세요.</p>
+      </header>
 
-      <section class="stamp-summary">
-        <div class="stamp-summary__icon">
+      <!-- 진행 요약 -->
+      <section class="dex-summary">
+        <div class="dex-summary__icon">
           <Star :size="20" fill="#fff" color="#fff" />
         </div>
-        <div class="stamp-summary__body">
-          <div class="stamp-summary__row">
-            <span>누적 스탬프</span>
-            <strong>{{ myStamps }}개</strong>
+        <div class="dex-summary__body">
+          <div class="dex-summary__row">
+            <span>수집 현황</span>
+            <strong>{{ obtainedCount }} / {{ TOTAL_CHARACTER_COUNT }}종</strong>
           </div>
-          <div class="stamp-summary__bar">
-            <span
-              :style="`width:${Math.min((myStamps / maxRequiredStamps) * 100, 100)}%`"
-            />
+          <div class="dex-summary__bar">
+            <span :style="`width:${Math.round(progressRatio * 100)}%`" />
           </div>
-          <p v-if="nextCharacter">
-            다음 꿈돌이까지 {{ remainingStamps }}개
+          <p>
+            {{ Math.round(progressRatio * 100) }}% 달성
+            <template v-if="totalDrawCount">
+              · 중복 포함 {{ totalDrawCount }}장
+            </template>
           </p>
-          <p v-else>모든 꿈돌이를 획득했어요.</p>
         </div>
       </section>
 
-      <div class="characters-page__count">
-        획득한 꿈돌이
-        <span>{{ obtainedCount }}</span>
-        / {{ characters.length }}
-      </div>
+      <p v-if="loadFailed" class="dex__notice">
+        도감 정보를 불러오지 못했어요. 실루엣만 표시됩니다.
+      </p>
 
-      <div v-if="isLoading" class="characters-page__loading">
-        불러오는 중...
-      </div>
-
-      <div v-else-if="characters.length === 0" class="characters-page__empty">
-        표시할 캐릭터가 없습니다.
-      </div>
-
-      <div v-else class="characters-grid">
+      <!-- 캐릭터 탭 -->
+      <nav class="dex-tabs" aria-label="캐릭터 분류">
         <button
-          v-for="character in characters"
-          :key="character.id"
+          v-for="tab in tabs"
+          :key="tab.key"
           type="button"
-          class="character-card"
-          :class="{ 'character-card--locked': !character.obtained }"
-          @click="selectedChar = character"
+          class="dex-tabs__chip"
+          :class="{ 'is-active': activeTab === tab.key }"
+          @click="activeTab = tab.key"
         >
-          <div class="character-card__image">
-            <ImageWithFallback
-              :src="characterImageUrl(character)"
-              :alt="character.name"
-              class="character-card__img"
+          {{ tab.label }}
+          <span>{{ tab.got }}/{{ tab.total }}</span>
+        </button>
+      </nav>
+
+      <div v-if="isLoading" class="dex__placeholder">불러오는 중...</div>
+
+      <div v-else class="dex-grid">
+        <button
+          v-for="character in visibleCharacters"
+          :key="character.code"
+          type="button"
+          class="dex-card"
+          :class="{ 'dex-card--locked': !isObtained(character.code) }"
+          @click="selected = character"
+        >
+          <div class="dex-card__thumb">
+            <img
+              :src="character.imageUrl"
+              :alt="isObtained(character.code) ? character.name : '미획득 캐릭터'"
+              loading="lazy"
+              decoding="async"
             />
-            <div v-if="!character.obtained" class="character-card__lock">
-              <Lock :size="18" color="#fff" />
-            </div>
+            <span
+              v-if="(ownedOf(character.code)?.count ?? 0) > 1"
+              class="dex-card__count"
+            >
+              ×{{ ownedOf(character.code)!.count }}
+            </span>
           </div>
-          <div class="character-card__text">
-            <p>{{ character.name }}</p>
-            <span v-if="character.obtained">획득 완료</span>
-            <span v-else>스탬프 {{ character.requiredStamps }}개 필요</span>
-          </div>
+          <p class="dex-card__name">
+            {{ isObtained(character.code) ? character.name : "???" }}
+          </p>
         </button>
       </div>
     </div>
 
+    <!-- 상세 모달 -->
     <Teleport to="body">
-      <div
-        v-if="selectedChar"
-        class="character-modal"
-        @click.self="selectedChar = null"
-      >
-        <div class="character-modal__panel">
+      <div v-if="selected" class="dex-modal" @click.self="selected = null">
+        <div class="dex-modal__panel">
+          <button type="button" class="dex-modal__close" @click="selected = null">
+            <X :size="18" />
+          </button>
+
           <div
-            class="character-modal__image"
-            :class="{ 'character-modal__image--locked': !selectedChar.obtained }"
+            class="dex-modal__thumb"
+            :class="{ 'is-locked': !isObtained(selected.code) }"
           >
-            <ImageWithFallback
-              :src="characterImageUrl(selectedChar)"
-              :alt="selectedChar.name"
-              class="character-modal__img"
-            />
+            <img :src="selected.imageUrl" :alt="selected.name" />
           </div>
-          <div class="character-modal__body">
-            <div class="character-modal__title">
-              <h3>{{ selectedChar.name }}</h3>
-              <span :class="{ 'is-obtained': selectedChar.obtained }">
-                {{ selectedChar.obtained ? "획득 완료" : "미획득" }}
+
+          <div class="dex-modal__body">
+            <div class="dex-modal__head">
+              <h3>{{ isObtained(selected.code) ? selected.name : "???" }}</h3>
+              <span :class="{ 'is-obtained': isObtained(selected.code) }">
+                {{ isObtained(selected.code) ? "획득" : "미획득" }}
               </span>
             </div>
-            <p>{{ selectedChar.description }}</p>
-            <div class="character-modal__requirement">
-              <Star :size="14" color="#3db89e" />
-              <span>필요 스탬프</span>
-              <strong>{{ selectedChar.requiredStamps }}개</strong>
-            </div>
-            <button type="button" @click="selectedChar = null">닫기</button>
+
+            <p v-if="metaOf(selected)?.role" class="dex-modal__role">
+              {{ metaOf(selected)!.role }}
+            </p>
+
+            <template v-if="isObtained(selected.code)">
+              <p class="dex-modal__desc">{{ metaOf(selected)?.description }}</p>
+              <dl class="dex-modal__facts">
+                <div>
+                  <dt>획득 횟수</dt>
+                  <dd>{{ ownedOf(selected.code)!.count }}장</dd>
+                </div>
+                <div>
+                  <dt>처음 만난 날</dt>
+                  <dd>{{ formatDate(ownedOf(selected.code)!.firstObtainedAt) }}</dd>
+                </div>
+              </dl>
+            </template>
+
+            <template v-else>
+              <p class="dex-modal__desc dex-modal__desc--muted">
+                아직 만나지 못한 캐릭터예요.
+              </p>
+              <p v-if="themeHint(selected)" class="dex-modal__hint">
+                <MapPin :size="14" />
+                {{ themeHint(selected) }}
+              </p>
+            </template>
+
+            <button type="button" class="dex-modal__confirm" @click="selected = null">
+              확인
+            </button>
           </div>
         </div>
       </div>
@@ -175,18 +242,18 @@ onMounted(loadCharacters);
 </template>
 
 <style scoped>
-.characters-page {
+.dex {
   min-height: calc(100vh - 64px);
   background: linear-gradient(155deg, #e8f8f5 0%, #ffffff 50%, #f0faf8 100%);
 }
 
-.characters-page__inner {
-  max-width: 720px;
+.dex__inner {
+  max-width: 760px;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
 }
 
-.characters-page__back {
+.dex__back {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -199,56 +266,34 @@ onMounted(loadCharacters);
   margin-bottom: 1.25rem;
 }
 
-.characters-page__title {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  margin-bottom: 1.5rem;
-}
-
-.characters-page__title-icon {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 14px;
-  background: #dff6f1;
-}
-
-.characters-page__title-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.characters-page__title h1 {
+.dex__title h1 {
   margin: 0;
   color: #1a2e2b;
-  font-size: 1.25rem;
+  font-size: 1.3rem;
   font-weight: 900;
 }
 
-.characters-page__title p {
-  margin: 0.25rem 0 0;
+.dex__title p {
+  margin: 0.3rem 0 1.5rem;
   color: #6b8c87;
   font-size: 0.86rem;
   font-weight: 700;
 }
 
-.stamp-summary {
+/* ── 진행 요약 ─────────────────────────────── */
+.dex-summary {
   display: flex;
   gap: 1rem;
   align-items: center;
   border: 1px solid rgba(178, 228, 220, 0.4);
-  border-radius: 8px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #e8f8f5, #f0faf8);
   box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   padding: 1.2rem;
 }
 
-.stamp-summary__icon {
+.dex-summary__icon {
   display: grid;
   width: 48px;
   height: 48px;
@@ -258,11 +303,12 @@ onMounted(loadCharacters);
   background: linear-gradient(135deg, #b2e4dc, #3db89e);
 }
 
-.stamp-summary__body {
+.dex-summary__body {
   flex: 1;
+  min-width: 0;
 }
 
-.stamp-summary__row {
+.dex-summary__row {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -271,131 +317,184 @@ onMounted(loadCharacters);
   font-weight: 800;
 }
 
-.stamp-summary__row strong {
+.dex-summary__row strong {
   color: #3db89e;
 }
 
-.stamp-summary__bar {
+.dex-summary__bar {
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(178, 228, 220, 0.3);
+  background: rgba(178, 228, 220, 0.35);
   margin-top: 0.5rem;
 }
 
-.stamp-summary__bar span {
+.dex-summary__bar span {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #b2e4dc, #3db89e);
-  transition: width 0.25s ease;
+  transition: width 0.3s ease;
 }
 
-.stamp-summary p {
+.dex-summary p {
   margin: 0.35rem 0 0;
   color: #6b8c87;
   font-size: 0.76rem;
   font-weight: 700;
 }
 
-.characters-page__count {
-  color: #1a2e2b;
-  font-size: 0.92rem;
-  font-weight: 800;
+.dex__notice {
+  border: 1px dashed #f0c9c9;
+  border-radius: 10px;
+  background: #fff6f6;
+  color: #b45252;
+  font-size: 0.8rem;
+  font-weight: 700;
   margin-bottom: 1rem;
+  padding: 0.7rem 0.9rem;
 }
 
-.characters-page__count span {
-  color: #3db89e;
+/* ── 탭 ────────────────────────────────────── */
+.dex-tabs {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  padding-bottom: 0.35rem;
+  scrollbar-width: none;
 }
 
-.characters-page__loading,
-.characters-page__empty {
+.dex-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.dex-tabs__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  border: 1px solid rgba(178, 228, 220, 0.6);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1a2e2b;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 800;
+  padding: 0.45rem 0.85rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dex-tabs__chip span {
+  color: #9bb5b0;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.dex-tabs__chip.is-active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #b2e4dc, #3db89e);
+  color: #ffffff;
+}
+
+.dex-tabs__chip.is-active span {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ── 그리드 ────────────────────────────────── */
+.dex-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.dex-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid rgba(178, 228, 220, 0.5);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(26, 46, 43, 0.05);
+  cursor: pointer;
+  padding: 0.7rem 0.5rem;
+  text-align: center;
+}
+
+.dex-card--locked {
+  border-color: rgba(214, 231, 227, 0.7);
+  background: #f6f9f8;
+}
+
+.dex-card__thumb {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eefaf7, #f7fcfb);
+}
+
+.dex-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 6%;
+}
+
+/*
+ * 미획득 캐릭터는 검정 실루엣으로 보여준다.
+ * 147장 모두 배경이 투명한 PNG라 brightness(0)이 알파는 그대로 두고
+ * 색만 검정으로 만든다. 별도의 실루엣 이미지가 필요 없다.
+ */
+.dex-card--locked .dex-card__thumb img {
+  filter: brightness(0);
+  opacity: 0.72;
+}
+
+.dex-card__count {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  border-radius: 999px;
+  background: #3db89e;
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+}
+
+.dex-card__name {
+  margin: 0;
+  color: #1a2e2b;
+  font-size: 0.76rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.dex-card--locked .dex-card__name {
+  color: #a8bcb8;
+}
+
+.dex__placeholder {
   border: 1px dashed #d6e7e3;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #ffffff;
   color: #6b8c87;
   font-size: 0.9rem;
   font-weight: 800;
-  padding: 2rem;
+  padding: 2.5rem;
   text-align: center;
 }
 
-.characters-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.character-card {
-  display: flex;
-  cursor: pointer;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.65rem;
-  border: 1px solid rgba(178, 228, 220, 0.5);
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 2px 12px rgba(26, 46, 43, 0.06);
-  padding: 1rem;
-  text-align: center;
-}
-
-.character-card--locked {
-  border-color: rgba(220, 220, 220, 0.8);
-  background: #f8f8f8;
-}
-
-.character-card__image {
-  position: relative;
-  display: grid;
-  width: 80px;
-  height: 80px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #e8f8f5, #f0faf8);
-}
-
-.character-card--locked .character-card__image {
-  filter: grayscale(1);
-}
-
-.character-card__img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.character-card__lock {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.25);
-}
-
-.character-card__text p {
-  margin: 0;
-  color: #1a2e2b;
-  font-size: 0.84rem;
-  font-weight: 800;
-}
-
-.character-card__text span {
-  display: block;
-  color: #3db89e;
-  font-size: 0.72rem;
-  font-weight: 800;
-  margin-top: 0.2rem;
-}
-
-.character-card--locked .character-card__text p,
-.character-card--locked .character-card__text span {
-  color: #9ca3af;
-}
-
-.character-modal {
+/* ── 모달 ──────────────────────────────────── */
+.dex-modal {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -406,15 +505,31 @@ onMounted(loadCharacters);
   padding: 1rem;
 }
 
-.character-modal__panel {
+.dex-modal__panel {
+  position: relative;
   width: min(100%, 340px);
   overflow: hidden;
-  border-radius: 18px;
+  border-radius: 20px;
   background: #ffffff;
-  box-shadow: 0 24px 80px rgba(26, 46, 43, 0.15);
+  box-shadow: 0 24px 80px rgba(26, 46, 43, 0.18);
 }
 
-.character-modal__image {
+.dex-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  color: #6b8c87;
+  cursor: pointer;
+}
+
+.dex-modal__thumb {
   display: grid;
   min-height: 210px;
   place-items: center;
@@ -422,78 +537,111 @@ onMounted(loadCharacters);
   padding: 1.5rem;
 }
 
-.character-modal__image--locked {
-  filter: grayscale(1);
-}
-
-.character-modal__img {
-  width: min(100%, 210px);
-  height: 180px;
+.dex-modal__thumb img {
+  width: min(100%, 200px);
+  height: 175px;
   object-fit: contain;
 }
 
-.character-modal__body {
-  padding: 1.5rem;
+.dex-modal__thumb.is-locked img {
+  filter: brightness(0);
+  opacity: 0.72;
 }
 
-.character-modal__title {
+.dex-modal__body {
+  padding: 1.35rem 1.5rem 1.5rem;
+}
+
+.dex-modal__head {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.7rem;
 }
 
-.character-modal__title h3 {
+.dex-modal__head h3 {
   margin: 0;
   color: #1a2e2b;
   font-size: 1.05rem;
   font-weight: 900;
 }
 
-.character-modal__title span {
+.dex-modal__head span {
   border-radius: 999px;
   background: #f3f4f6;
   color: #9ca3af;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 800;
   padding: 0.18rem 0.55rem;
 }
 
-.character-modal__title span.is-obtained {
+.dex-modal__head span.is-obtained {
   background: #d1fae5;
   color: #065f46;
 }
 
-.character-modal__body p {
+.dex-modal__role {
+  margin: 0.4rem 0 0;
+  color: #3db89e;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.dex-modal__desc {
   color: #6b8c87;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 700;
   line-height: 1.65;
+  margin: 0.7rem 0 1rem;
+}
+
+.dex-modal__desc--muted {
+  color: #a8bcb8;
+}
+
+.dex-modal__hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 10px;
+  background: #f0faf8;
+  color: #3d8f7f;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.5;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.8rem;
+}
+
+.dex-modal__facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
   margin: 0 0 1rem;
 }
 
-.character-modal__requirement {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  border-radius: 8px;
+.dex-modal__facts > div {
+  border-radius: 10px;
   background: #f0faf8;
-  color: #1a2e2b;
-  font-size: 0.82rem;
+  padding: 0.65rem 0.7rem;
+}
+
+.dex-modal__facts dt {
+  color: #6b8c87;
+  font-size: 0.68rem;
   font-weight: 800;
-  margin-bottom: 1rem;
-  padding: 0.8rem;
 }
 
-.character-modal__requirement strong {
-  color: #3db89e;
-  margin-left: auto;
+.dex-modal__facts dd {
+  margin: 0.2rem 0 0;
+  color: #1a2e2b;
+  font-size: 0.86rem;
+  font-weight: 900;
 }
 
-.character-modal button {
+.dex-modal__confirm {
   width: 100%;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   background: linear-gradient(135deg, #b2e4dc, #3db89e);
   color: #ffffff;
   cursor: pointer;
@@ -502,13 +650,9 @@ onMounted(loadCharacters);
   padding: 0.85rem 1rem;
 }
 
-@media (max-width: 520px) {
-  .characters-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .stamp-summary {
-    align-items: flex-start;
+@media (max-width: 560px) {
+  .dex-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 </style>
