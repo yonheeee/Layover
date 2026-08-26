@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Camera, Loader2, MapPin, X } from 'lucide-vue-next'
 import { fetchDiPlaces } from '@/api/courses'
 import { httpGet } from '@/api/http'
-import { getTodayStampedPlaceIds, saveStamp } from '@/api/stamps'
+import { getTodayStampedPlaceIds, saveStamp, verifyStampLocation, type StampCoords } from '@/api/stamps'
 import { drawCharacter, type CharacterResponse } from '@/api/characters'
 import { dataUrlToFile, uploadStampPhoto } from '@/api/upload'
 import { resolveCharacterImage } from '@/data/characterImages'
@@ -108,9 +108,8 @@ const newCharacterPopup = ref<CharacterResponse | null>(null)
 /** 오늘 이미 스탬프를 찍은 장소. 서버 기록이 기준이다. */
 const todayStamped = ref<Set<string>>(new Set())
 const isSavingStamp = ref(false)
-const allowDevStampVerification = import.meta.env.DEV
 /** 위치 인증에 성공한 좌표. 스탬프 저장 시 서버 검증용으로 함께 보낸다. */
-const verifiedCoords = ref<{ latitude: number; longitude: number } | null>(null)
+const verifiedCoords = ref<StampCoords | null>(null)
 // 캐릭터는 서버가 뽑는다. 예전에는 코스 내 방문 순번으로 로컬 배열에서 골랐는데,
 // 랜덤도 아니고 유저별로 다르지도 않았으며 서버가 준 캐릭터와도 어긋났다.
 function characterImage(character: CharacterResponse | null) {
@@ -352,50 +351,56 @@ watch(
   },
 )
 
-// ── Haversine ─────────────────────────────────────────────
-function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371000
-  const r = (d: number) => (d * Math.PI) / 180
-  const dLat = r(lat2 - lat1)
-  const dLng = r(lng2 - lng1)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
 
 // ── Step 1 → 2: 위치 인증 ─────────────────────────────────
-function startVerify(idx: number) {
-  currentPlaceIdx.value = idx
-  errorMsg.value = ''
-  currentStep.value = 'verifying'
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => {
-      const place = places.value[idx]
-      const dist = haversine(coords.latitude, coords.longitude, place.lat, place.lng)
-      if (dist <= 100 || allowDevStampVerification) {
-        verifiedCoords.value = { latitude: coords.latitude, longitude: coords.longitude }
-        showGuide()
-      } else {
-        errorMsg.value = `거리가 너무 멉니다. (현재 약 ${Math.round(dist)}m 떨어져 있어요)`
-        returnToTimeline()
-      }
-    },
-    () => {
-      if (allowDevStampVerification) {
-        showGuide()
-        return
-      }
-      errorMsg.value = '위치를 가져올 수 없어요. 위치 권한을 확인해주세요.'
-      returnToTimeline()
-    },
-    { enableHighAccuracy: true, timeout: 10000 },
+/** getCurrentPosition 을 async/await 로 쓰기 위한 래퍼 */
+function getCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) =>
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+    }),
   )
 }
 
-function devVerify(idx: number) {
+/**
+ * 사진을 찍기 전 위치를 확인한다.
+ *
+ * 거리 판정은 서버가 한다. 프론트에서 반경을 따로 계산하면 서버 설정과
+ * 어긋나고, 개발 모드 우회 스위치를 화면 코드에 남기게 된다. 로컬에서
+ * 위치를 무시하려면 서버의 stamp.verification.enabled 를 끄면 된다.
+ */
+async function startVerify(idx: number) {
   currentPlaceIdx.value = idx
   errorMsg.value = ''
+  currentStep.value = 'verifying'
+
+  let position: GeolocationPosition
+  try {
+    position = await getCurrentPosition()
+  } catch {
+    errorMsg.value = '위치를 가져올 수 없어요. 위치 권한을 확인해주세요.'
+    returnToTimeline()
+    return
+  }
+
+  const coords: StampCoords = {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    // 측위 오차 반경. 서버가 이 값으로 좌표를 믿을지, 반경을 얼마나 넓힐지 정한다.
+    accuracy: position.coords.accuracy,
+  }
+
+  try {
+    await verifyStampLocation(places.value[idx].id, coords)
+  } catch (err: any) {
+    errorMsg.value =
+      err?.response?.data?.message ?? '위치를 확인할 수 없어요. 잠시 후 다시 시도해주세요.'
+    returnToTimeline()
+    return
+  }
+
+  verifiedCoords.value = coords
   showGuide()
 }
 

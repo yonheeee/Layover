@@ -21,6 +21,29 @@ export interface MyStamp {
   visitedAt: string
 }
 
+/** 위치 인증에 쓰는 좌표. accuracy는 측위 오차 반경(m). */
+export interface StampCoords {
+  latitude: number
+  longitude: number
+  accuracy?: number
+}
+
+/**
+ * 촬영 직전 위치 확인.
+ *
+ * 거리 판정을 서버에 맡긴다. 예전에는 프론트가 반경 100m를 하드코딩해
+ * 따로 판정했는데, 서버 설정과 어긋나면 촬영을 다 마친 뒤에야 거부당했다.
+ * 통과하지 못하면 서버 메시지를 담아 예외가 올라온다.
+ */
+export async function verifyStampLocation(placeId: string, coords: StampCoords): Promise<void> {
+  await httpPost<null>('/api/stamps/verify-location', {
+    placeId,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    accuracy: coords.accuracy ?? null,
+  })
+}
+
 /**
  * 스탬프를 저장한다. 도감이 해금되는 유일한 지점이다.
  *
@@ -29,7 +52,7 @@ export interface MyStamp {
  */
 export async function saveStamp(
   placeId: string,
-  coords?: { latitude: number; longitude: number } | null,
+  coords?: StampCoords | null,
   characterId?: string | null,
   photoUrl?: string | null,
 ): Promise<StampResponse> {
@@ -39,6 +62,7 @@ export async function saveStamp(
     photoUrl: photoUrl ?? null,
     latitude: coords?.latitude ?? null,
     longitude: coords?.longitude ?? null,
+    accuracy: coords?.accuracy ?? null,
   })
   return res.data
 }
