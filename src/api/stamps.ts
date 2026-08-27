@@ -12,13 +12,23 @@ export interface StampResponse {
   newCharacter: CharacterResponse | null
 }
 
-/** GET /api/stamps/my 가 돌려주는 스탬프 한 건 */
+/**
+ * GET /api/stamps/my 가 돌려주는 스탬프 한 건.
+ *
+ * 마이페이지의 인증 사진 목록과 스탬프 지도가 이것만 보고 그려진다.
+ * 지도 핀에 좌표가 필요해 서버가 places 를 조인해 함께 내려준다.
+ */
 export interface MyStamp {
   id: string
   placeId: string
   placeName: string
+  /** FOOD / CAFE / NATURE / CULTURE ... 화면에서 이모지를 고르는 데 쓴다 */
+  category: string | null
   photoUrl: string
   visitedAt: string
+  /** 장소에 좌표가 없으면 null */
+  latitude: number | null
+  longitude: number | null
 }
 
 /** 위치 인증에 쓰는 좌표. accuracy는 측위 오차 반경(m). */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { MapPin, Star, X } from "lucide-vue-next";
 import { getMyCharacters, type OwnedCharacter } from "@/api/characters";
 import SilentImage from "@/components/common/SilentImage.vue";
@@ -19,9 +19,16 @@ import {
  * 항상 자리를 차지한다.
  *
  * 도감 전용 화면(`/mypage/characters`)과 마이페이지 스탬프 탭이 같은 컴포넌트를
- * 쓴다. 예전에는 마이페이지 쪽이 localStorage 파생이라 실루엣도 없고 기기를
- * 옮기면 비어 있었다.
+ * 쓴다. 마이페이지에서는 `preview` 로 몇 줄만 보여주고 전체는 전용 화면으로 넘긴다.
  */
+const props = withDefaults(
+  defineProps<{
+    /** 마이페이지에 얹는 축약형. 탭을 숨기고 앞쪽 몇 칸만 보여준다. */
+    preview?: boolean;
+    previewCount?: number;
+  }>(),
+  { preview: false, previewCount: 12 },
+);
 
 /** code → 보유 정보 */
 const owned = ref<Map<string, OwnedCharacter>>(new Map());
@@ -31,14 +38,21 @@ const loadFailed = ref(false);
 const activeTab = ref<string>("all");
 const selected = ref<CatalogCharacter | null>(null);
 
+/**
+ * 이미지가 뜨거나 실패해서 더 기다릴 필요가 없어진 카드.
+ *
+ * 원본이 147장 17MB라 lazy 로딩이 걸려 있고 스크롤에 따라 뒤늦게 채워진다.
+ * 그 사이 빈 칸만 보이면 고장처럼 보여서 '로딩중...'을 대신 띄운다.
+ * 실패한 칸도 여기 들어가므로 문구가 계속 남지는 않는다.
+ */
+const settledCodes = ref(new Set<string>());
+const modalImageSettled = ref(false);
+
 const obtainedCount = computed(
   () => characterCatalog.filter((c) => owned.value.has(c.code)).length,
 );
 const totalDrawCount = computed(() =>
   [...owned.value.values()].reduce((sum, o) => sum + o.count, 0),
-);
-const progressRatio = computed(() =>
-  TOTAL_CHARACTER_COUNT ? obtainedCount.value / TOTAL_CHARACTER_COUNT : 0,
 );
 
 const tabs = computed(() => [
@@ -56,7 +70,21 @@ const tabs = computed(() => [
   })),
 ]);
 
+/** 축약형은 획득한 것부터, 최근에 만난 순으로 보여주고 남는 칸을 실루엣으로 채운다. */
+const previewCharacters = computed(() => {
+  const obtainedFirst = characterCatalog
+    .filter((c) => owned.value.has(c.code))
+    .sort((a, b) =>
+      String(owned.value.get(b.code)?.firstObtainedAt ?? "").localeCompare(
+        String(owned.value.get(a.code)?.firstObtainedAt ?? ""),
+      ),
+    );
+  const locked = characterCatalog.filter((c) => !owned.value.has(c.code));
+  return [...obtainedFirst, ...locked].slice(0, props.previewCount);
+});
+
 const visibleCharacters = computed(() => {
+  if (props.preview) return previewCharacters.value;
   if (activeTab.value === "all") return characterCatalog;
   return catalogGroups.find((g) => g.key === activeTab.value)?.items ?? [];
 });
@@ -85,6 +113,26 @@ function formatDate(iso?: string) {
   const d = new Date(iso);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
+
+// ── 탭 가로 스크롤 ────────────────────────────────
+const tabsRef = ref<HTMLElement | null>(null);
+
+/**
+ * 데스크톱에서 세로 휠로도 탭을 넘길 수 있게 한다.
+ *
+ * 칩 줄은 스크롤바를 숨긴 가로 스크롤 영역이라, 마우스만 쓰는 환경에서는
+ * shift+휠을 모르면 넘길 방법이 없었다. 트랙패드의 가로 스와이프는 브라우저
+ * 기본 동작에 그대로 맡긴다.
+ */
+function onTabsWheel(event: WheelEvent) {
+  const el = tabsRef.value;
+  if (!el || el.scrollWidth <= el.clientWidth) return;
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+  event.preventDefault();
+  el.scrollLeft += event.deltaY;
+}
+
+watch(selected, () => (modalImageSettled.value = false));
 
 async function loadOwned() {
   isLoading.value = true;
@@ -116,17 +164,10 @@ defineExpose({ reload: loadOwned });
       <div class="dex-summary__body">
         <div class="dex-summary__row">
           <span>수집 현황</span>
-          <strong>{{ obtainedCount }} / {{ TOTAL_CHARACTER_COUNT }}종</strong>
+          <strong>{{ TOTAL_CHARACTER_COUNT }}종 중 {{ obtainedCount }}종</strong>
         </div>
-        <div class="dex-summary__bar">
-          <span :style="`width:${Math.round(progressRatio * 100)}%`" />
-        </div>
-        <p>
-          {{ Math.round(progressRatio * 100) }}% 달성
-          <template v-if="totalDrawCount">
-            · 중복 포함 {{ totalDrawCount }}장
-          </template>
-        </p>
+        <p v-if="totalDrawCount">중복 포함 {{ totalDrawCount }}장을 모았어요.</p>
+        <p v-else>아직 만난 캐릭터가 없어요. 대전에서 사진을 찍어보세요.</p>
       </div>
     </section>
 
@@ -134,8 +175,14 @@ defineExpose({ reload: loadOwned });
       도감 정보를 불러오지 못했어요. 실루엣만 표시됩니다.
     </p>
 
-    <!-- 캐릭터 탭 -->
-    <nav class="dex-tabs" aria-label="캐릭터 분류">
+    <!-- 캐릭터 탭 (전체 화면에서만) -->
+    <nav
+      v-if="!preview"
+      ref="tabsRef"
+      class="dex-tabs"
+      aria-label="캐릭터 분류"
+      @wheel="onTabsWheel"
+    >
       <button
         v-for="tab in tabs"
         :key="tab.key"
@@ -161,8 +208,14 @@ defineExpose({ reload: loadOwned });
         @click="selected = character"
       >
         <div class="dex-card__thumb">
+          <span v-if="!settledCodes.has(character.code)" class="dex-card__loading">
+            로딩중...
+          </span>
           <!-- 이름은 카드 아래에 텍스트로 있으므로 alt 없이 둔다 -->
-          <SilentImage :src="character.imageUrl" />
+          <SilentImage
+            :src="character.imageUrl"
+            @settled="settledCodes.add(character.code)"
+          />
           <span
             v-if="(ownedOf(character.code)?.count ?? 0) > 1"
             class="dex-card__count"
@@ -188,7 +241,8 @@ defineExpose({ reload: loadOwned });
             class="dex-modal__thumb"
             :class="{ 'is-locked': !isObtained(selected.code) }"
           >
-            <SilentImage :src="selected.imageUrl" />
+            <span v-if="!modalImageSettled" class="dex-modal__loading">로딩중...</span>
+            <SilentImage :src="selected.imageUrl" @settled="modalImageSettled = true" />
           </div>
 
           <div class="dex-modal__body">
@@ -283,22 +337,6 @@ defineExpose({ reload: loadOwned });
   color: #3db89e;
 }
 
-.dex-summary__bar {
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(178, 228, 220, 0.35);
-  margin-top: 0.5rem;
-}
-
-.dex-summary__bar span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #b2e4dc, #3db89e);
-  transition: width 0.3s ease;
-}
-
 .dex-summary p {
   margin: 0.35rem 0 0;
   color: #6b8c87;
@@ -320,8 +358,11 @@ defineExpose({ reload: loadOwned });
 /* ── 탭 ────────────────────────────────────── */
 .dex-tabs {
   display: flex;
+  flex-wrap: nowrap;
   gap: 0.4rem;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   margin-bottom: 1rem;
   padding-bottom: 0.35rem;
   scrollbar-width: none;
@@ -331,11 +372,37 @@ defineExpose({ reload: loadOwned });
   display: none;
 }
 
+/*
+ * 마우스를 쓰는 환경에서는 스크롤바를 얇게 남겨 둔다. 완전히 숨기면
+ * 넘길 수 있다는 사실 자체가 보이지 않는다. 세로 휠 대응은 onTabsWheel 에 있다.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .dex-tabs {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(61, 184, 158, 0.45) transparent;
+  }
+
+  .dex-tabs::-webkit-scrollbar {
+    display: block;
+    height: 6px;
+  }
+
+  .dex-tabs::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .dex-tabs::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(61, 184, 158, 0.45);
+  }
+}
+
 .dex-tabs__chip {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   flex-shrink: 0;
+  white-space: nowrap;
   border: 1px solid rgba(178, 228, 220, 0.6);
   border-radius: 999px;
   background: #ffffff;
@@ -405,10 +472,18 @@ defineExpose({ reload: loadOwned });
 }
 
 .dex-card__thumb img {
+  grid-area: 1 / 1;
   width: 100%;
   height: 100%;
   object-fit: contain;
   padding: 6%;
+}
+
+.dex-card__loading {
+  grid-area: 1 / 1;
+  color: #9bb5b0;
+  font-size: 0.62rem;
+  font-weight: 700;
 }
 
 /*
@@ -484,6 +559,7 @@ defineExpose({ reload: loadOwned });
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
+  z-index: 1;
   display: grid;
   width: 30px;
   height: 30px;
@@ -504,9 +580,17 @@ defineExpose({ reload: loadOwned });
 }
 
 .dex-modal__thumb img {
+  grid-area: 1 / 1;
   width: min(100%, 200px);
   height: 175px;
   object-fit: contain;
+}
+
+.dex-modal__loading {
+  grid-area: 1 / 1;
+  color: #9bb5b0;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .dex-modal__thumb.is-locked img {

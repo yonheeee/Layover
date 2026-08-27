@@ -13,6 +13,8 @@ import {
   uploadProfileImage,
 } from "@/api/user";
 import { getMyReports } from "@/api/reports";
+import { getMyStamps, type MyStamp } from "@/api/stamps";
+import { placeEmoji } from "@/utils/placeEmoji";
 import PlaceCard from "@/components/common/PlaceCard.vue";
 import { deleteCourse } from "@/api/courses";
 import { useAuthStore } from "@/stores/auth";
@@ -118,6 +120,7 @@ onMounted(async () => {
     fetchUserActivity(),
     getMyPosts(),
     getMyReports(),
+    getMyStamps(),
   ]);
 
   if (results[0].status === "fulfilled") {
@@ -133,6 +136,11 @@ onMounted(async () => {
   }
   if (results[2].status === "fulfilled") myPosts.value = results[2].value;
   if (results[3].status === "fulfilled") myReports.value = results[3].value;
+  if (results[4].status === "fulfilled") {
+    myStamps.value = results[4].value;
+  } else {
+    console.error("스탬프 로딩 실패:", results[4].reason);
+  }
 
   await bookmarkStore.fetchBookmarks();
   window.addEventListener("layover:reports-updated", fetchReports);
@@ -243,29 +251,43 @@ async function withdraw() {
   }
 }
 
-// ─── 엽서 탭 (카카오 지도) ───
+// ─── 스탬프 탭 ───
+/**
+ * 내가 찍은 스탬프. 서버가 유일한 출처다.
+ *
+ * 예전에는 localStorage(`stamp_photos`)를 읽었다. 사진 파일은 서버에 있는데
+ * 목록만 브라우저에 있어서, 다른 기기나 브라우저로 로그인하면 도감은 차 있는데
+ * 사진 그리드와 지도는 텅 비어 있었다.
+ */
+const myStamps = ref<MyStamp[]>([]);
+
+/** 좌표가 있는 것만 지도에 찍는다. 장소에 좌표가 없을 수 있다. */
+const mappableStamps = computed(() =>
+  myStamps.value.filter((s) => s.latitude != null && s.longitude != null),
+);
+
 // 지도 생성·오버레이 정리·relayout은 useKakaoMap이 담당한다.
 const postcardMapController = useKakaoMap();
 
 function renderPostcardPins() {
   postcardMapController.clearOverlays();
-  if (stampStore.photos.length === 0) return;
+  if (mappableStamps.value.length === 0) return;
 
-  stampStore.photos.forEach((photo) => {
+  mappableStamps.value.forEach((stamp) => {
     postcardMapController.addCustomOverlay(
-      { lat: photo.lat, lng: photo.lng },
+      { lat: stamp.latitude!, lng: stamp.longitude! },
       {
         // 로컬 저장(storage.type=local)이면 서버가 "/uploads/..." 같은 상대 경로를
         // 돌려준다. 그대로 쓰면 프론트를 따로 배포했을 때 404가 난다.
         // alt 를 비워 두면 이미지가 깨져도 글씨가 뜨지 않는다.
-        content: `<div style="width:52px;height:52px;border-radius:12px;border:3px solid #3db89e;box-shadow:0 3px 12px rgba(61,184,158,0.4);overflow:hidden;cursor:pointer;"><img src="${resolveMediaUrl(photo.url)}" alt="" style="width:100%;height:100%;object-fit:cover;" /></div>`,
+        content: `<div style="width:52px;height:52px;border-radius:12px;border:3px solid #3db89e;box-shadow:0 3px 12px rgba(61,184,158,0.4);overflow:hidden;cursor:pointer;"><img src="${resolveMediaUrl(stamp.photoUrl)}" alt="" style="width:100%;height:100%;object-fit:cover;" /></div>`,
         yAnchor: 1,
       },
     );
   });
 
   postcardMapController.fitBounds(
-    stampStore.photos.map((photo) => ({ lat: photo.lat, lng: photo.lng })),
+    mappableStamps.value.map((stamp) => ({ lat: stamp.latitude!, lng: stamp.longitude! })),
   );
 }
 
@@ -286,6 +308,14 @@ watch(
     renderPostcardPins();
   },
 );
+
+// 스탬프 목록은 서버에서 비동기로 온다. 탭을 먼저 열어 둔 채로 응답이 도착하면
+// 지도가 빈 채로 남으므로 목록이 채워질 때 핀을 다시 그린다.
+watch(myStamps, () => {
+  if (activeTab.value === "postcard" && postcardMapController.map.value) {
+    renderPostcardPins();
+  }
+});
 
 // ─── 활동 탭 데이터 ───
 const myCourses = ref<MyCourse[]>([]);
@@ -328,8 +358,18 @@ async function handleDeleteCourse(courseId: string) {
     deletingCourseId.value = null;
   }
 }
+/**
+ * 이 코스에서 인증을 마친 장소 수.
+ *
+ * 서버 스탬프에는 코스 정보가 없으므로 코스의 장소 목록과 대조한다.
+ * 같은 장소를 다른 날 또 찍어도 "방문한 장소 수"는 하나로 센다.
+ */
 function courseStampCount(course: MyCourse): number {
-  return stampStore.photosForCourse(course.id).length;
+  const placeIds = new Set((course.places ?? []).map((p) => String(p.id)));
+  const visited = myStamps.value
+    .filter((stamp) => placeIds.has(String(stamp.placeId)))
+    .map((stamp) => String(stamp.placeId));
+  return new Set(visited).size;
 }
 
 function goToCourseStamp(course: MyCourse) {
@@ -385,7 +425,8 @@ const xpMissionCards = computed(() => [
   {
     label: "스탬프 인증",
     description: "여행지에서 인증 사진 남기기",
-    count: stampStore.photos.length,
+    // 레벨 계산과 같은 서버 수치를 쓴다. 로컬 개수를 세면 바로 위 레벨 바와 숫자가 어긋난다.
+    count: xpStampCount.value,
     goal: 50,
     xpEach: XP_PER_STAMP,
     emoji: "📍",
@@ -1379,7 +1420,7 @@ function formatDate(dateStr: string): string {
               >
                 <div id="postcard-stamp-map" style="width: 100%; height: 100%" />
                 <div
-                  v-if="stampStore.photos.length === 0"
+                  v-if="mappableStamps.length === 0"
                   class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
                 >
                   <p style="font-size: 0.82rem; font-weight: 600; color: #6b8c87; background: #ffffff; padding: 6px 14px; border-radius: 20px">
@@ -1398,11 +1439,11 @@ function formatDate(dateStr: string): string {
                   스탬프 인증 사진
                 </h2>
                 <span class="text-xs text-gray-400 font-medium"
-                  >총 {{ stampStore.photos.length }}장</span
+                  >총 {{ myStamps.length }}장</span
                 >
               </div>
               <div
-                v-if="stampStore.photos.length === 0"
+                v-if="myStamps.length === 0"
                 class="flex flex-col items-center justify-center py-12 rounded-2xl"
                 style="background: #ffffff"
               >
@@ -1418,20 +1459,20 @@ function formatDate(dateStr: string): string {
                 class="mypage-photo-grid grid grid-cols-3 gap-2 overflow-y-auto pr-1 max-h-[420px] custom-scrollbar"
               >
                 <div
-                  v-for="photo in stampStore.photos"
-                  :key="photo.id"
-                  @click="activePhotoModal = resolveMediaUrl(photo.url)"
+                  v-for="stamp in myStamps"
+                  :key="stamp.id"
+                  @click="activePhotoModal = resolveMediaUrl(stamp.photoUrl)"
                   class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer border border-gray-100"
                 >
                   <SilentImage
-                    :src="resolveMediaUrl(photo.url)"
+                    :src="resolveMediaUrl(stamp.photoUrl)"
                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <div
                     class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2"
                   >
                     <span class="text-[0.7rem] text-white font-medium truncate"
-                      >{{ photo.placeEmoji }} {{ photo.placeName }}</span
+                      >{{ placeEmoji(stamp.category) }} {{ stamp.placeName }}</span
                     >
                   </div>
                 </div>
@@ -1453,7 +1494,8 @@ function formatDate(dateStr: string): string {
                   전체 화면으로 보기
                 </RouterLink>
               </div>
-              <CharacterDex />
+              <!-- 여기서는 최근에 만난 순으로 몇 줄만. 147칸 전체는 전용 화면에서 본다. -->
+              <CharacterDex preview :preview-count="12" />
             </div>
           </template>
         </main>

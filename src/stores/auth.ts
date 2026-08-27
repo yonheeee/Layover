@@ -55,7 +55,7 @@ export const useAuthStore = defineStore("auth", () => {
     clearUserScopedStorage();
     useBookmarkStore().$reset();
     useCourseStore().reset();
-    useStampStore().clearPhotos();
+    useStampStore().clearActiveCourse();
   }
 
   async function kakaoLogin(): Promise<void> {

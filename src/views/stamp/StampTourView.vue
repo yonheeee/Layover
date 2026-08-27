@@ -9,10 +9,12 @@ import { getTodayStampedPlaceIds, saveStamp, verifyStampLocation, type StampCoor
 import { drawCharacter, type CharacterResponse } from '@/api/characters'
 import { dataUrlToFile, uploadStampPhoto } from '@/api/upload'
 import { resolveCharacterImage } from '@/data/characterImages'
+import { CHAR_META } from '@/data/characterCatalog'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
 import { useXp } from '@/composables/useXp'
+import { useXpSources } from '@/composables/useXpSources'
 import GuidedTour from '@/components/tutorial/GuidedTour.vue'
 import SilentImage from '@/components/common/SilentImage.vue'
 import { loadKakaoMaps } from '@/utils/kakaoMaps'
@@ -21,9 +23,15 @@ const courseStore = useCourseStore()
 const stampStore = useStampStore()
 const bookmarkStore = useBookmarkStore()
 
-const savedCoursesCount = ref(0)
-const savedPostsCount = ref(0)
-const { totalXp, currentLevel, nextLevel, xpProgress, levelUpModal } = useXp(savedCoursesCount, savedPostsCount)
+/*
+ * 경험치 수치는 마이페이지와 같은 출처에서 받는다.
+ * 예전에는 세 번째 인자를 넘기지 않아 useXp 가 localStorage 의 엽서 개수로
+ * 폴백했고, 게시글 수는 아무도 채우지 않아 0으로 남았다. 그래서 같은 계정인데
+ * 이 화면의 LV 와 마이페이지의 LV 가 서로 달랐다.
+ */
+const { stampCount, courseCount, postCount, loadXpSources } = useXpSources()
+const { totalXp, currentLevel, nextLevel, xpProgress, levelUpModal } =
+  useXp(courseCount, postCount, stampCount)
 
 type Step = 'timeline' | 'verifying' | 'guide' | 'camera' | 'result'
 
@@ -115,6 +123,19 @@ const verifiedCoords = ref<StampCoords | null>(null)
 // 랜덤도 아니고 유저별로 다르지도 않았으며 서버가 준 캐릭터와도 어긋났다.
 function characterImage(character: CharacterResponse | null): string | null {
   return character ? resolveCharacterImage(character.code) : null
+}
+
+/**
+ * 획득 팝업에 띄울 캐릭터 소개.
+ *
+ * 서버 `characters.description` 은 시드가 채우지 않아 전부 NULL 이라
+ * 팝업의 설명 문단이 항상 비어 있었다. 프론트 카탈로그가 캐릭터별 소개를
+ * 이미 갖고 있으므로(도감 상세 모달이 쓰는 그것) 없으면 그쪽에서 가져온다.
+ */
+function characterDescription(character: CharacterResponse | null): string {
+  if (!character) return ''
+  if (character.description) return character.description
+  return CHAR_META[character.baseChar?.split('+')[0] ?? '']?.description ?? ''
 }
 
 const videoRef = ref<HTMLVideoElement | null>(null)
@@ -321,6 +342,7 @@ onMounted(async () => {
   }
 
   bookmarkStore.fetchBookmarks().catch(() => {})
+  loadXpSources().catch(() => {})
 
   const selectedCourse = stampStore.activeCourse
   if (selectedCourse?.places?.length) {
@@ -329,7 +351,6 @@ onMounted(async () => {
   } else if (courseStore.hasConfirmedCourse) {
     try {
       const res = await httpGet<any[]>('/api/courses/my')
-      savedCoursesCount.value = res.data?.length ?? 0
       const latestCourse = res.data[0]
       if (latestCourse?.places?.length > 0) {
         stampStore.setActiveCourse(latestCourse)
@@ -581,12 +602,11 @@ async function confirmResult() {
 
   isSavingStamp.value = true
   let res
-  let uploadedPhotoUrl = ''
   try {
     // 사진을 먼저 올린다. 파일 저장은 트랜잭션 롤백에 참여하지 못하므로
     // 순서를 뒤집으면 사진 없는 도감 항목이 생긴다.
-    uploadedPhotoUrl = await uploadStampPhoto(dataUrlToFile(resultImageUrl.value))
-    res = await saveStamp(place.id, verifiedCoords.value, drawnCharacter.value?.id, uploadedPhotoUrl)
+    const photoUrl = await uploadStampPhoto(dataUrlToFile(resultImageUrl.value))
+    res = await saveStamp(place.id, verifiedCoords.value, drawnCharacter.value?.id, photoUrl)
   } catch (err: any) {
     const status = err?.response?.status
     if (status === 409) {
@@ -611,26 +631,13 @@ async function confirmResult() {
     resultImageUrl.value = await composePostcard(rawFrameUrl.value, place, finalCharacter)
   }
 
-  stampStore.addPhoto({
-    id: `${place.id}_${Date.now()}`,
-    // 서버에 올라간 주소만 저장한다. 예전에는 응답이 비면 엽서 dataURL을
-    // 통째로 넣었는데, 장당 300~500KB라 15~20장이면 localStorage 한도를 넘겨
-    // QuotaExceededError 가 나고 그 시점부터 도감이 조용히 멈췄다.
-    url: res.photoUrl || uploadedPhotoUrl,
-    placeName: place.name,
-    placeEmoji: place.guideEmoji,
-    courseId: stampStore.activeCourseId ?? undefined,
-    courseTitle: stampStore.activeCourseTitle,
-    characterId: finalCharacter?.id,
-    characterName: finalCharacter?.name,
-    // 이미지 URL 대신 code 만 남긴다. 번들 URL에는 빌드 해시가 붙어서
-    // 재배포하면 localStorage에 저장된 주소가 전부 404가 된다.
-    characterCode: finalCharacter?.code,
-    characterDescription: finalCharacter?.description,
-    takenAt: new Date().toISOString(),
-    lat: place.lat,
-    lng: place.lng,
-  })
+  // 사진 목록은 localStorage 에 남기지 않는다. 저장은 방금 서버가 마쳤고
+  // 마이페이지는 GET /api/stamps/my 로 다시 받아온다. 로컬 사본을 두면
+  // 기기마다 목록이 갈리고, 언젠가 그 사본을 읽는 화면이 다시 생긴다.
+
+  // 서버가 확정한 누적 인증 횟수로 경험치를 갱신한다.
+  // 로컬 개수를 세면 마이페이지와 레벨이 어긋난다.
+  stampCount.value = res.stampCount
 
   todayStamped.value.add(String(place.id))
   stampAnimIdx.value = idx
@@ -1048,9 +1055,9 @@ onUnmounted(() => {
           <h3 style="font-size:1.2rem;font-weight:800;color:#1a2e2b;margin-bottom:8px">
             {{ newCharacterPopup.name }}
           </h3>
-          <p v-if="newCharacterPopup.description"
+          <p v-if="characterDescription(newCharacterPopup)"
             style="font-size:0.82rem;color:#9ca3af;line-height:1.55;margin-bottom:16px">
-            {{ newCharacterPopup.description }}
+            {{ characterDescription(newCharacterPopup) }}
           </p>
           <p style="font-size:0.82rem;color:#9ca3af;margin-bottom:24px">
             도감에 담았어요. 마이페이지에서 확인할 수 있어요!

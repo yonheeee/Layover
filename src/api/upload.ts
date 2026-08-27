@@ -35,6 +35,11 @@ export async function uploadStampPhoto(file: File): Promise<string> {
   return uploadImage('/api/upload/stamp-photo', file, '인증 사진')
 }
 
+/** 프로필 사진 업로드. */
+export async function uploadProfileImage(file: File): Promise<string> {
+  return uploadImage('/api/upload/profile-image', file, '프로필 사진')
+}
+
 /** canvas dataURL을 업로드 가능한 File로 바꾼다. */
 export function dataUrlToFile(dataUrl: string, filename = 'stamp.jpg'): File {
   const [header, body] = dataUrl.split(',')

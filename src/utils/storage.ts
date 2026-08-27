@@ -16,7 +16,7 @@
 const USER_SCOPED_KEYS = [
   'accessToken',
   'refreshToken',
-  'stamp_photos',
+  'stamp_photos', // 사진 목록은 서버로 옮겼다. 예전 버전이 남긴 값 정리
   'stamp_active_course',
   'generated_courses',
   'last_request',
