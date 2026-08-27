@@ -619,10 +619,10 @@ async function confirmResult() {
     courseTitle: stampStore.activeCourseTitle,
     characterId: finalCharacter?.id,
     characterName: finalCharacter?.name,
+    // 이미지 URL 대신 code 만 남긴다. 번들 URL에는 빌드 해시가 붙어서
+    // 재배포하면 localStorage에 저장된 주소가 전부 404가 된다.
     characterCode: finalCharacter?.code,
     characterDescription: finalCharacter?.description,
-    characterImageUrl: characterImage(finalCharacter) ?? undefined,
-    characterImageAlt: finalCharacter?.name,
     takenAt: new Date().toISOString(),
     lat: place.lat,
     lng: place.lng,

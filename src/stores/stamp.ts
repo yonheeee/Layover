@@ -25,12 +25,14 @@ export interface StampPhoto {
   courseTitle?: string
   characterId?: string
   characterName?: string
-  /** 캐릭터 이미지 파일명. 번들 이미지를 다시 찾을 때 쓴다. */
+  /**
+   * 캐릭터 이미지 파일명. 표시할 때 `resolveCharacterImage(code)` 로 푼다.
+   *
+   * 이미지 URL 자체는 저장하지 않는다. 번들 URL에는 빌드 해시가 붙어서,
+   * 재배포하면 localStorage에 남은 URL이 전부 404가 된다.
+   */
   characterCode?: string
-  characterRole?: string
   characterDescription?: string
-  characterImageUrl?: string
-  characterImageAlt?: string
   takenAt: string
   lat: number
   lng: number

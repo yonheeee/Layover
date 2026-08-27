@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { toast } from "@/composables/useToast";
 import PhotoModal from "@/components/mypage/PhotoModal.vue";
-import CharacterDetailModal from "@/components/mypage/CharacterDetailModal.vue";
-import type { CharacterDetail } from "@/components/mypage/CharacterDetailModal.vue";
+import CharacterDex from "@/components/mypage/CharacterDex.vue";
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { CODE_TO_CATEGORY, getMyPosts } from "@/api/community";
@@ -18,7 +17,7 @@ import PlaceCard from "@/components/common/PlaceCard.vue";
 import { deleteCourse } from "@/api/courses";
 import { useAuthStore } from "@/stores/auth";
 import { useBookmarkStore } from "@/stores/bookmark";
-import { useStampStore, type StampPhoto } from "@/stores/stamp";
+import { useStampStore } from "@/stores/stamp";
 import {
   useXp,
   XP_LEVELS,
@@ -32,7 +31,6 @@ import type { ReportItem } from "@/types/chat";
 import type { Place } from "@/types/place";
 import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
-import SilentImage from "@/components/common/SilentImage.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
 import { useKakaoMap } from "@/composables/useKakaoMap";
 import { resolveMediaUrl } from "@/utils/media";
@@ -341,48 +339,10 @@ const likedScrollRef = ref<HTMLDivElement | null>(null);
 // ─── 모달 상태 ───
 const showLogout = ref(false);
 const activePhotoModal = ref<string | null>(null);
-const activeCharacterDetail = ref<CharacterDetail | null>(null);
 
-type PostcardCharacter = {
-  id: string;
-  name: string;
-  role: string;
-  description: string;
-  imageUrl: string;
-  imageAlt: string;
-  placeName: string;
-  photoUrl: string;
-  takenAt: string;
-};
-
-function isCharacterPhoto(photo: StampPhoto): photo is StampPhoto & {
-  characterId: string;
-  characterName: string;
-  characterImageUrl: string;
-} {
-  return Boolean(photo.characterId && photo.characterName && photo.characterImageUrl);
-}
-
-const postcardCharacters = computed<PostcardCharacter[]>(() => {
-  const byCharacter = new Map<string, PostcardCharacter>();
-
-  stampStore.photos.filter(isCharacterPhoto).forEach((photo) => {
-    if (byCharacter.has(photo.characterId)) return;
-    byCharacter.set(photo.characterId, {
-      id: photo.characterId,
-      name: photo.characterName,
-      role: photo.characterRole ?? "꿈씨패밀리",
-      description: photo.characterDescription ?? "스탬프 투어에서 함께 인증한 꿈씨패밀리 캐릭터입니다.",
-      imageUrl: photo.characterImageUrl,
-      imageAlt: photo.characterImageAlt ?? photo.characterName,
-      placeName: photo.placeName,
-      photoUrl: photo.url,
-      takenAt: photo.takenAt,
-    });
-  });
-
-  return [...byCharacter.values()];
-});
+// 캐릭터 목록은 CharacterDex 가 서버(/api/characters/my)에서 직접 받아온다.
+// 예전에는 여기서 localStorage 엽서 기록을 뒤져 만들었는데, 실루엣이 없고
+// 기기를 옮기면 비어 보였다.
 
 const sidebarTabs = [
   { key: "activity", label: "활동", icon: Activity },
@@ -1474,53 +1434,22 @@ function formatDate(dateStr: string): string {
               </div>
             </div>
 
-            <!-- 캐릭터 -->
+            <!-- 꿈씨 도감 -->
             <div class="pt-6">
               <div class="flex items-center justify-between mb-4">
                 <h2
                   style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
                 >
-                  캐릭터
+                  꿈씨 도감
                 </h2>
-                <span
+                <RouterLink
+                  to="/mypage/characters"
                   style="font-size: 0.82rem; font-weight: 700; color: #3db89e"
-                  >획득 {{ postcardCharacters.length }}명</span
                 >
+                  전체 화면으로 보기
+                </RouterLink>
               </div>
-              <div
-                v-if="postcardCharacters.length === 0"
-                class="flex flex-col items-center justify-center py-12 rounded-2xl"
-                style="background: #ffffff"
-              >
-                <p style="font-size: 0.85rem; font-weight: 600; color: #9ca3af">
-                  아직 함께 찍은 꿈씨패밀리가 없어요
-                </p>
-                <p style="font-size: 0.75rem; color: #d1d5db; margin-top: 4px">
-                  스탬프 투어에서 사진을 인증하면 여기에 모여요!
-                </p>
-              </div>
-              <div v-else class="mypage-character-grid grid grid-cols-3 gap-3">
-                <div
-                  v-for="char in postcardCharacters"
-                  :key="char.id"
-                  @click="activeCharacterDetail = char"
-                  class="p-3 rounded-xl border text-center transition-all bg-white border-teal-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5"
-                >
-                  <SilentImage
-                    :src="char.imageUrl"
-                    class="w-16 h-16 object-contain mx-auto mb-2"
-                  />
-                  <p
-                    class="text-[#1a2e2b] truncate"
-                    style="font-size: 0.7rem; font-weight: 700"
-                  >
-                    {{ char.name }}
-                  </p>
-                  <p class="truncate" style="font-size:0.62rem;color:#9ca3af;margin-top:2px">
-                    {{ char.placeName }}
-                  </p>
-                </div>
-              </div>
+              <CharacterDex />
             </div>
           </template>
         </main>
@@ -1641,11 +1570,6 @@ function formatDate(dateStr: string): string {
       </div>
 
       <PhotoModal :src="activePhotoModal" @close="activePhotoModal = null" />
-
-      <CharacterDetailModal
-        :character="activeCharacterDetail"
-        @close="activeCharacterDetail = null"
-      />
 
       <!-- 회고 모달 -->
       <div
