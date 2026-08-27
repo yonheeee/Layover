@@ -21,8 +21,16 @@ export const characterImages: Record<string, string> = Object.fromEntries(
   ]),
 )
 
-export function resolveCharacterImage(code: string, fallback = ''): string {
-  return characterImages[code] ?? fallback
+/**
+ * code 에 해당하는 번들 이미지 URL. 없으면 null.
+ *
+ * 예전에는 못 찾으면 빈 문자열을 돌려줬다. 그런데 `<img src="">` 는 브라우저가
+ * 현재 문서 URL을 이미지로 읽으려다 실패해 곧바로 alt 텍스트를 띄우고,
+ * `new Image().src = ''` 도 같은 이유로 onerror 를 탄다. 호출부가 "없음"을
+ * 명시적으로 구분할 수 있도록 null 을 돌려준다.
+ */
+export function resolveCharacterImage(code: string): string | null {
+  return characterImages[code] ?? null
 }
 
 /** 폴더에 실제로 존재하는 캐릭터 code 목록 (파일명 오름차순) */

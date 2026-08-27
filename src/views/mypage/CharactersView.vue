@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowLeft, MapPin, Star, X } from "lucide-vue-next";
 import { getMyCharacters, type OwnedCharacter } from "@/api/characters";
+import SilentImage from "@/components/common/SilentImage.vue";
 import {
   CHAR_META,
   TOTAL_CHARACTER_COUNT,
@@ -160,12 +161,8 @@ onMounted(loadOwned);
           @click="selected = character"
         >
           <div class="dex-card__thumb">
-            <img
-              :src="character.imageUrl"
-              :alt="isObtained(character.code) ? character.name : '미획득 캐릭터'"
-              loading="lazy"
-              decoding="async"
-            />
+            <!-- 이름은 카드 아래에 텍스트로 있으므로 alt 없이 둔다 -->
+            <SilentImage :src="character.imageUrl" />
             <span
               v-if="(ownedOf(character.code)?.count ?? 0) > 1"
               class="dex-card__count"
@@ -192,7 +189,7 @@ onMounted(loadOwned);
             class="dex-modal__thumb"
             :class="{ 'is-locked': !isObtained(selected.code) }"
           >
-            <img :src="selected.imageUrl" :alt="selected.name" />
+            <SilentImage :src="selected.imageUrl" />
           </div>
 
           <div class="dex-modal__body">

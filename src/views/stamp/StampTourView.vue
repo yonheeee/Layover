@@ -14,6 +14,7 @@ import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
 import { useXp } from '@/composables/useXp'
 import GuidedTour from '@/components/tutorial/GuidedTour.vue'
+import SilentImage from '@/components/common/SilentImage.vue'
 import { loadKakaoMaps } from '@/utils/kakaoMaps'
 
 const courseStore = useCourseStore()
@@ -112,8 +113,8 @@ const isSavingStamp = ref(false)
 const verifiedCoords = ref<StampCoords | null>(null)
 // 캐릭터는 서버가 뽑는다. 예전에는 코스 내 방문 순번으로 로컬 배열에서 골랐는데,
 // 랜덤도 아니고 유저별로 다르지도 않았으며 서버가 준 캐릭터와도 어긋났다.
-function characterImage(character: CharacterResponse | null) {
-  return character ? resolveCharacterImage(character.code) : ''
+function characterImage(character: CharacterResponse | null): string | null {
+  return character ? resolveCharacterImage(character.code) : null
 }
 
 const videoRef = ref<HTMLVideoElement | null>(null)
@@ -485,28 +486,31 @@ async function composePostcard(
   const padding = Math.round(size * 0.18)
   const badgeX = canvas.width - size - padding
   const badgeY = canvas.height - size - padding
-  ctx.save()
-  try {
-    // 캐릭터 이미지는 프론트 번들에 있어 same-origin이다.
-    // 외부 도메인에서 불러오면 canvas가 오염돼 toDataURL이 실패한다.
-    const characterImage = await loadCanvasImage(resolveCharacterImage(character?.code ?? ''))
-    const nw = characterImage.naturalWidth
-    const nh = characterImage.naturalHeight
-    // 0×0이면 NaN이 drawImage에 들어가 배지가 조용히 사라진다 → 폴백으로 넘긴다.
-    if (nw === 0 || nh === 0) throw new Error('빈 이미지')
-    const scale = Math.min(size / nw, size / nh)
-    const drawW = nw * scale
-    const drawH = nh * scale
-    // 가로: 중앙, 세로: 하단 기준 — 솔로/듀오 혼재 시 발 위치 기준선 일치
-    ctx.drawImage(characterImage, badgeX + (size - drawW) / 2, badgeY + (size - drawH), drawW, drawH)
-  } catch {
-    ctx.font = `${Math.round(size * 0.42)}px serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#3db89e'
-    ctx.fillText('꿈', badgeX + size / 2, badgeY + size / 2)
+
+  // 캐릭터 이미지를 얹지 못하면 배지 없이 사진만 남긴다.
+  // 예전에는 여기서 '꿈' 글자를 그렸는데, alt와 달리 저장된 엽서에 영구히 박힌다.
+  const badgeUrl = character ? resolveCharacterImage(character.code) : null
+  if (badgeUrl) {
+    ctx.save()
+    try {
+      // 캐릭터 이미지는 프론트 번들에 있어 same-origin이다.
+      // 외부 도메인에서 불러오면 canvas가 오염돼 toDataURL이 실패한다.
+      const badge = await loadCanvasImage(badgeUrl)
+      const nw = badge.naturalWidth
+      const nh = badge.naturalHeight
+      // 0×0이면 NaN이 drawImage에 들어가 배지가 조용히 사라진다 → 그냥 건너뛴다.
+      if (nw > 0 && nh > 0) {
+        const scale = Math.min(size / nw, size / nh)
+        const drawW = nw * scale
+        const drawH = nh * scale
+        // 가로: 중앙, 세로: 하단 기준 — 솔로/듀오 혼재 시 발 위치 기준선 일치
+        ctx.drawImage(badge, badgeX + (size - drawW) / 2, badgeY + (size - drawH), drawW, drawH)
+      }
+    } catch {
+      // 배지 생략. 아무것도 그리지 않는다.
+    }
+    ctx.restore()
   }
-  ctx.restore()
 
   const bandH = Math.round(canvas.height * 0.07)
   ctx.save()
@@ -594,7 +598,7 @@ async function confirmResult() {
     characterName: finalCharacter?.name,
     characterCode: finalCharacter?.code,
     characterDescription: finalCharacter?.description,
-    characterImageUrl: characterImage(finalCharacter),
+    characterImageUrl: characterImage(finalCharacter) ?? undefined,
     characterImageAlt: finalCharacter?.name,
     takenAt: new Date().toISOString(),
     lat: place.lat,
@@ -918,11 +922,11 @@ onUnmounted(() => {
     <Teleport to="body">
       <div v-if="currentStep === 'result'" class="fixed inset-0 z-50 flex flex-col" style="background:#000">
         <div class="flex-1 relative overflow-hidden">
-          <img :src="resultImageUrl" alt="인증 사진" class="w-full h-full object-contain" />
+          <SilentImage :src="resultImageUrl" class="w-full h-full object-contain" />
           <div v-if="drawnCharacter" class="absolute top-6 left-0 right-0 flex justify-center">
             <div class="flex items-center gap-2 px-5 py-2.5 rounded-full"
               style="background:rgba(61,184,158,0.92);backdrop-filter:blur(8px)">
-              <img :src="characterImage(drawnCharacter)" :alt="drawnCharacter.name"
+              <SilentImage :src="characterImage(drawnCharacter)"
                 class="w-7 h-7 object-contain" />
               <span class="font-bold text-sm text-white">{{ drawnCharacter.name }}</span>
             </div>
@@ -994,7 +998,7 @@ onUnmounted(() => {
         @click.self="newCharacterPopup = null">
         <div class="rounded-3xl p-8 text-center shadow-2xl mx-6"
           style="background:#fff;max-width:320px;width:100%">
-          <img :src="characterImage(newCharacterPopup)" :alt="newCharacterPopup.name"
+          <SilentImage :src="characterImage(newCharacterPopup)"
             class="w-28 h-28 mx-auto mb-3 object-contain" />
           <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">
             {{ newCharacterPopup.theme ? '특별한 캐릭터를 만났어요!' : '캐릭터를 만났어요!' }}

@@ -27,7 +27,8 @@ export interface CatalogCharacter {
   index: number
   /** 표시용 이름 */
   name: string
-  imageUrl: string
+  /** 번들 이미지 URL. 폴더에 파일이 없으면 null */
+  imageUrl: string | null
 }
 
 /** charNN → 꿈씨패밀리 멤버 */

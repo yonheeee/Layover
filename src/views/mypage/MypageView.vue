@@ -32,6 +32,7 @@ import type { ReportItem } from "@/types/chat";
 import type { Place } from "@/types/place";
 import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
+import SilentImage from "@/components/common/SilentImage.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
 import { useKakaoMap } from "@/composables/useKakaoMap";
 import { resolveMediaUrl } from "@/utils/media";
@@ -1505,9 +1506,8 @@ function formatDate(dateStr: string): string {
                   @click="activeCharacterDetail = char"
                   class="p-3 rounded-xl border text-center transition-all bg-white border-teal-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5"
                 >
-                  <img
+                  <SilentImage
                     :src="char.imageUrl"
-                    :alt="char.imageAlt"
                     class="w-16 h-16 object-contain mx-auto mb-2"
                   />
                   <p

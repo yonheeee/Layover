@@ -9,6 +9,8 @@ export interface CharacterDetail {
   description: string;
 }
 
+import SilentImage from "@/components/common/SilentImage.vue";
+
 defineProps<{
   character: CharacterDetail | null;
 }>();
@@ -25,10 +27,8 @@ const emit = defineEmits<{ close: [] }>();
     <div
       class="mypage-dialog mypage-dialog--sm bg-white p-6 rounded-2xl w-[340px] shadow-xl border border-teal-50 flex flex-col items-center gap-4"
     >
-      <img
-        v-if="character.imageUrl"
+      <SilentImage
         :src="character.imageUrl"
-        :alt="character.imageAlt || character.name"
         class="w-28 h-28 object-contain mt-2"
       />
       <div class="text-center w-full">
@@ -46,10 +46,8 @@ const emit = defineEmits<{ close: [] }>();
           함께 찍은 인증 장소
         </p>
         <div class="flex items-center gap-3">
-          <img
-            v-if="character.photoUrl"
+          <SilentImage
             :src="character.photoUrl"
-            alt="함께 찍은 인증 사진"
             class="w-14 h-14 rounded-xl object-cover border border-white shadow-sm"
           />
           <div class="min-w-0 text-left">
