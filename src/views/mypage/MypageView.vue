@@ -385,7 +385,20 @@ const selectedPlaceId = ref<string | null>(null);
 const likedScrollRef = ref<HTMLDivElement | null>(null);
 // ─── 모달 상태 ───
 const showLogout = ref(false);
-const activePhotoModal = ref<string | null>(null);
+/**
+ * 크게 보고 있는 인증 사진.
+ *
+ * URL 문자열이 아니라 스탬프 전체를 들고 있는다. 사진 아래에 제목(장소·날짜)을
+ * 붙이려면 URL 말고도 필요한 값이 있어서다. 예전에는 그 내용을 이미지에 태워
+ * 넣어서 저장된 파일에 영구히 박혔다.
+ */
+const activePhotoStamp = ref<MyStamp | null>(null);
+
+function formatVisitedAt(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+}
 
 // 캐릭터 목록은 CharacterDex 가 서버(/api/characters/my)에서 직접 받아온다.
 // 예전에는 여기서 localStorage 엽서 기록을 뒤져 만들었는데, 실루엣이 없고
@@ -1464,7 +1477,7 @@ function formatDate(dateStr: string): string {
                 <div
                   v-for="stamp in myStamps"
                   :key="stamp.id"
-                  @click="activePhotoModal = resolveMediaUrl(stamp.photoUrl)"
+                  @click="activePhotoStamp = stamp"
                   class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer border border-gray-100"
                 >
                   <SilentImage
@@ -1626,7 +1639,16 @@ function formatDate(dateStr: string): string {
         </div>
       </div>
 
-      <PhotoModal :src="activePhotoModal" @close="activePhotoModal = null" />
+      <PhotoModal
+        :src="activePhotoStamp ? resolveMediaUrl(activePhotoStamp.photoUrl) : null"
+        :title="
+          activePhotoStamp
+            ? `${placeEmoji(activePhotoStamp.category)} ${activePhotoStamp.placeName}`
+            : ''
+        "
+        :subtitle="formatVisitedAt(activePhotoStamp?.visitedAt)"
+        @close="activePhotoStamp = null"
+      />
 
       <!-- 회고 모달 -->
       <div

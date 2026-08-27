@@ -509,14 +509,20 @@ async function capturePhoto() {
   }
 
   // 3) 뽑은 캐릭터를 얹어 엽서를 만든다.
-  resultImageUrl.value = await composePostcard(rawFrameUrl.value, place, drawnCharacter.value)
+  resultImageUrl.value = await composePostcard(rawFrameUrl.value, drawnCharacter.value)
   currentStep.value = 'result'
 }
 
-/** 원본 프레임에 캐릭터 배지와 인증 밴드를 얹는다. */
+/**
+ * 원본 프레임에 캐릭터 배지를 얹는다.
+ *
+ * 사진 위에 글씨는 태우지 않는다. 예전에는 상단에 초록 밴드를 깔고
+ * "✓ 장소 캐릭터 인증"을 그려 넣었는데, 저장된 이미지에 영구히 박혀서
+ * 도감·마이페이지·공유 어디서 봐도 지울 수 없었다. 장소와 캐릭터 이름은
+ * 화면에서 사진 아래 캡션으로 보여준다.
+ */
 async function composePostcard(
   frameUrl: string,
-  place: TourPlace,
   character: CharacterResponse | null,
 ): Promise<string> {
   const canvas = document.createElement('canvas')
@@ -556,19 +562,6 @@ async function composePostcard(
     }
     ctx.restore()
   }
-
-  const bandH = Math.round(canvas.height * 0.07)
-  ctx.save()
-  ctx.globalAlpha = 0.82
-  ctx.fillStyle = '#3db89e'
-  ctx.fillRect(0, 0, canvas.width, bandH)
-  ctx.restore()
-  ctx.font = `bold ${Math.round(bandH * 0.55)}px sans-serif`
-  ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  const label = character ? `${place.name} ${character.name}` : place.name
-  ctx.fillText(`✓ ${label} 인증`, canvas.width / 2, bandH / 2)
 
   return canvas.toDataURL('image/jpeg', 0.85)
 }
@@ -629,7 +622,7 @@ async function confirmResult() {
   // 미리보기와 달라졌다면 엽서를 다시 합성한다.
   const finalCharacter = res.newCharacter ?? drawnCharacter.value
   if (finalCharacter && finalCharacter.id !== drawnCharacter.value?.id) {
-    resultImageUrl.value = await composePostcard(rawFrameUrl.value, place, finalCharacter)
+    resultImageUrl.value = await composePostcard(rawFrameUrl.value, finalCharacter)
   }
 
   // 사진 목록은 localStorage 에 남기지 않는다. 저장은 방금 서버가 마쳤고
@@ -982,16 +975,16 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-        <div class="px-6 py-8" style="background:#1a2e2b">
-          <p class="text-center text-sm mb-4" style="color:#B2E4DC">
-            <template v-if="drawnCharacter">
-              {{ drawnCharacter.name }}와 함께한 <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 사진이에요!
-            </template>
-            <template v-else>
-              <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 인증 사진이에요!
-            </template>
+        <div class="px-6 pt-5 pb-8" style="background:#1a2e2b">
+          <!-- 사진 제목. 예전에는 이 내용을 사진 위에 태워서 지울 수 없었다. -->
+          <p class="text-center" style="font-size:1rem;font-weight:800;color:#fff">
+            {{ currentGuidePlace?.guideEmoji }} {{ currentGuidePlace?.name }}
           </p>
-          <p class="text-center mb-4" style="font-size:0.72rem;color:rgba(178,228,220,0.65)">
+          <p v-if="drawnCharacter" class="text-center"
+            style="font-size:0.8rem;font-weight:700;color:#B2E4DC;margin-top:3px">
+            {{ drawnCharacter.name }}와 함께
+          </p>
+          <p class="text-center mb-4" style="font-size:0.72rem;color:rgba(178,228,220,0.65);margin-top:14px">
             마음에 들지 않으면 다시 찍을 수 있어요. 저장해야 도감에 담겨요.
           </p>
           <div class="flex gap-3">
