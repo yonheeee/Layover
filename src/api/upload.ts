@@ -1,23 +1,25 @@
-import axios from 'axios'
-import type { ApiResponse } from './http'
+import { http, type ApiResponse } from './http'
 
 /**
  * 이미지 업로드 공통 처리.
  *
- * multipart 요청이라 http.ts의 JSON 인터셉터를 타지 않고 axios를 직접 쓴다.
+ * http 인스턴스를 그대로 쓴다. 예전에는 multipart 라는 이유로 axios 를 직접
+ * 호출했는데, 그러면 401 리프레시 인터셉터를 타지 않아서 토큰이 만료된 채로
+ * 저장을 누르면 재발급 없이 그냥 실패했다.
+ *
+ * Content-Type 은 반드시 지워야 한다. 인스턴스 기본값이 application/json 이라
+ * 그대로 두면 axios 가 FormData 를 JSON 으로 직렬화해 버린다. undefined 를 주면
+ * 헤더가 빠지고 브라우저가 boundary 를 포함한 multipart 헤더를 직접 붙인다.
  */
 async function uploadImage(path: string, file: File, label: string): Promise<string> {
   const formData = new FormData()
   formData.append('file', file)
 
-  const token = localStorage.getItem('accessToken')
-  const baseURL = import.meta.env.VITE_API_BASE_URL ?? ''
-
-  const res = await axios.post<ApiResponse<string>>(`${baseURL}${path}`, formData, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const res = await http.post<ApiResponse<string>>(path, formData, {
+    headers: { 'Content-Type': undefined },
   })
 
-  if (!res.data.success) {
+  if (!res.data.success || !res.data.data) {
     throw new Error(res.data.message || `${label} 업로드에 실패했습니다.`)
   }
   return res.data.data

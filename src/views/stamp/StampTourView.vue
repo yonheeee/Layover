@@ -581,11 +581,12 @@ async function confirmResult() {
 
   isSavingStamp.value = true
   let res
+  let uploadedPhotoUrl = ''
   try {
     // 사진을 먼저 올린다. 파일 저장은 트랜잭션 롤백에 참여하지 못하므로
     // 순서를 뒤집으면 사진 없는 도감 항목이 생긴다.
-    const photoUrl = await uploadStampPhoto(dataUrlToFile(resultImageUrl.value))
-    res = await saveStamp(place.id, verifiedCoords.value, drawnCharacter.value?.id, photoUrl)
+    uploadedPhotoUrl = await uploadStampPhoto(dataUrlToFile(resultImageUrl.value))
+    res = await saveStamp(place.id, verifiedCoords.value, drawnCharacter.value?.id, uploadedPhotoUrl)
   } catch (err: any) {
     const status = err?.response?.status
     if (status === 409) {
@@ -612,7 +613,10 @@ async function confirmResult() {
 
   stampStore.addPhoto({
     id: `${place.id}_${Date.now()}`,
-    url: res.photoUrl || resultImageUrl.value,
+    // 서버에 올라간 주소만 저장한다. 예전에는 응답이 비면 엽서 dataURL을
+    // 통째로 넣었는데, 장당 300~500KB라 15~20장이면 localStorage 한도를 넘겨
+    // QuotaExceededError 가 나고 그 시점부터 도감이 조용히 멈췄다.
+    url: res.photoUrl || uploadedPhotoUrl,
     placeName: place.name,
     placeEmoji: place.guideEmoji,
     courseId: stampStore.activeCourseId ?? undefined,

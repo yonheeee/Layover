@@ -31,6 +31,7 @@ import type { ReportItem } from "@/types/chat";
 import type { Place } from "@/types/place";
 import type { MyCourse, User as UserType } from "@/types/user";
 import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
+import SilentImage from "@/components/common/SilentImage.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
 import { useKakaoMap } from "@/composables/useKakaoMap";
 import { resolveMediaUrl } from "@/utils/media";
@@ -254,7 +255,10 @@ function renderPostcardPins() {
     postcardMapController.addCustomOverlay(
       { lat: photo.lat, lng: photo.lng },
       {
-        content: `<div style="width:52px;height:52px;border-radius:12px;border:3px solid #3db89e;box-shadow:0 3px 12px rgba(61,184,158,0.4);overflow:hidden;cursor:pointer;"><img src="${photo.url}" style="width:100%;height:100%;object-fit:cover;" /></div>`,
+        // 로컬 저장(storage.type=local)이면 서버가 "/uploads/..." 같은 상대 경로를
+        // 돌려준다. 그대로 쓰면 프론트를 따로 배포했을 때 404가 난다.
+        // alt 를 비워 두면 이미지가 깨져도 글씨가 뜨지 않는다.
+        content: `<div style="width:52px;height:52px;border-radius:12px;border:3px solid #3db89e;box-shadow:0 3px 12px rgba(61,184,158,0.4);overflow:hidden;cursor:pointer;"><img src="${resolveMediaUrl(photo.url)}" alt="" style="width:100%;height:100%;object-fit:cover;" /></div>`,
         yAnchor: 1,
       },
     );
@@ -1416,11 +1420,11 @@ function formatDate(dateStr: string): string {
                 <div
                   v-for="photo in stampStore.photos"
                   :key="photo.id"
-                  @click="activePhotoModal = photo.url"
+                  @click="activePhotoModal = resolveMediaUrl(photo.url)"
                   class="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer border border-gray-100"
                 >
-                  <img
-                    :src="photo.url"
+                  <SilentImage
+                    :src="resolveMediaUrl(photo.url)"
                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <div
