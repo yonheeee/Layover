@@ -5,22 +5,33 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Camera, Loader2, MapPin, X } from 'lucide-vue-next'
 import { fetchDiPlaces } from '@/api/courses'
 import { httpGet } from '@/api/http'
-import { saveStamp } from '@/api/stamps'
-import { dreamCharacters, type DreamCharacter } from '@/data/dreamCharacters'
+import { getTodayStampedPlaceIds, saveStamp, verifyStampLocation, type StampCoords } from '@/api/stamps'
+import { drawCharacter, type CharacterResponse } from '@/api/characters'
+import { dataUrlToFile, uploadStampPhoto } from '@/api/upload'
+import { resolveCharacterImage } from '@/data/characterImages'
+import { resolveCharMeta } from '@/data/characterCatalog'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
 import { useXp } from '@/composables/useXp'
+import { useXpSources } from '@/composables/useXpSources'
 import GuidedTour from '@/components/tutorial/GuidedTour.vue'
+import SilentImage from '@/components/common/SilentImage.vue'
 import { loadKakaoMaps } from '@/utils/kakaoMaps'
 
 const courseStore = useCourseStore()
 const stampStore = useStampStore()
 const bookmarkStore = useBookmarkStore()
 
-const savedCoursesCount = ref(0)
-const savedPostsCount = ref(0)
-const { totalXp, currentLevel, nextLevel, xpProgress, levelUpModal } = useXp(savedCoursesCount, savedPostsCount)
+/*
+ * 경험치 수치는 마이페이지와 같은 출처에서 받는다.
+ * 예전에는 세 번째 인자를 넘기지 않아 useXp 가 localStorage 의 엽서 개수로
+ * 폴백했고, 게시글 수는 아무도 채우지 않아 0으로 남았다. 그래서 같은 계정인데
+ * 이 화면의 LV 와 마이페이지의 LV 가 서로 달랐다.
+ */
+const { stampCount, courseCount, postCount, loadXpSources } = useXpSources()
+const { totalXp, currentLevel, nextLevel, xpProgress, levelUpModal } =
+  useXp(courseCount, postCount, stampCount)
 
 type Step = 'timeline' | 'verifying' | 'guide' | 'camera' | 'result'
 
@@ -67,7 +78,8 @@ function toTourPlaces(coursePlaces: any[], courseId: string | null) {
       lng: p.lng,
       guideText: guideTextFor(p.category ?? p.desc),
       guideEmoji: emojiFor(p.category ?? p.desc),
-      visited: stampStore.isPlaceStamped(String(p.id), courseId),
+      // 서버가 하루 1회로 제한하므로 코스 단위 로컬 기록이 아니라 오늘 기록으로 판정한다
+      visited: todayStamped.value.has(String(p.id)),
     }))
 }
 
@@ -96,56 +108,53 @@ const errorMsg = ref('')
 const guideCountdown = ref(2)
 const resultImageUrl = ref('')
 const stampAnimIdx = ref<number | null>(null)
-type StampRewardCharacter = Pick<
-  DreamCharacter,
-  'id' | 'name' | 'description' | 'imageUrl'
-> & {
-  role?: string
-  imageAlt?: string
-  requiredStamps: number
-}
-const newCharacterPopup = ref<StampRewardCharacter | null>(null)
+/** 촬영할 때마다 서버에서 뽑은 캐릭터. 저장을 눌러야 도감에 반영된다. */
+const drawnCharacter = ref<CharacterResponse | null>(null)
+/** 캐릭터를 합성하기 전의 원본 프레임. 다시 찍기와 재합성에 쓴다. */
+const rawFrameUrl = ref('')
+const isDrawing = ref(false)
+const newCharacterPopup = ref<CharacterResponse | null>(null)
+/** 오늘 이미 스탬프를 찍은 장소. 서버 기록이 기준이다. */
+const todayStamped = ref<Set<string>>(new Set())
 const isSavingStamp = ref(false)
-const allowDevStampVerification = import.meta.env.DEV
 /** 위치 인증에 성공한 좌표. 스탬프 저장 시 서버 검증용으로 함께 보낸다. */
-const verifiedCoords = ref<{ latitude: number; longitude: number } | null>(null)
-const collectibleDreamCharacters = dreamCharacters.filter((character) => character.id !== 'dream-family')
-
-function rewardCharacterForStampIndex(index: number): StampRewardCharacter {
-  const character = collectibleDreamCharacters[index % collectibleDreamCharacters.length]
-  return {
-    ...character,
-    requiredStamps: index + 1,
-  }
+const verifiedCoords = ref<StampCoords | null>(null)
+// 캐릭터는 서버가 뽑는다. 예전에는 코스 내 방문 순번으로 로컬 배열에서 골랐는데,
+// 랜덤도 아니고 유저별로 다르지도 않았으며 서버가 준 캐릭터와도 어긋났다.
+function characterImage(character: CharacterResponse | null): string | null {
+  return character ? resolveCharacterImage(character.code) : null
 }
 
-function rewardCharacterFromApi(character: {
-  id: string
-  name: string
-  imageUrl: string
-  requiredStamps: number
-  description: string
-}): StampRewardCharacter {
-  return {
-    id: character.id,
-    name: character.name,
-    imageUrl: character.imageUrl,
-    imageAlt: character.name,
-    description: character.description,
-    requiredStamps: character.requiredStamps,
-  }
+/**
+ * 획득 팝업에 띄울 캐릭터 소개.
+ *
+ * 서버 `characters.description` 은 시드가 채우지 않아 전부 NULL 이라
+ * 팝업의 설명 문단이 항상 비어 있었다. 프론트 카탈로그가 캐릭터별 소개를
+ * 이미 갖고 있으므로(도감 상세 모달이 쓰는 그것) 없으면 그쪽에서 가져온다.
+ */
+function characterDescription(character: CharacterResponse | null): string {
+  if (!character) return ''
+  if (character.description) return character.description
+  // 도감 상세 모달과 같은 규칙으로 찾는다. code → baseChar → 듀오의 앞쪽 캐릭터.
+  return resolveCharMeta(character)?.description ?? ''
 }
-
-const currentRewardCharacter = computed(() =>
-  currentPlaceIdx.value !== null
-    ? rewardCharacterForStampIndex(currentPlaceIdx.value)
-    : rewardCharacterForStampIndex(Math.max(completedCount.value, 0)),
-)
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+/** 카메라 프레임 크기를 읽을 수 있는 상태. 이전에는 셔터가 항상 눌려서
+ *  videoWidth가 0일 때 640×480 캔버스에 프레임을 늘려 그리는 일이 있었다. */
+const videoReady = ref(false)
+/** 카메라 스트림의 가로/세로 비. 촬영 프레임과 가이드 선이 이 값을 따른다. */
+const videoAspect = ref(4 / 3)
 let stream: MediaStream | null = null
 let guideTimer: ReturnType<typeof setInterval> | null = null
+
+function onCameraReady() {
+  const video = videoRef.value
+  if (!video?.videoWidth || !video.videoHeight) return
+  videoAspect.value = video.videoWidth / video.videoHeight
+  videoReady.value = true
+}
 
 // ── 카카오 지도 ───────────────────────────────────────────
 let mapObject: any = null
@@ -321,11 +330,20 @@ function renderStampMap() {
 }
 
 onMounted(async () => {
+  // 방문 여부 판정 기준이라 코스를 구성하기 전에 먼저 받아둔다.
+  // 실패하면 전부 미방문으로 보이고, 저장 단계에서 서버가 409로 걸러낸다.
+  try {
+    todayStamped.value = await getTodayStampedPlaceIds()
+  } catch {
+    todayStamped.value = new Set()
+  }
+
   if (!courseStore.hasConfirmedCourse) {
     await courseStore.checkConfirmedCourse()
   }
 
   bookmarkStore.fetchBookmarks().catch(() => {})
+  loadXpSources().catch(() => {})
 
   const selectedCourse = stampStore.activeCourse
   if (selectedCourse?.places?.length) {
@@ -334,7 +352,6 @@ onMounted(async () => {
   } else if (courseStore.hasConfirmedCourse) {
     try {
       const res = await httpGet<any[]>('/api/courses/my')
-      savedCoursesCount.value = res.data?.length ?? 0
       const latestCourse = res.data[0]
       if (latestCourse?.places?.length > 0) {
         stampStore.setActiveCourse(latestCourse)
@@ -369,50 +386,56 @@ watch(
   },
 )
 
-// ── Haversine ─────────────────────────────────────────────
-function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
-  const R = 6371000
-  const r = (d: number) => (d * Math.PI) / 180
-  const dLat = r(lat2 - lat1)
-  const dLng = r(lng2 - lng1)
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(dLng / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
 
 // ── Step 1 → 2: 위치 인증 ─────────────────────────────────
-function startVerify(idx: number) {
-  currentPlaceIdx.value = idx
-  errorMsg.value = ''
-  currentStep.value = 'verifying'
-  navigator.geolocation.getCurrentPosition(
-    ({ coords }) => {
-      const place = places.value[idx]
-      const dist = haversine(coords.latitude, coords.longitude, place.lat, place.lng)
-      if (dist <= 100 || allowDevStampVerification) {
-        verifiedCoords.value = { latitude: coords.latitude, longitude: coords.longitude }
-        showGuide()
-      } else {
-        errorMsg.value = `거리가 너무 멉니다. (현재 약 ${Math.round(dist)}m 떨어져 있어요)`
-        returnToTimeline()
-      }
-    },
-    () => {
-      if (allowDevStampVerification) {
-        showGuide()
-        return
-      }
-      errorMsg.value = '위치를 가져올 수 없어요. 위치 권한을 확인해주세요.'
-      returnToTimeline()
-    },
-    { enableHighAccuracy: true, timeout: 10000 },
+/** getCurrentPosition 을 async/await 로 쓰기 위한 래퍼 */
+function getCurrentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) =>
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+    }),
   )
 }
 
-function devVerify(idx: number) {
+/**
+ * 사진을 찍기 전 위치를 확인한다.
+ *
+ * 거리 판정은 서버가 한다. 프론트에서 반경을 따로 계산하면 서버 설정과
+ * 어긋나고, 개발 모드 우회 스위치를 화면 코드에 남기게 된다. 로컬에서
+ * 위치를 무시하려면 서버의 stamp.verification.enabled 를 끄면 된다.
+ */
+async function startVerify(idx: number) {
   currentPlaceIdx.value = idx
   errorMsg.value = ''
+  currentStep.value = 'verifying'
+
+  let position: GeolocationPosition
+  try {
+    position = await getCurrentPosition()
+  } catch {
+    errorMsg.value = '위치를 가져올 수 없어요. 위치 권한을 확인해주세요.'
+    returnToTimeline()
+    return
+  }
+
+  const coords: StampCoords = {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    // 측위 오차 반경. 서버가 이 값으로 좌표를 믿을지, 반경을 얼마나 넓힐지 정한다.
+    accuracy: position.coords.accuracy,
+  }
+
+  try {
+    await verifyStampLocation(places.value[idx].id, coords)
+  } catch (err: any) {
+    errorMsg.value =
+      err?.response?.data?.message ?? '위치를 확인할 수 없어요. 잠시 후 다시 시도해주세요.'
+    returnToTimeline()
+    return
+  }
+
+  verifiedCoords.value = coords
   showGuide()
 }
 
@@ -432,6 +455,7 @@ function showGuide() {
 // ── Step 3: 카메라 ────────────────────────────────────────
 async function openCamera() {
   currentStep.value = 'camera'
+  videoReady.value = false
   await nextTick()
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -441,6 +465,8 @@ async function openCamera() {
     if (videoRef.value) {
       videoRef.value.srcObject = stream
       videoRef.value.play()
+      // loadedmetadata 가 이미 지나갔을 수 있으니 한 번 직접 확인한다.
+      onCameraReady()
     }
   } catch {
     errorMsg.value = '카메라를 열 수 없어요. 카메라 권한을 확인해주세요.'
@@ -448,51 +474,104 @@ async function openCamera() {
   }
 }
 
-// ── Step 4: Canvas 합성 ───────────────────────────────────
+// ── Step 4: 촬영 → 뽑기 → 엽서 합성 ─────────────────────
 async function capturePhoto() {
   if (!videoRef.value || !canvasRef.value || currentPlaceIdx.value === null) return
-  const video = videoRef.value
+
+  // 프레임 크기를 모르면 찍지 않는다. 예전에는 640×480 으로 폴백해서
+  // 실제 해상도와 다른 비율의 캔버스에 프레임을 늘려 그렸다.
+  const frameW = videoRef.value.videoWidth
+  const frameH = videoRef.value.videoHeight
+  if (!frameW || !frameH) return
+
+  const place = places.value[currentPlaceIdx.value]
   const canvas = canvasRef.value
   const ctx = canvas.getContext('2d')!
-  const place = places.value[currentPlaceIdx.value]
-  const character = currentRewardCharacter.value
 
-  canvas.width = video.videoWidth || 640
-  canvas.height = video.videoHeight || 480
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  // 1) 원본 프레임만 먼저 확보한다. 다시 찍을 때 이 값을 버리고 새로 찍는다.
+  //    캔버스를 스트림 해상도와 똑같이 잡으므로 가로세로가 변하지 않는다.
+  canvas.width = frameW
+  canvas.height = frameH
+  ctx.drawImage(videoRef.value, 0, 0, canvas.width, canvas.height)
+  rawFrameUrl.value = canvas.toDataURL('image/jpeg', 0.92)
+  stopCamera()
+
+  // 2) 서버에서 캐릭터를 뽑는다. 저장하지 않으므로 다시 찍으면 다시 뽑힌다.
+  isDrawing.value = true
+  try {
+    drawnCharacter.value = await drawCharacter(place.id)
+  } catch (err) {
+    console.error('캐릭터 뽑기 실패:', err)
+    toast.error('캐릭터를 불러오지 못했어요. 다시 시도해주세요.')
+    drawnCharacter.value = null
+  } finally {
+    isDrawing.value = false
+  }
+
+  // 3) 뽑은 캐릭터를 얹어 엽서를 만든다.
+  resultImageUrl.value = await composePostcard(rawFrameUrl.value, drawnCharacter.value)
+  currentStep.value = 'result'
+}
+
+/**
+ * 원본 프레임에 캐릭터 배지를 얹는다.
+ *
+ * 사진 위에 글씨는 태우지 않는다. 예전에는 상단에 초록 밴드를 깔고
+ * "✓ 장소 캐릭터 인증"을 그려 넣었는데, 저장된 이미지에 영구히 박혀서
+ * 도감·마이페이지·공유 어디서 봐도 지울 수 없었다. 장소와 캐릭터 이름은
+ * 화면에서 사진 아래 캡션으로 보여준다.
+ */
+async function composePostcard(
+  frameUrl: string,
+  character: CharacterResponse | null,
+): Promise<string> {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  const frame = await loadCanvasImage(frameUrl)
+
+  canvas.width = frame.width
+  canvas.height = frame.height
+  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height)
 
   const size = Math.round(canvas.width * 0.18)
   const padding = Math.round(size * 0.18)
   const badgeX = canvas.width - size - padding
   const badgeY = canvas.height - size - padding
-  ctx.save()
-  try {
-    const characterImage = await loadCanvasImage(character.imageUrl)
-    ctx.drawImage(characterImage, badgeX, badgeY, size, size)
-  } catch {
-    ctx.font = `${Math.round(size * 0.42)}px serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#3db89e'
-    ctx.fillText('꿈', badgeX + size / 2, badgeY + size / 2)
+
+  // 캐릭터 이미지를 얹지 못하면 배지 없이 사진만 남긴다.
+  // 예전에는 여기서 '꿈' 글자를 그렸는데, alt와 달리 저장된 엽서에 영구히 박힌다.
+  const badgeUrl = character ? resolveCharacterImage(character.code) : null
+  if (badgeUrl) {
+    ctx.save()
+    try {
+      // 캐릭터 이미지는 프론트 번들에 있어 same-origin이다.
+      // 외부 도메인에서 불러오면 canvas가 오염돼 toDataURL이 실패한다.
+      const badge = await loadCanvasImage(badgeUrl)
+      const nw = badge.naturalWidth
+      const nh = badge.naturalHeight
+      // 0×0이면 NaN이 drawImage에 들어가 배지가 조용히 사라진다 → 그냥 건너뛴다.
+      if (nw > 0 && nh > 0) {
+        const scale = Math.min(size / nw, size / nh)
+        const drawW = nw * scale
+        const drawH = nh * scale
+        // 가로: 중앙, 세로: 하단 기준 — 솔로/듀오 혼재 시 발 위치 기준선 일치
+        ctx.drawImage(badge, badgeX + (size - drawW) / 2, badgeY + (size - drawH), drawW, drawH)
+      }
+    } catch {
+      // 배지 생략. 아무것도 그리지 않는다.
+    }
+    ctx.restore()
   }
-  ctx.restore()
 
-  const bandH = Math.round(canvas.height * 0.07)
-  ctx.save()
-  ctx.globalAlpha = 0.82
-  ctx.fillStyle = '#3db89e'
-  ctx.fillRect(0, 0, canvas.width, bandH)
-  ctx.restore()
-  ctx.font = `bold ${Math.round(bandH * 0.55)}px sans-serif`
-  ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(`✓ ${place.name} ${character.name} 인증`, canvas.width / 2, bandH / 2)
+  return canvas.toDataURL('image/jpeg', 0.85)
+}
 
-  resultImageUrl.value = canvas.toDataURL('image/jpeg', 0.92)
-  stopCamera()
-  currentStep.value = 'result'
+/** 다시 찍기. 저장 전이므로 도감에는 아무 영향이 없고 캐릭터도 새로 뽑힌다. */
+function retake() {
+  rawFrameUrl.value = ''
+  resultImageUrl.value = ''
+  drawnCharacter.value = null
+  openCamera()
 }
 
 function stopCamera() {
@@ -509,66 +588,56 @@ function loadCanvasImage(src: string) {
   })
 }
 
-// ── Step 5: 완료 → 타임라인 ──────────────────────────────
+// ── Step 5: 저장 → 도감 해금 → 타임라인 ─────────────────
 async function confirmResult() {
-  if (currentPlaceIdx.value === null) return
+  if (currentPlaceIdx.value === null || isSavingStamp.value) return
   const idx = currentPlaceIdx.value
   const place = places.value[idx]
-  const rewardCharacter = rewardCharacterForStampIndex(idx)
-  let apiRewardCharacter: StampRewardCharacter | null = null
 
   isSavingStamp.value = true
+  let res
   try {
-    const res = await saveStamp(place.id, verifiedCoords.value)
-    if (res.newCharacter) {
-      apiRewardCharacter = rewardCharacterFromApi(res.newCharacter)
-    }
+    // 사진을 먼저 올린다. 파일 저장은 트랜잭션 롤백에 참여하지 못하므로
+    // 순서를 뒤집으면 사진 없는 도감 항목이 생긴다.
+    const photoUrl = await uploadStampPhoto(dataUrlToFile(resultImageUrl.value))
+    res = await saveStamp(place.id, verifiedCoords.value, drawnCharacter.value?.id, photoUrl)
   } catch (err: any) {
     const status = err?.response?.status
     if (status === 409) {
-      toast.info('이미 방문한 장소입니다.')
-      isSavingStamp.value = false
-      return
-    }
-    if (status === 400) {
-      // 서버 위치 검증 실패 (반경 밖이거나 좌표 누락)
-      toast.error(err?.response?.data?.message ?? '위치를 확인할 수 없습니다. 장소 근처에서 다시 시도해주세요.')
-      isSavingStamp.value = false
-      return
-    }
-    if (status && status !== 401) {
+      toast.info(err.response?.data?.message ?? '오늘 이미 방문한 장소입니다.')
+    } else if (status === 400) {
+      toast.error(err.response?.data?.message ?? '위치를 확인할 수 없습니다. 장소 근처에서 다시 시도해주세요.')
+    } else if (status !== 401) {
       console.error('스탬프 저장 실패:', err)
-      isSavingStamp.value = false
-      return
+      toast.error('저장에 실패했어요. 잠시 후 다시 시도해주세요.')
     }
+    // 예전에는 네트워크 오류일 때 아래로 흘러가 저장되지도 않은 스탬프를
+    // "인증 완료"로 표시하고 로컬에만 사진을 남겼다. 어떤 실패든 여기서 끝낸다.
+    return
   } finally {
     isSavingStamp.value = false
   }
 
-  // 로컬 저장
-  stampStore.addPhoto({
-    id: `${place.id}_${Date.now()}`,
-    url: resultImageUrl.value,
-    placeName: place.name,
-    placeEmoji: place.guideEmoji,
-    courseId: stampStore.activeCourseId ?? undefined,
-    courseTitle: stampStore.activeCourseTitle,
-    characterId: rewardCharacter.id,
-    characterName: rewardCharacter.name,
-    characterRole: rewardCharacter.role,
-    characterDescription: rewardCharacter.description,
-    characterImageUrl: rewardCharacter.imageUrl,
-    characterImageAlt: rewardCharacter.imageAlt,
-    takenAt: new Date().toISOString(),
-    lat: place.lat,
-    lng: place.lng,
-  })
+  // 서버가 확정한 캐릭터를 최종으로 삼는다. 자정을 넘겨 테마가 바뀐 경우처럼
+  // 미리보기와 달라졌다면 엽서를 다시 합성한다.
+  const finalCharacter = res.newCharacter ?? drawnCharacter.value
+  if (finalCharacter && finalCharacter.id !== drawnCharacter.value?.id) {
+    resultImageUrl.value = await composePostcard(rawFrameUrl.value, finalCharacter)
+  }
 
-  // UI 전환 먼저 (API 응답 기다리지 않음)
+  // 사진 목록은 localStorage 에 남기지 않는다. 저장은 방금 서버가 마쳤고
+  // 마이페이지는 GET /api/stamps/my 로 다시 받아온다. 로컬 사본을 두면
+  // 기기마다 목록이 갈리고, 언젠가 그 사본을 읽는 화면이 다시 생긴다.
+
+  // 서버가 확정한 누적 인증 횟수로 경험치를 갱신한다.
+  // 로컬 개수를 세면 마이페이지와 레벨이 어긋난다.
+  stampCount.value = res.stampCount
+
+  todayStamped.value.add(String(place.id))
   stampAnimIdx.value = idx
   returnToTimeline()
   currentPlaceIdx.value = null
-  newCharacterPopup.value = apiRewardCharacter
+  newCharacterPopup.value = finalCharacter
   setTimeout(() => {
     places.value[idx].visited = true
     setTimeout(() => (stampAnimIdx.value = null), 800)
@@ -588,18 +657,6 @@ const currentGuidePlace = computed(() =>
   currentPlaceIdx.value !== null ? places.value[currentPlaceIdx.value] : null,
 )
 
-// ── 게이미피케이션 데이터 ─────────────────────────────────
-const nextCharacters = computed(() =>
-  collectibleDreamCharacters.map((character, index) => ({
-    ...character,
-    requiredStamps: index + 1,
-  })),
-)
-
-
-const nextCharacter = computed(() =>
-  nextCharacters.value.find((c) => c.requiredStamps > completedCount.value) ?? null,
-)
 
 onUnmounted(() => {
   stopCamera()
@@ -667,12 +724,6 @@ onUnmounted(() => {
               style="font-size:0.65rem;background:rgba(61,184,158,0.2);color:#3db89e">🌟 {{ completedCount }}</span>
             <span class="px-2 py-0.5 rounded-full font-bold"
               style="font-size:0.65rem;background:rgba(255,255,255,0.08);color:#B2E4DC">📍 {{ completedCount }}/{{ places.length }}</span>
-            <span v-if="nextCharacter" class="px-2 py-0.5 rounded-full font-bold inline-flex items-center gap-1"
-              style="font-size:0.65rem;background:rgba(255,255,255,0.08);color:#B2E4DC">
-              <img :src="nextCharacter.imageUrl" :alt="nextCharacter.imageAlt"
-                class="w-4 h-4 object-contain" />
-              {{ nextCharacter.requiredStamps - completedCount }}개
-            </span>
             <div class="w-8 h-8 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
               style="background:rgba(255,255,255,0.07);border:1px solid rgba(178,228,220,0.2)">
               {{ currentLevel.emoji }}
@@ -855,24 +906,38 @@ onUnmounted(() => {
           <X :size="20" color="#fff" />
         </button>
 
-        <div class="relative flex-1 flex items-center justify-center overflow-hidden">
-          <video ref="videoRef" autoplay playsinline muted class="w-full h-full object-cover" />
+        <div class="camera-wrap relative flex-1 flex items-center justify-center overflow-hidden">
+          <!--
+            촬영 프레임. 스트림 비율과 똑같은 상자라 여기 보이는 그대로가 저장된다.
+            예전에는 video가 object-cover라 화면은 잘려 보이는데 저장은 전체
+            프레임이었고, 결과 화면(object-contain)에서 갑자기 여백이 생겼다.
+          -->
+          <div class="camera-stage relative" :style="`--cam-ar:${videoAspect}`">
+            <video
+              ref="videoRef"
+              autoplay
+              playsinline
+              muted
+              class="block w-full h-full object-contain"
+              @loadedmetadata="onCameraReady"
+            />
 
-          <!-- 포즈 오버레이 -->
-          <div class="absolute inset-0 pointer-events-none">
-            <div class="absolute top-8 left-8 w-10 h-10 border-t-4 border-l-4 rounded-tl-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute top-8 right-8 w-10 h-10 border-t-4 border-r-4 rounded-tr-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute bottom-24 left-8 w-10 h-10 border-b-4 border-l-4 rounded-bl-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute bottom-24 right-8 w-10 h-10 border-b-4 border-r-4 rounded-br-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-6 h-0.5 bg-white opacity-40" />
-            </div>
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-0.5 h-6 bg-white opacity-40" />
+            <!-- 포즈 오버레이 — 상자 안이라 실제 사진 경계와 일치한다 -->
+            <div class="absolute inset-0 pointer-events-none">
+              <div class="absolute top-6 left-6 w-10 h-10 border-t-4 border-l-4 rounded-tl-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute top-6 right-6 w-10 h-10 border-t-4 border-r-4 rounded-tr-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute bottom-6 left-6 w-10 h-10 border-b-4 border-l-4 rounded-bl-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute bottom-6 right-6 w-10 h-10 border-b-4 border-r-4 rounded-br-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="w-6 h-0.5 bg-white opacity-40" />
+              </div>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="w-0.5 h-6 bg-white opacity-40" />
+              </div>
             </div>
           </div>
 
@@ -885,8 +950,9 @@ onUnmounted(() => {
         </div>
 
         <div class="flex items-center justify-center pb-10 pt-4" style="background:#000">
-          <button @click="capturePhoto"
-            class="w-20 h-20 rounded-full flex items-center justify-center transition-transform active:scale-90"
+          <!-- 프레임 크기를 읽기 전에는 누를 수 없다 -->
+          <button @click="capturePhoto" :disabled="!videoReady"
+            class="w-20 h-20 rounded-full flex items-center justify-center transition-transform active:scale-90 disabled:opacity-40 disabled:active:scale-100"
             style="background:linear-gradient(135deg,#B2E4DC,#3db89e);box-shadow:0 0 0 4px rgba(178,228,220,0.4)">
             <Camera :size="30" color="#fff" />
           </button>
@@ -899,25 +965,40 @@ onUnmounted(() => {
     <Teleport to="body">
       <div v-if="currentStep === 'result'" class="fixed inset-0 z-50 flex flex-col" style="background:#000">
         <div class="flex-1 relative overflow-hidden">
-          <img :src="resultImageUrl" alt="인증 사진" class="w-full h-full object-contain" />
-          <div class="absolute top-6 left-0 right-0 flex justify-center">
+          <SilentImage :src="resultImageUrl" class="w-full h-full object-contain" />
+          <div v-if="drawnCharacter" class="absolute top-6 left-0 right-0 flex justify-center">
             <div class="flex items-center gap-2 px-5 py-2.5 rounded-full"
               style="background:rgba(61,184,158,0.92);backdrop-filter:blur(8px)">
-              <img :src="currentRewardCharacter.imageUrl" :alt="currentRewardCharacter.imageAlt"
+              <SilentImage :src="characterImage(drawnCharacter)"
                 class="w-7 h-7 object-contain" />
-              <span class="font-bold text-sm text-white">인증 완료!</span>
+              <span class="font-bold text-sm text-white">{{ drawnCharacter.name }}</span>
             </div>
           </div>
         </div>
-        <div class="px-6 py-8" style="background:#1a2e2b">
-          <p class="text-center text-sm mb-4" style="color:#B2E4DC">
-            {{ currentRewardCharacter.name }}와 함께한 <strong style="color:#fff">{{ currentGuidePlace?.name }}</strong> 인증 사진이에요!
+        <div class="px-6 pt-5 pb-8" style="background:#1a2e2b">
+          <!-- 사진 제목. 예전에는 이 내용을 사진 위에 태워서 지울 수 없었다. -->
+          <p class="text-center" style="font-size:1rem;font-weight:800;color:#fff">
+            {{ currentGuidePlace?.guideEmoji }} {{ currentGuidePlace?.name }}
           </p>
-          <button @click="confirmResult"
-            class="w-full py-4 rounded-2xl font-bold text-white text-base transition-all active:scale-95"
-            style="background:linear-gradient(135deg,#3db89e,#2da08a)">
-            스탬프 받기 🎉
-          </button>
+          <p v-if="drawnCharacter" class="text-center"
+            style="font-size:0.8rem;font-weight:700;color:#B2E4DC;margin-top:3px">
+            {{ drawnCharacter.name }}와 함께
+          </p>
+          <p class="text-center mb-4" style="font-size:0.72rem;color:rgba(178,228,220,0.65);margin-top:14px">
+            마음에 들지 않으면 다시 찍을 수 있어요. 저장해야 도감에 담겨요.
+          </p>
+          <div class="flex gap-3">
+            <button @click="retake" :disabled="isSavingStamp"
+              class="flex-1 py-4 rounded-2xl font-bold text-base transition-all active:scale-95 disabled:opacity-50"
+              style="background:rgba(255,255,255,0.1);color:#B2E4DC">
+              다시 찍기
+            </button>
+            <button @click="confirmResult" :disabled="isSavingStamp"
+              class="py-4 rounded-2xl font-bold text-white text-base transition-all active:scale-95 disabled:opacity-60"
+              style="flex:2;background:linear-gradient(135deg,#3db89e,#2da08a)">
+              {{ isSavingStamp ? '저장 중…' : '스탬프 받기 🎉' }}
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -960,20 +1041,20 @@ onUnmounted(() => {
         @click.self="newCharacterPopup = null">
         <div class="rounded-3xl p-8 text-center shadow-2xl mx-6"
           style="background:#fff;max-width:320px;width:100%">
-          <img :src="newCharacterPopup.imageUrl" :alt="newCharacterPopup.imageAlt"
+          <SilentImage :src="characterImage(newCharacterPopup)"
             class="w-28 h-28 mx-auto mb-3 object-contain" />
-          <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">새 캐릭터 획득!</p>
+          <p style="font-size:0.8rem;color:#3db89e;font-weight:700;margin-bottom:4px">
+            {{ newCharacterPopup.theme ? '특별한 캐릭터를 만났어요!' : '캐릭터를 만났어요!' }}
+          </p>
           <h3 style="font-size:1.2rem;font-weight:800;color:#1a2e2b;margin-bottom:8px">
             {{ newCharacterPopup.name }}
           </h3>
-          <p style="font-size:0.76rem;color:#6b8c87;font-weight:700;margin-bottom:8px">
-            {{ newCharacterPopup.role }}
-          </p>
-          <p style="font-size:0.82rem;color:#9ca3af;line-height:1.55;margin-bottom:16px">
-            {{ newCharacterPopup.description }}
+          <p v-if="characterDescription(newCharacterPopup)"
+            style="font-size:0.82rem;color:#9ca3af;line-height:1.55;margin-bottom:16px">
+            {{ characterDescription(newCharacterPopup) }}
           </p>
           <p style="font-size:0.82rem;color:#9ca3af;margin-bottom:24px">
-            스탬프 {{ newCharacterPopup.requiredStamps }}개 달성으로 획득했어요!
+            도감에 담았어요. 마이페이지에서 확인할 수 있어요!
           </p>
           <button @click="newCharacterPopup = null"
             class="w-full py-3 rounded-2xl font-bold text-white text-sm"
@@ -1009,6 +1090,28 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * 촬영 프레임.
+ *
+ * 컨테이너 안에 스트림 비율 그대로 들어가는 상자를 만들어, 화면에 보이는
+ * 영역과 저장되는 영역을 일치시킨다. object-contain 이 만드는 레터박스가
+ * 이 상자 바깥(검정 배경)으로 빠지므로 가이드 선이 사진 경계에 맞는다.
+ *
+ * 컨테이너 쿼리 단위를 쓰면 "가로/세로 중 먼저 닿는 쪽에 맞춤"을 CSS만으로
+ * 계산할 수 있다. 지원하지 않는 브라우저는 앞줄 width:100% 로 떨어진다.
+ */
+.camera-wrap {
+  container-type: size;
+}
+
+.camera-stage {
+  width: 100%;
+  width: min(100cqw, calc(100cqh * var(--cam-ar, 1.3333)));
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: var(--cam-ar, 1.3333);
 }
 .levelup-enter-active { animation: levelupIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
 .levelup-leave-active { animation: levelupOut 0.2s ease-in; }

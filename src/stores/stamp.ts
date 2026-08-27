@@ -1,6 +1,21 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+/**
+ * 스탬프 투어 진행 상태.
+ *
+ * 여기 남는 건 "지금 어느 코스를 돌고 있는가" 하나뿐이다. 이건 기기마다 달라도
+ * 되는 값이라 localStorage 가 맞는 자리다.
+ *
+ * 찍은 사진 목록은 더 이상 두지 않는다. 예전에는 `stamp_photos` 키에 사진
+ * 목록을 쌓아 두고 마이페이지가 그걸 읽었는데, 사진 파일은 서버에 있고 목록만
+ * 브라우저에 있는 구조라 기기를 바꾸면 도감은 차 있는데 사진 그리드와 지도는
+ * 텅 비었다. 목록의 출처는 이제 서버(`GET /api/stamps/my`) 하나다.
+ *
+ * 예전 사용자의 브라우저에 남은 `stamp_photos` 는 로그아웃 시
+ * `clearUserScopedStorage()` 가 지운다.
+ */
+
 type StampCoursePlace = {
   id: string
   name: string
@@ -16,25 +31,6 @@ export type StampCourse = {
   places: StampCoursePlace[]
 }
 
-export interface StampPhoto {
-  id: string
-  url: string
-  placeName: string
-  placeEmoji: string
-  courseId?: string
-  courseTitle?: string
-  characterId?: string
-  characterName?: string
-  characterRole?: string
-  characterDescription?: string
-  characterImageUrl?: string
-  characterImageAlt?: string
-  takenAt: string
-  lat: number
-  lng: number
-}
-
-const PHOTOS_KEY = 'stamp_photos'
 const ACTIVE_COURSE_KEY = 'stamp_active_course'
 
 function readJson<T>(key: string, fallback: T): T {
@@ -46,20 +42,12 @@ function readJson<T>(key: string, fallback: T): T {
 }
 
 export const useStampStore = defineStore('stamp', () => {
-  const photos = ref<StampPhoto[]>(readJson<StampPhoto[]>(PHOTOS_KEY, []))
   const activeCourse = ref<StampCourse | null>(readJson<StampCourse | null>(ACTIVE_COURSE_KEY, null))
 
   const activeCourseId = computed(() => activeCourse.value?.id ?? null)
-  const activeCourseTitle = computed(() => activeCourse.value?.subTitle ?? activeCourse.value?.title ?? '선택한 코스')
-  const activeCoursePhotos = computed(() =>
-    activeCourseId.value
-      ? photos.value.filter((photo) => photo.courseId === activeCourseId.value)
-      : photos.value,
+  const activeCourseTitle = computed(
+    () => activeCourse.value?.subTitle ?? activeCourse.value?.title ?? '선택한 코스',
   )
-
-  function persistPhotos() {
-    localStorage.setItem(PHOTOS_KEY, JSON.stringify(photos.value))
-  }
 
   function persistActiveCourse() {
     if (activeCourse.value) {
@@ -84,46 +72,11 @@ export const useStampStore = defineStore('stamp', () => {
     persistActiveCourse()
   }
 
-  function photosForCourse(courseId: string) {
-    return photos.value.filter((photo) => photo.courseId === String(courseId))
-  }
-
-  function isPlaceStamped(placeId: string, courseId = activeCourseId.value) {
-    return photos.value.some(
-      (photo) => photo.courseId === courseId && photo.id.startsWith(placeId + '_'),
-    )
-  }
-
-  function addPhoto(photo: StampPhoto) {
-    const courseId = photo.courseId ?? activeCourseId.value ?? undefined
-    const courseTitle = photo.courseTitle ?? activeCourseTitle.value
-    const nextPhoto = { ...photo, courseId, courseTitle }
-    const placeId = photo.id.split('_')[0]
-
-    photos.value = photos.value.filter(
-      (saved) => !(saved.courseId === courseId && saved.id.split('_')[0] === placeId),
-    )
-    photos.value.unshift(nextPhoto)
-    persistPhotos()
-  }
-
-  function clearPhotos() {
-    photos.value = []
-    localStorage.removeItem(PHOTOS_KEY)
-    clearActiveCourse()
-  }
-
   return {
-    photos,
     activeCourse,
     activeCourseId,
     activeCourseTitle,
-    activeCoursePhotos,
     setActiveCourse,
     clearActiveCourse,
-    photosForCourse,
-    isPlaceStamped,
-    addPhoto,
-    clearPhotos,
   }
 })

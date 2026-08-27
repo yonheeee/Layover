@@ -1,5 +1,4 @@
 import { computed, ref, watch, type Ref } from 'vue'
-import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
 
 export const XP_PER_STAMP = 100
@@ -32,15 +31,24 @@ function markLevelCelebrated(level: number) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]))
 }
 
-export function useXp(courseCount: Ref<number>, postCount: Ref<number>) {
-  const stampStore = useStampStore()
+/**
+ * 경험치와 레벨.
+ *
+ * 세 수치는 모두 서버 값이어야 한다. 예전에는 stampCount 가 선택 인자여서
+ * 넘기지 않은 화면이 localStorage 의 엽서 개수로 폴백했고, 그래서 같은 계정인데
+ * 스탬프 투어 헤더와 마이페이지의 레벨이 서로 달랐다. 다시 그러지 않도록
+ * 필수 인자로 둔다. 화면에 수치가 없다면 `useXpSources()` 로 받아 오면 된다.
+ *
+ * @param stampCount 서버 기준 누적 인증 횟수 (`user.stampCount`)
+ */
+export function useXp(courseCount: Ref<number>, postCount: Ref<number>, stampCount: Ref<number>) {
   const bookmarkStore = useBookmarkStore()
 
   const levelUpModal = ref<{ level: number; name: string; emoji: string } | null>(null)
 
   const totalXp = computed(
     () =>
-      stampStore.photos.length * XP_PER_STAMP +
+      stampCount.value * XP_PER_STAMP +
       courseCount.value * XP_PER_COURSE +
       postCount.value * XP_PER_POST +
       bookmarkStore.bookmarkedPlaces.length * XP_PER_BOOKMARK,
