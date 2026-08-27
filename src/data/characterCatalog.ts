@@ -45,15 +45,53 @@ export const CHAR_NAMES: Record<string, string> = {
   char62: '도르',
 }
 
-/** 캐릭터별 소개. 도감 상세 모달에서 사용 */
-export const CHAR_META: Record<string, { role: string; description: string }> = {
+export interface CharMeta {
+  /**
+   * 이름 바로 아래 초록 한 줄. 선택.
+   *
+   * 듀오처럼 이름('꿈돌이·꿈순이')이 이미 누구인지 다 말해 주는 경우에는
+   * 비워 둔다. 그러면 그 줄이 아예 렌더되지 않는다.
+   */
+  role?: string
+  description: string
+  /**
+   * 소개 아래에 핀 아이콘과 함께 붙는 한 줄. 선택.
+   *
+   * "거기 가면 뭔가 더 있다"는 귀띔용이다. 미획득 테마 카드에 붙는
+   * `themeHint` 와 역할이 다르다. 그쪽은 잠긴 카드를 여는 방법이고,
+   * 이건 이미 만난 캐릭터를 보다가 다음 목적지를 떠올리게 하는 쪽이다.
+   */
+  hint?: string
+}
+
+/**
+ * 캐릭터 소개. 도감 상세 모달과 획득 팝업이 쓴다.
+ *
+ * 키는 세 가지 단위를 모두 받는다. `resolveCharMeta()` 가 좁은 쪽부터 찾는다.
+ *
+ *   1. code       'theme_char01_birthday', 'solo_char01_007' — 그림 한 장 전용
+ *   2. baseChar   'char01', 'char01+char02'                  — 캐릭터/듀오 단위
+ *   3. 듀오의 앞쪽 캐릭터                                      — 마지막 폴백
+ *
+ * 듀오와 테마는 폴백에 기대면 어색해진다. 예를 들어 꿈돌이·꿈순이가 함께
+ * 나온 그림에 "꿈씨패밀리의 아빠" 소개가 붙는다. 아래 듀오·테마 항목을
+ * 채우면 그 그림에만 맞는 문구가 나간다.
+ */
+export const CHAR_META: Record<string, CharMeta> = {
+  // 꿈돌이·꿈순이는 가족 내 위치('아빠', '엄마')로 부르지 않는다.
+  // 두 사람의 부모님도 각각 캐릭터가 있어서, 그 호칭을 여기 써 버리면
+  // 나중에 그분들이 들어올 때 누가 '아빠'인지 어긋난다.
   char01: {
-    role: '꿈씨패밀리의 아빠',
-    description: '과학과 평화의 도시 대전을 누구보다 사랑한다. 요즘 가장 큰 관심사는 대전의 발전과 가족의 안녕.',
+    role: '대전의 마스코트',
+    description:
+      '1993년 대전엑스포의 마스코트로 태어나 지금은 대전광역시를 대표한다. 과학과 평화의 도시 대전을 누구보다 사랑하고, 요즘 가장 큰 관심사는 대전의 발전과 가족의 안녕.',
+    // 도감에서 가장 자주 열리는 카드가 꿈돌이(63장)라 여기에 둔다.
+    // 잠긴 '특별' 카드 안에 넣으면 이미 아는 사람만 보게 된다.
+    hint: '엑스포에 방문하면 엑스포꿈돌이를 발견할지도?',
   },
   char02: {
-    role: '꿈씨패밀리의 엄마',
-    description: '꿈돌이와 함께 대전을 지키는 든든한 짝. 가족의 웃음을 가장 소중히 여긴다.',
+    role: '꿈돌이의 짝',
+    description: '오랜 시간 함께해 온 꿈돌이와 가정을 꾸렸다. 가족의 웃음을 가장 소중히 여긴다.',
   },
   char03: {
     role: '첫째',
@@ -87,6 +125,60 @@ export const CHAR_META: Record<string, { role: string; description: string }> = 
     role: '소꿉친구',
     description: '사드르 별에서 온 꿈부부의 오랜 소꿉친구. 어릴 적부터 알고 지낸 막역한 사이다.',
   },
+
+  // ── 듀오 (2명이 함께 나오는 그림) ─────────────────────
+  // 이름이 '꿈돌이·꿈순이'로 이미 나오므로 role 은 두지 않는다.
+  'char01+char02': { description: '사이좋은 꿈부부♥' }, // 4장 공용
+  'char06+char07': { description: '언제나 귀여운 쌍둥이 막내들♥' },
+
+  // ── 테마 (조건이 맞을 때만 나오는 특별 카드) ──────────
+  theme_char01_expo: {
+    role: '1993 오리지널 꿈돌이',
+    description:
+      '1993 대전 엑스포 마스코트인 오리지널 꿈돌이. 과학 기술, 산업의 발전을 통한 인류의 평화와 공존 공영의 미래상을 제시하고 미래 주인공인 학생들과 젊은이들에게 꿈과 희망을 주자는 취지에서 우주 아기 요정의 모습으로 디자인되었다.',
+  },
+  theme_char01_birthday: {
+    role: '대전의 마스코트',
+    description: '생일 축하드립니다 ♥',
+  },
+  theme_char06_birthday: {
+    role: '쌍둥이 막내',
+    description: '생일 축하해요 ♥',
+  },
+}
+
+/**
+ * 이 그림에 붙일 소개를 찾는다.
+ *
+ * code → baseChar → 듀오의 앞쪽 캐릭터 순으로 좁은 것부터 본다.
+ * `CatalogCharacter` 와 서버 `CharacterResponse` 둘 다 받는다.
+ */
+export function resolveCharMeta(
+  character: { code?: string | null; baseChar?: string | null } | null,
+): CharMeta | null {
+  if (!character) return null
+  const base = character.baseChar ?? ''
+  return (
+    (character.code ? CHAR_META[character.code] : undefined) ??
+    CHAR_META[base] ??
+    CHAR_META[base.split('+')[0]] ??
+    null
+  )
+}
+
+/**
+ * 배경이 불투명한 '장면' 그림.
+ *
+ * 나머지 146장은 배경이 투명한 캐릭터 컷이라 미획득 처리에 `brightness(0)` 만
+ * 걸면 알파가 그대로 남아 검은 실루엣이 된다. 이 그림들은 배경까지 꽉 차 있어서
+ * 같은 필터를 걸면 그냥 검은 네모가 된다. 그래서 흐림 처리로 대신한다.
+ *
+ * 배경을 투명하게 다시 내보내거나 캐릭터만 잘라내면 여기서 빼면 된다.
+ */
+export const SCENE_CODES = new Set<string>(['theme_char01_birthday'])
+
+export function isSceneArt(code: string): boolean {
+  return SCENE_CODES.has(code)
 }
 
 /** 탭 노출 순서 */

@@ -9,7 +9,7 @@ import { getTodayStampedPlaceIds, saveStamp, verifyStampLocation, type StampCoor
 import { drawCharacter, type CharacterResponse } from '@/api/characters'
 import { dataUrlToFile, uploadStampPhoto } from '@/api/upload'
 import { resolveCharacterImage } from '@/data/characterImages'
-import { CHAR_META } from '@/data/characterCatalog'
+import { resolveCharMeta } from '@/data/characterCatalog'
 import { useCourseStore } from '@/stores/course'
 import { useStampStore } from '@/stores/stamp'
 import { useBookmarkStore } from '@/stores/bookmark'
@@ -135,7 +135,8 @@ function characterImage(character: CharacterResponse | null): string | null {
 function characterDescription(character: CharacterResponse | null): string {
   if (!character) return ''
   if (character.description) return character.description
-  return CHAR_META[character.baseChar?.split('+')[0] ?? '']?.description ?? ''
+  // 도감 상세 모달과 같은 규칙으로 찾는다. code → baseChar → 듀오의 앞쪽 캐릭터.
+  return resolveCharMeta(character)?.description ?? ''
 }
 
 const videoRef = ref<HTMLVideoElement | null>(null)

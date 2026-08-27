@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { MapPin, Star, X } from "lucide-vue-next";
+import { MapPin, X } from "lucide-vue-next";
 import { getMyCharacters, type OwnedCharacter } from "@/api/characters";
 import SilentImage from "@/components/common/SilentImage.vue";
 import {
-  CHAR_META,
   TOTAL_CHARACTER_COUNT,
   catalogGroups,
   characterCatalog,
+  isSceneArt,
+  resolveCharMeta,
   type CatalogCharacter,
 } from "@/data/characterCatalog";
 
@@ -30,6 +31,11 @@ const props = withDefaults(
   { preview: false, previewCount: 12 },
 );
 
+/** 화면 제목 옆에 "N/147" 을 붙일 수 있도록 수집 현황을 올려 보낸다. */
+const emit = defineEmits<{
+  progress: [{ obtained: number; total: number }];
+}>();
+
 /** code → 보유 정보 */
 const owned = ref<Map<string, OwnedCharacter>>(new Map());
 const isLoading = ref(true);
@@ -51,8 +57,11 @@ const modalImageSettled = ref(false);
 const obtainedCount = computed(
   () => characterCatalog.filter((c) => owned.value.has(c.code)).length,
 );
-const totalDrawCount = computed(() =>
-  [...owned.value.values()].reduce((sum, o) => sum + o.count, 0),
+
+watch(
+  obtainedCount,
+  (obtained) => emit("progress", { obtained, total: TOTAL_CHARACTER_COUNT }),
+  { immediate: true },
 );
 
 const tabs = computed(() => [
@@ -98,8 +107,8 @@ function isObtained(code: string) {
 }
 
 function metaOf(character: CatalogCharacter) {
-  // duo는 앞쪽 캐릭터 소개를 쓴다
-  return CHAR_META[character.baseChar.split("+")[0]] ?? null;
+  // code → baseChar → 듀오의 앞쪽 캐릭터 순으로 찾는다
+  return resolveCharMeta(character);
 }
 
 function themeHint(character: CatalogCharacter) {
@@ -156,21 +165,6 @@ defineExpose({ reload: loadOwned });
 
 <template>
   <div class="dex-body">
-    <!-- 진행 요약 -->
-    <section class="dex-summary">
-      <div class="dex-summary__icon">
-        <Star :size="20" fill="#fff" color="#fff" />
-      </div>
-      <div class="dex-summary__body">
-        <div class="dex-summary__row">
-          <span>수집 현황</span>
-          <strong>{{ TOTAL_CHARACTER_COUNT }}종 중 {{ obtainedCount }}종</strong>
-        </div>
-        <p v-if="totalDrawCount">중복 포함 {{ totalDrawCount }}장을 모았어요.</p>
-        <p v-else>아직 만난 캐릭터가 없어요. 대전에서 사진을 찍어보세요.</p>
-      </div>
-    </section>
-
     <p v-if="loadFailed" class="dex-notice">
       도감 정보를 불러오지 못했어요. 실루엣만 표시됩니다.
     </p>
@@ -214,6 +208,7 @@ defineExpose({ reload: loadOwned });
           <!-- 이름은 카드 아래에 텍스트로 있으므로 alt 없이 둔다 -->
           <SilentImage
             :src="character.imageUrl"
+            :class="{ 'is-scene': isSceneArt(character.code) }"
             @settled="settledCodes.add(character.code)"
           />
           <span
@@ -242,23 +237,32 @@ defineExpose({ reload: loadOwned });
             :class="{ 'is-locked': !isObtained(selected.code) }"
           >
             <span v-if="!modalImageSettled" class="dex-modal__loading">로딩중...</span>
-            <SilentImage :src="selected.imageUrl" @settled="modalImageSettled = true" />
+            <SilentImage
+              :src="selected.imageUrl"
+              :class="{ 'is-scene': isSceneArt(selected.code) }"
+              @settled="modalImageSettled = true"
+            />
           </div>
 
           <div class="dex-modal__body">
-            <div class="dex-modal__head">
-              <h3>{{ isObtained(selected.code) ? selected.name : "???" }}</h3>
-              <span :class="{ 'is-obtained': isObtained(selected.code) }">
-                {{ isObtained(selected.code) ? "획득" : "미획득" }}
-              </span>
-            </div>
-
-            <p v-if="metaOf(selected)?.role" class="dex-modal__role">
-              {{ metaOf(selected)!.role }}
-            </p>
+            <!-- 획득 여부는 실루엣과 ??? 로 이미 드러나므로 뱃지를 따로 두지 않는다 -->
+            <h3 class="dex-modal__name">
+              {{ isObtained(selected.code) ? selected.name : "???" }}
+            </h3>
 
             <template v-if="isObtained(selected.code)">
-              <p class="dex-modal__desc">{{ metaOf(selected)?.description }}</p>
+              <!-- 역할은 이름을 그대로 알려주는 셈이라 획득한 뒤에만 보여준다 -->
+              <p v-if="metaOf(selected)?.role" class="dex-modal__role">
+                {{ metaOf(selected)!.role }}
+              </p>
+              <p v-if="metaOf(selected)?.description" class="dex-modal__desc">
+                {{ metaOf(selected)!.description }}
+              </p>
+              <!-- 다음에 가볼 곳 귀띔. 잠긴 테마 카드의 themeHint 와는 다른 자리다 -->
+              <p v-if="metaOf(selected)?.hint" class="dex-modal__hint">
+                <MapPin :size="14" />
+                {{ metaOf(selected)!.hint }}
+              </p>
               <dl class="dex-modal__facts">
                 <div>
                   <dt>획득 횟수</dt>
@@ -294,54 +298,6 @@ defineExpose({ reload: loadOwned });
 <style scoped>
 .dex-body {
   width: 100%;
-}
-
-/* ── 진행 요약 ─────────────────────────────── */
-.dex-summary {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  border: 1px solid rgba(178, 228, 220, 0.4);
-  border-radius: 12px;
-  background: linear-gradient(135deg, #e8f8f5, #f0faf8);
-  box-shadow: 0 2px 12px rgba(26, 46, 43, 0.05);
-  margin-bottom: 1.25rem;
-  padding: 1.2rem;
-}
-
-.dex-summary__icon {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  place-items: center;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #b2e4dc, #3db89e);
-}
-
-.dex-summary__body {
-  flex: 1;
-  min-width: 0;
-}
-
-.dex-summary__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  color: #1a2e2b;
-  font-size: 0.95rem;
-  font-weight: 800;
-}
-
-.dex-summary__row strong {
-  color: #3db89e;
-}
-
-.dex-summary p {
-  margin: 0.35rem 0 0;
-  color: #6b8c87;
-  font-size: 0.76rem;
-  font-weight: 700;
 }
 
 .dex-notice {
@@ -496,6 +452,16 @@ defineExpose({ reload: loadOwned });
   opacity: 0.72;
 }
 
+/*
+ * 배경까지 꽉 찬 '장면' 그림은 알파가 없어서 brightness(0) 을 걸면
+ * 캐릭터 실루엣이 아니라 검은 네모가 된다. 흐림으로 가린다.
+ */
+.dex-card--locked .dex-card__thumb img.is-scene,
+.dex-modal__thumb.is-locked img.is-scene {
+  filter: blur(7px) brightness(0.55) saturate(0.35);
+  opacity: 1;
+}
+
 .dex-card__count {
   position: absolute;
   right: 4px;
@@ -546,9 +512,17 @@ defineExpose({ reload: loadOwned });
   padding: 1rem;
 }
 
+/*
+ * 소개 길이가 캐릭터마다 크게 다르다. 엑스포 꿈돌이처럼 긴 설명이 붙으면
+ * 패널이 화면 밖으로 밀려나는데 배경은 스크롤되지 않아 아래가 잘린 채 갇힌다.
+ * 그림은 고정해 두고 본문만 스크롤되게 한다.
+ */
 .dex-modal__panel {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(100%, 340px);
+  max-height: calc(100dvh - 2rem);
   overflow: hidden;
   border-radius: 20px;
   background: #ffffff;
@@ -573,6 +547,7 @@ defineExpose({ reload: loadOwned });
 
 .dex-modal__thumb {
   display: grid;
+  flex-shrink: 0;
   min-height: 210px;
   place-items: center;
   background: linear-gradient(135deg, #e8f8f5, #f0faf8);
@@ -599,34 +574,15 @@ defineExpose({ reload: loadOwned });
 }
 
 .dex-modal__body {
+  overflow-y: auto;
   padding: 1.35rem 1.5rem 1.5rem;
 }
 
-.dex-modal__head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.dex-modal__head h3 {
+.dex-modal__name {
   margin: 0;
   color: #1a2e2b;
   font-size: 1.05rem;
   font-weight: 900;
-}
-
-.dex-modal__head span {
-  border-radius: 999px;
-  background: #f3f4f6;
-  color: #9ca3af;
-  font-size: 0.7rem;
-  font-weight: 800;
-  padding: 0.18rem 0.55rem;
-}
-
-.dex-modal__head span.is-obtained {
-  background: #d1fae5;
-  color: #065f46;
 }
 
 .dex-modal__role {

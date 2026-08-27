@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { ArrowLeft } from "lucide-vue-next";
 import CharacterDex from "@/components/mypage/CharacterDex.vue";
@@ -11,6 +12,9 @@ import CharacterDex from "@/components/mypage/CharacterDex.vue";
  */
 
 const router = useRouter();
+
+/** 수집 현황. 별도 카드 대신 제목 옆에 붙인다. */
+const progress = ref({ obtained: 0, total: 0 });
 </script>
 
 <template>
@@ -22,11 +26,14 @@ const router = useRouter();
       </button>
 
       <header class="dex__title">
-        <h1>꿈씨 도감</h1>
+        <h1>
+          꿈씨 도감
+          <span class="dex__count">{{ progress.obtained }}/{{ progress.total }}</span>
+        </h1>
         <p>대전 곳곳에서 사진을 찍으며 만난 캐릭터를 모아보세요.</p>
       </header>
 
-      <CharacterDex />
+      <CharacterDex @progress="progress = $event" />
     </div>
   </div>
 </template>
@@ -57,10 +64,20 @@ const router = useRouter();
 }
 
 .dex__title h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
   margin: 0;
   color: #1a2e2b;
   font-size: 1.3rem;
   font-weight: 900;
+}
+
+.dex__count {
+  color: #3db89e;
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 .dex__title p {

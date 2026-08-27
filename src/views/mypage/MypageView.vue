@@ -261,6 +261,9 @@ async function withdraw() {
  */
 const myStamps = ref<MyStamp[]>([]);
 
+/** 도감 수집 현황. CharacterDex 가 올려 보내는 값을 제목 옆에 붙인다. */
+const dexProgress = ref({ obtained: 0, total: 0 });
+
 /** 좌표가 있는 것만 지도에 찍는다. 장소에 좌표가 없을 수 있다. */
 const mappableStamps = computed(() =>
   myStamps.value.filter((s) => s.latitude != null && s.longitude != null),
@@ -1483,9 +1486,13 @@ function formatDate(dateStr: string): string {
             <div class="pt-6">
               <div class="flex items-center justify-between mb-4">
                 <h2
+                  class="flex items-baseline gap-2"
                   style="font-weight: 700; font-size: 1.05rem; color: #1a2e2b"
                 >
                   꿈씨 도감
+                  <span style="font-size: 0.85rem; font-weight: 800; color: #3db89e">
+                    {{ dexProgress.obtained }}/{{ dexProgress.total }}
+                  </span>
                 </h2>
                 <RouterLink
                   to="/mypage/characters"
@@ -1495,7 +1502,11 @@ function formatDate(dateStr: string): string {
                 </RouterLink>
               </div>
               <!-- 여기서는 최근에 만난 순으로 몇 줄만. 147칸 전체는 전용 화면에서 본다. -->
-              <CharacterDex preview :preview-count="12" />
+              <CharacterDex
+                preview
+                :preview-count="12"
+                @progress="dexProgress = $event"
+              />
             </div>
           </template>
         </main>
