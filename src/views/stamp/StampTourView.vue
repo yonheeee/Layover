@@ -119,8 +119,20 @@ function characterImage(character: CharacterResponse | null): string | null {
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+/** 카메라 프레임 크기를 읽을 수 있는 상태. 이전에는 셔터가 항상 눌려서
+ *  videoWidth가 0일 때 640×480 캔버스에 프레임을 늘려 그리는 일이 있었다. */
+const videoReady = ref(false)
+/** 카메라 스트림의 가로/세로 비. 촬영 프레임과 가이드 선이 이 값을 따른다. */
+const videoAspect = ref(4 / 3)
 let stream: MediaStream | null = null
 let guideTimer: ReturnType<typeof setInterval> | null = null
+
+function onCameraReady() {
+  const video = videoRef.value
+  if (!video?.videoWidth || !video.videoHeight) return
+  videoAspect.value = video.videoWidth / video.videoHeight
+  videoReady.value = true
+}
 
 // ── 카카오 지도 ───────────────────────────────────────────
 let mapObject: any = null
@@ -421,6 +433,7 @@ function showGuide() {
 // ── Step 3: 카메라 ────────────────────────────────────────
 async function openCamera() {
   currentStep.value = 'camera'
+  videoReady.value = false
   await nextTick()
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -430,6 +443,8 @@ async function openCamera() {
     if (videoRef.value) {
       videoRef.value.srcObject = stream
       videoRef.value.play()
+      // loadedmetadata 가 이미 지나갔을 수 있으니 한 번 직접 확인한다.
+      onCameraReady()
     }
   } catch {
     errorMsg.value = '카메라를 열 수 없어요. 카메라 권한을 확인해주세요.'
@@ -440,13 +455,21 @@ async function openCamera() {
 // ── Step 4: 촬영 → 뽑기 → 엽서 합성 ─────────────────────
 async function capturePhoto() {
   if (!videoRef.value || !canvasRef.value || currentPlaceIdx.value === null) return
+
+  // 프레임 크기를 모르면 찍지 않는다. 예전에는 640×480 으로 폴백해서
+  // 실제 해상도와 다른 비율의 캔버스에 프레임을 늘려 그렸다.
+  const frameW = videoRef.value.videoWidth
+  const frameH = videoRef.value.videoHeight
+  if (!frameW || !frameH) return
+
   const place = places.value[currentPlaceIdx.value]
   const canvas = canvasRef.value
   const ctx = canvas.getContext('2d')!
 
   // 1) 원본 프레임만 먼저 확보한다. 다시 찍을 때 이 값을 버리고 새로 찍는다.
-  canvas.width = videoRef.value.videoWidth || 640
-  canvas.height = videoRef.value.videoHeight || 480
+  //    캔버스를 스트림 해상도와 똑같이 잡으므로 가로세로가 변하지 않는다.
+  canvas.width = frameW
+  canvas.height = frameH
   ctx.drawImage(videoRef.value, 0, 0, canvas.width, canvas.height)
   rawFrameUrl.value = canvas.toDataURL('image/jpeg', 0.92)
   stopCamera()
@@ -878,24 +901,38 @@ onUnmounted(() => {
           <X :size="20" color="#fff" />
         </button>
 
-        <div class="relative flex-1 flex items-center justify-center overflow-hidden">
-          <video ref="videoRef" autoplay playsinline muted class="w-full h-full object-cover" />
+        <div class="camera-wrap relative flex-1 flex items-center justify-center overflow-hidden">
+          <!--
+            촬영 프레임. 스트림 비율과 똑같은 상자라 여기 보이는 그대로가 저장된다.
+            예전에는 video가 object-cover라 화면은 잘려 보이는데 저장은 전체
+            프레임이었고, 결과 화면(object-contain)에서 갑자기 여백이 생겼다.
+          -->
+          <div class="camera-stage relative" :style="`--cam-ar:${videoAspect}`">
+            <video
+              ref="videoRef"
+              autoplay
+              playsinline
+              muted
+              class="block w-full h-full object-contain"
+              @loadedmetadata="onCameraReady"
+            />
 
-          <!-- 포즈 오버레이 -->
-          <div class="absolute inset-0 pointer-events-none">
-            <div class="absolute top-8 left-8 w-10 h-10 border-t-4 border-l-4 rounded-tl-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute top-8 right-8 w-10 h-10 border-t-4 border-r-4 rounded-tr-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute bottom-24 left-8 w-10 h-10 border-b-4 border-l-4 rounded-bl-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute bottom-24 right-8 w-10 h-10 border-b-4 border-r-4 rounded-br-xl"
-              style="border-color:rgba(255,255,255,0.7)" />
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-6 h-0.5 bg-white opacity-40" />
-            </div>
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="w-0.5 h-6 bg-white opacity-40" />
+            <!-- 포즈 오버레이 — 상자 안이라 실제 사진 경계와 일치한다 -->
+            <div class="absolute inset-0 pointer-events-none">
+              <div class="absolute top-6 left-6 w-10 h-10 border-t-4 border-l-4 rounded-tl-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute top-6 right-6 w-10 h-10 border-t-4 border-r-4 rounded-tr-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute bottom-6 left-6 w-10 h-10 border-b-4 border-l-4 rounded-bl-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute bottom-6 right-6 w-10 h-10 border-b-4 border-r-4 rounded-br-xl"
+                style="border-color:rgba(255,255,255,0.7)" />
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="w-6 h-0.5 bg-white opacity-40" />
+              </div>
+              <div class="absolute inset-0 flex items-center justify-center">
+                <div class="w-0.5 h-6 bg-white opacity-40" />
+              </div>
             </div>
           </div>
 
@@ -908,8 +945,9 @@ onUnmounted(() => {
         </div>
 
         <div class="flex items-center justify-center pb-10 pt-4" style="background:#000">
-          <button @click="capturePhoto"
-            class="w-20 h-20 rounded-full flex items-center justify-center transition-transform active:scale-90"
+          <!-- 프레임 크기를 읽기 전에는 누를 수 없다 -->
+          <button @click="capturePhoto" :disabled="!videoReady"
+            class="w-20 h-20 rounded-full flex items-center justify-center transition-transform active:scale-90 disabled:opacity-40 disabled:active:scale-100"
             style="background:linear-gradient(135deg,#B2E4DC,#3db89e);box-shadow:0 0 0 4px rgba(178,228,220,0.4)">
             <Camera :size="30" color="#fff" />
           </button>
@@ -1047,6 +1085,28 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * 촬영 프레임.
+ *
+ * 컨테이너 안에 스트림 비율 그대로 들어가는 상자를 만들어, 화면에 보이는
+ * 영역과 저장되는 영역을 일치시킨다. object-contain 이 만드는 레터박스가
+ * 이 상자 바깥(검정 배경)으로 빠지므로 가이드 선이 사진 경계에 맞는다.
+ *
+ * 컨테이너 쿼리 단위를 쓰면 "가로/세로 중 먼저 닿는 쪽에 맞춤"을 CSS만으로
+ * 계산할 수 있다. 지원하지 않는 브라우저는 앞줄 width:100% 로 떨어진다.
+ */
+.camera-wrap {
+  container-type: size;
+}
+
+.camera-stage {
+  width: 100%;
+  width: min(100cqw, calc(100cqh * var(--cam-ar, 1.3333)));
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: var(--cam-ar, 1.3333);
 }
 .levelup-enter-active { animation: levelupIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
 .levelup-leave-active { animation: levelupOut 0.2s ease-in; }
