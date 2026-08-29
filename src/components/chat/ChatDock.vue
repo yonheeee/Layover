@@ -1141,6 +1141,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-dock-thread {
+  flex: 1;
   min-width: 0;
   min-height: 0;
   display: flex;
