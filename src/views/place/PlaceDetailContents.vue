@@ -173,7 +173,7 @@ function toggleLike() {
         </h1>
         <button
           @click="toggleLike"
-          class="flex flex-col items-center gap-1 flex-shrink-0"
+          class="flex items-center justify-center gap-1.5 flex-shrink-0 min-w-[44px] min-h-[44px]"
           :style="
             bookmarkStore.isBookmarked(place.id)
               ? 'color:#3db89e'
@@ -181,10 +181,10 @@ function toggleLike() {
           "
         >
           <Heart
-            :size="22"
+            :size="20"
             :fill="bookmarkStore.isBookmarked(place.id) ? '#3db89e' : 'none'"
           />
-          <span style="font-size: 0.7rem; font-weight: 600">찜</span>
+          <span style="font-size: 0.78rem; font-weight: 600">찜</span>
         </button>
       </div>
 
