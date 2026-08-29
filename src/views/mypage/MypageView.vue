@@ -73,6 +73,7 @@ const user = ref<UserType>({
   stampCount: 0,
   role: "",
   kakao: false,
+  profileComplete: false,
 });
 
 // ─── 프로필 이미지 ───

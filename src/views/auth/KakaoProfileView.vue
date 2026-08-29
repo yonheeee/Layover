@@ -3,8 +3,10 @@ import { ref } from "vue";
 import { User, Calendar, Phone, Train } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import { updateKakaoProfile } from "@/api/auth";
+import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
+const auth = useAuthStore();
 
 const name = ref("");
 const birthDate = ref("");
@@ -22,6 +24,7 @@ const handleSave = async () => {
   try {
     const res = await updateKakaoProfile(name.value, birthDate.value, phone.value);
     if (!res.success) throw new Error(res.message);
+    auth.markProfileComplete();
     router.replace("/");
   } catch (err) {
     errorMsg.value = err instanceof Error ? err.message : "저장 중 오류가 발생했습니다.";
@@ -30,8 +33,9 @@ const handleSave = async () => {
   }
 };
 
-const handleSkip = () => {
-  router.replace("/");
+const handleUseAnotherAccount = () => {
+  auth.logout();
+  router.replace("/login");
 };
 </script>
 
@@ -63,7 +67,7 @@ const handleSkip = () => {
             추가 정보 입력
           </h2>
           <p style="font-size: 0.85rem; color: #6b8c87; margin-top: 6px">
-            서비스 이용을 위해 기본 정보를 입력해주세요.
+            필수 정보를 입력해야 서비스를 계속 이용할 수 있어요.
           </p>
         </div>
       </div>
@@ -192,30 +196,28 @@ const handleSkip = () => {
           {{ isSubmitting ? "저장 중..." : "저장하기" }}
         </button>
 
-        <!-- 건너뛰기 -->
-        <button
-          @click="handleSkip"
-          style="
-            width: 100%;
-            padding: 12px;
-            border-radius: 14px;
-            background: transparent;
-            color: #6b8c87;
-            font-weight: 600;
-            font-size: 0.88rem;
-            border: 1.5px solid rgba(178, 228, 220, 0.5);
-            cursor: pointer;
-            transition: background 0.2s;
-          "
-        >
-          나중에 입력하기
-        </button>
-
+        <!-- 다른 계정으로 로그인 -->
         <p
           class="text-center"
-          style="font-size: 0.78rem; color: #6b8c87; line-height: 1.5"
+          style="font-size: 0.82rem; color: #6b8c87"
         >
-          건너뛰어도 마이페이지에서 언제든지 입력할 수 있어요.
+          <button
+            type="button"
+            @click="handleUseAnotherAccount"
+            style="
+              background: none;
+              border: none;
+              padding: 0;
+              color: #3db89e;
+              font-weight: 600;
+              font-size: 0.82rem;
+              text-decoration: underline;
+              text-underline-offset: 3px;
+              cursor: pointer;
+            "
+          >
+            다른 계정으로 로그인
+          </button>
         </p>
       </div>
     </div>

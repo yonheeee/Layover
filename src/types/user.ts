@@ -8,6 +8,7 @@ export interface User {
   stampCount: number;
   role: string;
   kakao: boolean;
+  profileComplete: boolean;
 }
 
 export interface MyCourse {
