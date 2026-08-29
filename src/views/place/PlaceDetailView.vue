@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { ArrowLeft, Search, SlidersHorizontal } from "lucide-vue-next";
-import PlaceDetailContent from "./PlaceDetailContents.vue";
+import PlaceDetailModal from "@/components/place/PlaceDetailModal.vue";
 import PlaceCard from "@/components/common/PlaceCard.vue";
 import { getPlaces } from "@/api/places";
 import type { PlacePage } from "@/api/places";
@@ -119,12 +119,10 @@ const pageNumbers = computed(() => {
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 });
 
-const isDetailOpen = ref(false);
 const selectedPlaceId = ref<string | null>(null);
 
 function openDetail(place: Place) {
   selectedPlaceId.value = place.id;
-  isDetailOpen.value = true;
 }
 
 onMounted(() => {
@@ -383,26 +381,7 @@ onUnmounted(() => {
       </section>
     </div>
 
-    <!-- 상세 모달 -->
-    <div
-      v-if="isDetailOpen"
-      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      @click="isDetailOpen = false"
-    >
-      <div
-        class="place-detail-modal bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative p-6 flex flex-col"
-        @click.stop
-      >
-        <button
-          @click="isDetailOpen = false"
-          class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 font-bold text-lg"
-        >
-          ✕
-        </button>
-
-        <PlaceDetailContent :id="selectedPlaceId" />
-      </div>
-    </div>
+    <PlaceDetailModal :place-id="selectedPlaceId" @close="selectedPlaceId = null" />
   </div>
 </template>
 

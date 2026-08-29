@@ -32,7 +32,7 @@ import type { MyPost } from "@/types/community";
 import type { ReportItem } from "@/types/chat";
 import type { Place } from "@/types/place";
 import type { MyCourse, User as UserType } from "@/types/user";
-import PlaceDetailContent from "@/views/place/PlaceDetailContents.vue";
+import PlaceDetailModal from "@/components/place/PlaceDetailModal.vue";
 import SilentImage from "@/components/common/SilentImage.vue";
 import dreamCharacterImg from "@/assets/characters/dream/dream_family_02.png";
 import { useKakaoMap } from "@/composables/useKakaoMap";
@@ -1526,38 +1526,11 @@ function formatDate(dateStr: string): string {
       </div>
     </div>
 
+    <!-- 장소 상세 모달 -->
+    <PlaceDetailModal :place-id="selectedPlaceId" @close="selectedPlaceId = null" />
+
     <!-- ─── 모달들 ─── -->
     <Teleport to="body">
-      <!-- 장소 상세 모달 -->
-      <div
-        v-if="selectedPlaceId"
-        class="fixed inset-0 flex items-center justify-center z-50 bg-black/50 backdrop-blur-sm"
-        @click="selectedPlaceId = null"
-      >
-        <div
-          class="bg-white rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl relative p-6 flex flex-col"
-          style="max-height: 85vh"
-          @click.stop
-        >
-          <div
-            class="flex items-center justify-between pb-3 mb-4 border-b border-gray-100"
-          >
-            <h3 class="text-base font-bold text-gray-800">장소 상세 정보</h3>
-            <button
-              @click="selectedPlaceId = null"
-              class="text-gray-400 hover:text-gray-600 text-lg font-bold cursor-pointer transition-colors"
-            >
-              ✕
-            </button>
-          </div>
-          <div
-            class="overflow-y-auto pr-1"
-            style="max-height: calc(85vh - 80px)"
-          >
-            <PlaceDetailContent :id="selectedPlaceId" />
-          </div>
-        </div>
-      </div>
       <!-- 레벨업 축하 모달 -->
       <Transition name="levelup">
         <div
