@@ -16,6 +16,11 @@ import { useKakaoMap } from "@/composables/useKakaoMap";
 
 const props = defineProps<{
   id?: string | null;
+  hideMap?: boolean;
+}>();
+
+const emit = defineEmits<{
+  loaded: [{ lat: number; lng: number; name: string }];
 }>();
 
 const EMPTY_PLACE = {
@@ -105,6 +110,7 @@ function openKakaoMap() {
 }
 
 async function renderPlaceMap() {
+  if (props.hideMap) return;
   await nextTick();
   if (!placeMapRef.value || !hasPlaceCoords()) return;
 
@@ -132,6 +138,13 @@ watch(
     try {
       const data = await getPlaceById(id);
       applyPlace(data);
+      if (hasPlaceCoords()) {
+        emit("loaded", {
+          lat: place.value.lat as number,
+          lng: place.value.lng as number,
+          name: place.value.name,
+        });
+      }
     } catch (e) {
       console.error("장소 상세 로딩 실패:", e);
     } finally {
@@ -219,6 +232,7 @@ function toggleLike() {
         </div>
 
         <div
+          v-if="!hideMap"
           class="place-detail-media__map rounded-2xl overflow-hidden"
           style="border: 1.5px solid rgba(178, 228, 220, 0.35)"
         >
