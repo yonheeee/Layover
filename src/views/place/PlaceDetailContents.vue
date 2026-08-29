@@ -203,22 +203,41 @@ function toggleLike() {
       <!-- 구분선 -->
       <hr style="border-color: rgba(178, 228, 220, 0.4); margin-bottom: 16px" />
 
-      <!-- 이미지 -->
-      <div
-        class="rounded-2xl overflow-hidden mb-4"
-        style="border: 1.5px solid rgba(178, 228, 220, 0.35)"
-      >
-        <img
-          v-if="place.image"
-          :src="place.image"
-          class="w-full h-full object-cover"
-          style="max-height: 400px; width: 100%; object-fit: contain"
-        />
-        <div v-else class="flex flex-col items-center gap-2 py-10">
-          <ImageIcon :size="40" color="#B2E4DC" />
-          <p style="font-size: 0.82rem; color: #9ca3af; font-weight: 500">
-            사진 준비 중입니다
-          </p>
+      <!-- 이미지 + 지도 -->
+      <div class="place-detail-media mb-4">
+        <div
+          class="place-detail-media__photo rounded-2xl overflow-hidden"
+          style="border: 1.5px solid rgba(178, 228, 220, 0.35)"
+        >
+          <img v-if="place.image" :src="place.image" />
+          <div v-else class="flex flex-col items-center gap-2 py-10">
+            <ImageIcon :size="40" color="#B2E4DC" />
+            <p style="font-size: 0.82rem; color: #9ca3af; font-weight: 500">
+              사진 준비 중입니다
+            </p>
+          </div>
+        </div>
+
+        <div
+          class="place-detail-media__map rounded-2xl overflow-hidden"
+          style="border: 1.5px solid rgba(178, 228, 220, 0.35)"
+        >
+          <div style="background: #f0faf8; position: relative">
+            <div
+              v-if="hasPlaceCoords()"
+              ref="placeMapRef"
+              style="width: 100%; height: 100%"
+            />
+            <div
+              v-else
+              class="h-full flex flex-col items-center justify-center text-center"
+            >
+              <MapPin :size="36" color="#3db89e" />
+              <p style="font-size: 0.85rem; color: #6b8c87; margin-top: 8px">
+                위치 정보가 없습니다.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -276,29 +295,6 @@ function toggleLike() {
         </p>
       </div>
 
-      <!-- 카카오 지도 -->
-      <div
-        class="rounded-2xl overflow-hidden mb-4"
-        style="border: 1.5px solid rgba(178, 228, 220, 0.35)"
-      >
-        <div style="height: 220px; background: #f0faf8; position: relative">
-          <div
-            v-if="hasPlaceCoords()"
-            ref="placeMapRef"
-            style="width: 100%; height: 100%"
-          />
-          <div
-            v-else
-            class="h-full flex flex-col items-center justify-center text-center"
-          >
-            <MapPin :size="36" color="#3db89e" />
-            <p style="font-size: 0.85rem; color: #6b8c87; margin-top: 8px">
-              위치 정보가 없습니다.
-            </p>
-          </div>
-        </div>
-      </div>
-
       <!-- 상세주소 -->
       <div class="flex items-center gap-3">
         <MapPin :size="15" color="#B2E4DC" class="flex-shrink-0" />
@@ -311,6 +307,41 @@ function toggleLike() {
 </template>
 
 <style scoped>
+.place-detail-media {
+  display: grid;
+  gap: 12px;
+}
+
+/* 인라인 style 이 있으면 미디어쿼리로 덮어쓸 수 없어서, 기존 인라인값을
+   여기(모바일 기본값)로 옮기고 768px 이상에서만 오버라이드한다. */
+.place-detail-media__photo img {
+  display: block;
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+}
+
+.place-detail-media__map > div {
+  height: 220px;
+}
+
+@media (min-width: 768px) {
+  .place-detail-media {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .place-detail-media__photo img {
+    height: 260px;
+    max-height: none;
+    object-fit: cover;
+  }
+
+  .place-detail-media__map > div {
+    height: 260px;
+  }
+}
+
 .kakao-map-link {
   display: inline-flex;
   align-items: center;
