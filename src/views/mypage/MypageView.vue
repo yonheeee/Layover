@@ -10,8 +10,17 @@ import {
   fetchUser,
   fetchUserActivity,
   updateProfileImage,
+  updateProfileInfo,
   uploadProfileImage,
 } from "@/api/user";
+import {
+  formatBirthDisplay,
+  formatPhone,
+  isoToDigits,
+  isValidPhoneDigits,
+  stripPhoneHyphen,
+  toIsoDate,
+} from "@/utils/format";
 import { getMyReports } from "@/api/reports";
 import { getMyStamps, type MyStamp } from "@/api/stamps";
 import { placeEmoji } from "@/utils/placeEmoji";
@@ -128,7 +137,6 @@ onMounted(async () => {
     const fetchedUser = results[0].value;
     user.value = fetchedUser;
     editName.value = fetchedUser.username;
-    editPhone.value = fetchedUser.phone ?? "";
   }
   if (results[1].status === "fulfilled") {
     myCourses.value = results[1].value.myCourses;
@@ -200,20 +208,67 @@ async function saveInfo() {
   }
 }
 
-const editPhone = ref("");
-const savingPhone = ref(false);
+// ─── 연락처/생년월일 수정 ───
+const isProfileInfoEditing = ref(false);
+const profileInfoCurrentPw = ref("");
+const showProfileInfoPw = ref(false);
+const profileInfoPhoneDigits = ref("");
+const profileInfoBirthDigits = ref("");
+const profileInfoPhoneError = ref("");
+const profileInfoBirthError = ref("");
+const savingProfileInfo = ref(false);
 
-async function savePhone() {
-  savingPhone.value = true;
+function openProfileInfoEdit() {
+  profileInfoCurrentPw.value = "";
+  profileInfoPhoneDigits.value = stripPhoneHyphen(user.value.phone ?? "");
+  profileInfoBirthDigits.value = isoToDigits(user.value.birthDate);
+  profileInfoPhoneError.value = "";
+  profileInfoBirthError.value = "";
+  isProfileInfoEditing.value = true;
+}
+
+function closeProfileInfoEdit() {
+  isProfileInfoEditing.value = false;
+}
+
+function onProfileInfoPhoneInput(e: Event) {
+  const target = e.target as HTMLInputElement;
+  profileInfoPhoneDigits.value = target.value.replace(/\D/g, "").slice(0, 11);
+}
+
+function onProfileInfoBirthInput(e: Event) {
+  const target = e.target as HTMLInputElement;
+  profileInfoBirthDigits.value = target.value.replace(/\D/g, "").slice(0, 8);
+}
+
+async function saveProfileInfo() {
+  profileInfoPhoneError.value = "";
+  profileInfoBirthError.value = "";
+
+  const phoneDigits = stripPhoneHyphen(formatPhone(profileInfoPhoneDigits.value));
+  if (!isValidPhoneDigits(phoneDigits)) {
+    profileInfoPhoneError.value = "전화번호 형식이 올바르지 않습니다.";
+    return;
+  }
+
+  const iso = toIsoDate(profileInfoBirthDigits.value);
+  if (!iso) {
+    profileInfoBirthError.value = "올바른 날짜가 아닙니다.";
+    return;
+  }
+
+  savingProfileInfo.value = true;
   try {
-    await httpPut("/api/user/me/phone", { phone: editPhone.value });
-    user.value.phone = editPhone.value;
-    toast.success("전화번호가 변경되었습니다.");
+    await updateProfileInfo(user.value.kakao ? null : profileInfoCurrentPw.value, phoneDigits, iso);
+    user.value.phone = phoneDigits;
+    user.value.birthDate = iso;
+    isProfileInfoEditing.value = false;
+    toast.success("정보가 수정되었습니다.");
   } catch (e: any) {
-    const msg = e?.response?.data?.message ?? "전화번호 변경에 실패했습니다.";
+    const msg = e?.response?.data?.message ?? "정보 수정에 실패했습니다.";
     toast.error(msg);
   } finally {
-    savingPhone.value = false;
+    savingProfileInfo.value = false;
   }
 }
 
@@ -1187,8 +1242,116 @@ function formatDate(dateStr: string): string {
                     :style="infoBoxBase"
                     style="background: #f3f4f6; color: #9ca3af; cursor: not-allowed;"
                   >
-                    <span>{{ user.phone ?? '-' }}</span>
+                    <span>{{ user.phone ? formatPhone(user.phone) : '-' }}</span>
                   </div>
+                </div>
+
+                <!-- 생년월일 -->
+                <div class="flex flex-col gap-1.5">
+                  <span :style="labelBase">생년월일</span>
+                  <div
+                    :style="infoBoxBase"
+                    style="background: #f3f4f6; color: #9ca3af; cursor: not-allowed;"
+                  >
+                    <span>{{ user.birthDate ? formatBirthDisplay(isoToDigits(user.birthDate)) : '-' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 연락처/생년월일 수정 -->
+              <div v-if="!isProfileInfoEditing" class="flex">
+                <button
+                  @click="openProfileInfoEdit"
+                  class="px-5 py-2.5 rounded-[4px] border border-teal-500 text-teal-600 font-bold text-sm hover:bg-teal-50 transition-colors"
+                >
+                  정보 수정
+                </button>
+              </div>
+              <div v-else class="flex flex-col gap-3 max-w-md">
+                <!-- 현재 비밀번호 (카카오 계정은 숨김) -->
+                <div v-if="!user.kakao" class="relative">
+                  <input
+                    :type="showProfileInfoPw ? 'text' : 'password'"
+                    v-model="profileInfoCurrentPw"
+                    :style="inputBase"
+                    style="border-radius: 4px"
+                    placeholder="현재 비밀번호"
+                  />
+                  <button
+                    type="button"
+                    @click="showProfileInfoPw = !showProfileInfoPw"
+                    class="absolute right-3 top-3.5 text-gray-400"
+                  >
+                    <Eye v-if="showProfileInfoPw" :size="16" /><EyeOff
+                      v-else
+                      :size="16"
+                    />
+                  </button>
+                </div>
+                <p v-else class="text-xs text-gray-400 font-semibold pl-1">
+                  소셜 로그인 계정은 비밀번호 확인 없이 수정됩니다.
+                </p>
+
+                <!-- 전화번호 -->
+                <input
+                  :value="formatPhone(profileInfoPhoneDigits)"
+                  @input="onProfileInfoPhoneInput"
+                  :style="[
+                    inputBase,
+                    {
+                      borderColor: profileInfoPhoneError ? '#ef4444' : 'rgba(178,228,220,0.5)',
+                      borderRadius: '4px',
+                    },
+                  ]"
+                  placeholder="010-1234-5678"
+                  maxlength="13"
+                  inputmode="numeric"
+                />
+                <p
+                  v-if="profileInfoPhoneError"
+                  class="text-xs text-red-500 pl-1 font-semibold"
+                >
+                  {{ profileInfoPhoneError }}
+                </p>
+
+                <!-- 생년월일 -->
+                <input
+                  :value="formatBirthDisplay(profileInfoBirthDigits)"
+                  @input="onProfileInfoBirthInput"
+                  :style="[
+                    inputBase,
+                    {
+                      borderColor: profileInfoBirthError ? '#ef4444' : 'rgba(178,228,220,0.5)',
+                      borderRadius: '4px',
+                    },
+                  ]"
+                  placeholder="1996년 03월 21일"
+                  maxlength="14"
+                  inputmode="numeric"
+                />
+                <p
+                  v-if="profileInfoBirthError"
+                  class="text-xs text-red-500 pl-1 font-semibold"
+                >
+                  {{ profileInfoBirthError }}
+                </p>
+
+                <div class="flex gap-2 justify-end mt-2">
+                  <button
+                    type="button"
+                    @click="closeProfileInfoEdit"
+                    class="px-4 py-2 rounded-[4px] text-gray-400 font-bold text-sm hover:bg-gray-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    @click="saveProfileInfo"
+                    :disabled="savingProfileInfo"
+                    class="px-5 py-2 rounded-[4px] bg-teal-600 text-white font-bold text-sm hover:bg-teal-700 transition-colors disabled:opacity-50"
+                  >
+                    {{ savingProfileInfo ? "저장 중..." : "저장" }}
+                  </button>
                 </div>
               </div>
             </div>

@@ -4,25 +4,56 @@ import { User, Calendar, Phone, Train } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import { updateKakaoProfile } from "@/api/auth";
 import { useAuthStore } from "@/stores/auth";
+import {
+  formatBirthDisplay,
+  formatPhone,
+  isValidPhoneDigits,
+  stripPhoneHyphen,
+  toIsoDate,
+} from "@/utils/format";
 
 const router = useRouter();
 const auth = useAuthStore();
 
 const name = ref("");
-const birthDate = ref("");
-const phone = ref("");
+const birthDigits = ref("");
+const phoneDigits = ref("");
 const errorMsg = ref("");
 const isSubmitting = ref(false);
 
+function onBirthInput(e: Event) {
+  const target = e.target as HTMLInputElement;
+  birthDigits.value = target.value.replace(/\D/g, "").slice(0, 8);
+}
+
+function onPhoneInput(e: Event) {
+  const target = e.target as HTMLInputElement;
+  phoneDigits.value = target.value.replace(/\D/g, "").slice(0, 11);
+}
+
 const handleSave = async () => {
-  if (!name.value || !birthDate.value || !phone.value) {
-    errorMsg.value = "모든 항목을 입력해주세요.";
+  errorMsg.value = "";
+
+  if (!name.value.trim()) {
+    errorMsg.value = "이름을 입력해주세요.";
     return;
   }
-  errorMsg.value = "";
+
+  const iso = toIsoDate(birthDigits.value);
+  if (!iso) {
+    errorMsg.value = "올바른 생년월일을 입력해주세요.";
+    return;
+  }
+
+  const phone = stripPhoneHyphen(formatPhone(phoneDigits.value));
+  if (!isValidPhoneDigits(phone)) {
+    errorMsg.value = "올바른 전화번호를 입력해주세요.";
+    return;
+  }
+
   isSubmitting.value = true;
   try {
-    const res = await updateKakaoProfile(name.value, birthDate.value, phone.value);
+    const res = await updateKakaoProfile(name.value.trim(), iso, phone);
     if (!res.success) throw new Error(res.message);
     auth.markProfileComplete();
     router.replace("/");
@@ -116,8 +147,12 @@ const handleUseAnotherAccount = () => {
               style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%)"
             />
             <input
-              v-model="birthDate"
-              type="date"
+              :value="formatBirthDisplay(birthDigits)"
+              @input="onBirthInput"
+              type="text"
+              inputmode="numeric"
+              maxlength="14"
+              placeholder="1996년 03월 21일"
               style="
                 width: 100%;
                 padding: 12px 16px 12px 40px;
@@ -146,9 +181,12 @@ const handleUseAnotherAccount = () => {
               style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%)"
             />
             <input
-              v-model="phone"
-              type="tel"
-              placeholder="010-0000-0000"
+              :value="formatPhone(phoneDigits)"
+              @input="onPhoneInput"
+              type="text"
+              inputmode="numeric"
+              maxlength="13"
+              placeholder="010-1234-5678"
               style="
                 width: 100%;
                 padding: 12px 16px 12px 40px;
