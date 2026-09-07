@@ -32,3 +32,15 @@ export async function updateProfileImage(profileImage: string | null): Promise<v
   }
 }
 
+/**
+ * 실패(예: 비밀번호 불일치)는 400 으로 오므로 httpPut 이 axios 에러를 던진다.
+ * 호출부에서 e.response.data.message 를 그대로 보여주면 된다.
+ */
+export async function updateProfileInfo(
+  currentPassword: string | null,
+  phone: string,
+  birthDate: string,
+): Promise<void> {
+  await httpPut<null>("/api/user/me/profile-info", { currentPassword, phone, birthDate });
+}
+

@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { jwtDecode } from "jwt-decode";
 import type { User } from "@/types/user";
 import { login as loginApi, getKakaoAuthUrl } from "@/api/auth";
+import { fetchUser } from "@/api/user";
 import { useBookmarkStore } from "./bookmark";
 import { useCourseStore } from "./course";
 import { useStampStore } from "./stamp";
@@ -13,6 +14,10 @@ export const useAuthStore = defineStore("auth", () => {
   const refreshToken = ref<string | null>(localStorage.getItem("refreshToken"));
   const user = ref<User | null>(null);
   const isLoggedIn = computed(() => !!accessToken.value);
+
+  // null = 아직 서버에 확인하지 않음, true/false = 서버에서 받아온 값
+  const profileComplete = ref<boolean | null>(null);
+  let profileCheckPromise: Promise<void> | null = null;
 
   const userId = computed<string | null>(() => {
     if (!accessToken.value) return null;
@@ -52,10 +57,42 @@ export const useAuthStore = defineStore("auth", () => {
     accessToken.value = null;
     refreshToken.value = null;
     user.value = null;
+    profileComplete.value = null;
     clearUserScopedStorage();
     useBookmarkStore().$reset();
     useCourseStore().reset();
     useStampStore().clearActiveCourse();
+  }
+
+  /**
+   * profileComplete 를 서버에서 받아와 캐시한다.
+   *
+   * 라우터 가드가 매 이동마다 호출하므로, 이미 값을 알고 있거나(null 이 아님)
+   * 이미 요청이 진행 중이면 새로 요청하지 않는다. 실패 시에는 profileComplete 를
+   * 건드리지 않고 그냥 반환한다 — 네트워크 오류로 사용자를 프로필 화면에
+   * 가둬서는 안 되기 때문이다.
+   */
+  async function ensureProfileState(): Promise<void> {
+    if (!isLoggedIn.value) return;
+    if (profileComplete.value !== null) return;
+    if (profileCheckPromise) return profileCheckPromise;
+
+    profileCheckPromise = (async () => {
+      try {
+        const fetchedUser = await fetchUser();
+        profileComplete.value = fetchedUser.profileComplete;
+      } catch {
+        // 네트워크 오류: profileComplete 를 건드리지 않고 통과시킨다.
+      } finally {
+        profileCheckPromise = null;
+      }
+    })();
+
+    return profileCheckPromise;
+  }
+
+  function markProfileComplete() {
+    profileComplete.value = true;
   }
 
   async function kakaoLogin(): Promise<void> {
@@ -68,6 +105,7 @@ export const useAuthStore = defineStore("auth", () => {
     token: string,
     refresh: string,
   ): Promise<void> {
+    profileComplete.value = null; // 계정이 바뀌므로 이전 캐시를 버린다
     accessToken.value = token;
     refreshToken.value = refresh;
     localStorage.setItem("accessToken", token);
@@ -82,9 +120,12 @@ export const useAuthStore = defineStore("auth", () => {
     isLoggedIn,
     userId,
     nickname,
+    profileComplete,
     login,
     logout,
     kakaoLogin,
     handleKakaoCallback,
+    ensureProfileState,
+    markProfileComplete,
   };
 });

@@ -14,13 +14,20 @@ import {
 } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 import { checkEmail, sendEmailCode, verifyEmailCode, signup } from "@/api/auth";
+import {
+  formatBirthDisplay,
+  formatPhone,
+  isValidPhoneDigits,
+  stripPhoneHyphen,
+  toIsoDate,
+} from "@/utils/format";
 
 const router = useRouter();
 
 const signupName = ref("");
 const signupEmail = ref("");
-const signupBirthDate = ref("");
-const signupPhone = ref("");
+const signupBirthDigits = ref("");
+const signupPhoneDigits = ref("");
 const emailCode = ref("");
 const emailCodeSent = ref(false);
 const emailCodeVerified = ref(false);
@@ -71,6 +78,16 @@ const showPwError = computed(
 );
 
 const canCheckDuplication = computed(() => isEmailValid.value);
+
+function onBirthInput(e: Event) {
+  const target = e.target as HTMLInputElement;
+  signupBirthDigits.value = target.value.replace(/\D/g, "").slice(0, 8);
+}
+
+function onPhoneInput(e: Event) {
+  const target = e.target as HTMLInputElement;
+  signupPhoneDigits.value = target.value.replace(/\D/g, "").slice(0, 11);
+}
 
 const handleEmailCheck = async () => {
   emailCheckError.value = "";
@@ -148,12 +165,14 @@ const handleSignup = async () => {
     signupError.value = "이름을 입력해주세요.";
     return;
   }
-  if (!signupBirthDate.value) {
-    signupError.value = "생년월일을 입력해주세요.";
+  const isoBirthDate = toIsoDate(signupBirthDigits.value);
+  if (!isoBirthDate) {
+    signupError.value = "올바른 생년월일을 입력해주세요.";
     return;
   }
-  if (!signupPhone.value) {
-    signupError.value = "핸드폰번호를 입력해주세요.";
+  const phone = stripPhoneHyphen(formatPhone(signupPhoneDigits.value));
+  if (!isValidPhoneDigits(phone)) {
+    signupError.value = "올바른 핸드폰번호를 입력해주세요.";
     return;
   }
   if (
@@ -179,8 +198,8 @@ const handleSignup = async () => {
       signupEmail.value,
       signupPw.value,
       signupName.value,
-      signupBirthDate.value,
-      signupPhone.value,
+      isoBirthDate,
+      phone,
     );
     if (res.success) {
       router.push("/login");
@@ -273,8 +292,12 @@ const btnOutlineStyle =
               "
             />
             <input
-              v-model="signupBirthDate"
-              type="date"
+              :value="formatBirthDisplay(signupBirthDigits)"
+              @input="onBirthInput"
+              type="text"
+              inputmode="numeric"
+              maxlength="14"
+              placeholder="1996년 03월 21일"
               :style="`${inputStyle}padding-left:40px; border:1.5px solid rgba(178,228,220,0.5);`"
             />
           </div>
@@ -295,10 +318,13 @@ const btnOutlineStyle =
               "
             />
             <input
-              v-model="signupPhone"
-              type="tel"
+              :value="formatPhone(signupPhoneDigits)"
+              @input="onPhoneInput"
+              type="text"
+              inputmode="numeric"
+              maxlength="13"
               :style="`${inputStyle}padding-left:40px; border:1.5px solid rgba(178,228,220,0.5);`"
-              placeholder="01012345678"
+              placeholder="010-1234-5678"
             />
           </div>
         </div>

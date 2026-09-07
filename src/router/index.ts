@@ -1,4 +1,5 @@
 import { useCourseStore } from "@/stores/course";
+import { useAuthStore } from "@/stores/auth";
 import { createRouter, createWebHistory } from "vue-router";
 
 const router = createRouter({
@@ -80,12 +81,33 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach((to, _from, next) => {
-  if (to.meta.requiresAuth && !localStorage.getItem("accessToken")) {
+router.beforeEach(async (to, _from, next) => {
+  const token = localStorage.getItem("accessToken");
+
+  if (to.meta.requiresAuth && !token) {
     next({ path: "/login", query: { redirect: to.fullPath } });
-  } else {
-    next();
+    return;
   }
+
+  if (token && to.path !== "/kakao-profile" && to.path !== "/login") {
+    const auth = useAuthStore();
+    await auth.ensureProfileState();
+    if (auth.profileComplete === false) {
+      next("/kakao-profile");
+      return;
+    }
+  }
+
+  if (token && to.path === "/kakao-profile") {
+    const auth = useAuthStore();
+    await auth.ensureProfileState();
+    if (auth.profileComplete === true) {
+      next("/");
+      return;
+    }
+  }
+
+  next();
 });
 
 export default router;
